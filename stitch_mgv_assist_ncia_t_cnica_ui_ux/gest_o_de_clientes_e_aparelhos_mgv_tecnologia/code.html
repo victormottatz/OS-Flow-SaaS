@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Clientes &amp; Aparelhos | MGV Tecnologia</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">tailwind.config = {darkMode: "class", theme: {extend: {colors: {"surface-white": "#FFFFFF", "on-primary": "#ffffff", "status-warning": "#F59E0B", "primary-fixed-dim": "#c9c6c5", tertiary: "#000001", "status-error": "#EF4444", error: "#ba1a1a", "tertiary-fixed-dim": "#c6c6c7", "status-success": "#10B981", "secondary-container": "#fdc003", "on-tertiary": "#ffffff", outline: "#7d7577", "on-primary-container": "#868383", "on-secondary": "#ffffff", "primary-container": "#1c1b1b", secondary: "#785900", "on-primary-fixed-variant": "#484646", "on-surface": "#1b1b1c", "surface-bright": "#fcf9f8", "secondary-fixed": "#ffdf9e", "on-error": "#ffffff", "outline-variant": "#cfc4c6", "surface-container": "#f0eded", "on-tertiary-container": "#838485", "inverse-primary": "#c9c6c5", primary: "#000000", "surface-container-low": "#f6f3f3", "on-primary-fixed": "#1c1b1b", "on-secondary-container": "#6c5000", background: "#fcf9f8", "on-tertiary-fixed": "#1a1c1d", "surface-variant": "#e5e2e2", "on-error-container": "#93000a", "error-container": "#ffdad6", "surface-container-high": "#eae7e7", "primary-fixed": "#e6e1e1", "status-info": "#3B82F6", "on-secondary-fixed-variant": "#5b4300", "on-secondary-fixed": "#261a00", "surface-container-lowest": "#ffffff", "surface-dim": "#dcd9d9", "on-background": "#1b1b1c", "tertiary-fixed": "#e2e2e3", "on-tertiary-fixed-variant": "#454748", surface: "#fcf9f8", "surface-container-highest": "#e5e2e2", "inverse-on-surface": "#f3f0f0", "surface-tint": "#605e5e", "secondary-fixed-dim": "#fabd00", "on-surface-variant": "#4c4547", "inverse-surface": "#313031", "tertiary-container": "#1a1c1d"}, borderRadius: {DEFAULT: "0.5rem", lg: "1rem", xl: "1.5rem", full: "9999px"}, spacing: {unit: "4px", gutter: "16px", "margin-mobile": "16px", "sidebar-width": "260px", "max-content-width": "1440px", "margin-desktop": "32px"}, fontFamily: {"label-md": ["Inter"], "headline-lg": ["Inter"], "body-lg": ["Inter"], "title-lg": ["Inter"], "headline-md": ["Inter"], "data-tabular": ["Inter"], "headline-sm": ["Inter"], "label-sm": ["Inter"], "body-md": ["Inter"], headline: ["Inter"], display: ["Inter"], body: ["Inter"], label: ["Inter"]}, fontSize: {"label-md": ["12px", {lineHeight: "16px", letterSpacing: "0.05em", fontWeight: "600"}], "headline-lg": ["32px", {lineHeight: "40px", letterSpacing: "-0.02em", fontWeight: "700"}], "body-lg": ["16px", {lineHeight: "24px", fontWeight: "400"}], "title-lg": ["18px", {lineHeight: "24px", fontWeight: "600"}], "headline-md": ["24px", {lineHeight: "32px", letterSpacing: "-0.01em", fontWeight: "600"}], "data-tabular": ["13px", {lineHeight: "18px", fontWeight: "400"}], "headline-sm": ["20px", {lineHeight: "28px", fontWeight: "600"}], "label-sm": ["11px", {lineHeight: "14px", fontWeight: "500"}], "body-md": ["14px", {lineHeight: "20px", fontWeight: "400"}]}}}};</script>
+<style>
+        body { font-family: 'Inter', sans-serif; background-color: #fcf9f8; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .sidebar-active { border-left: 4px solid #fdc003; background-color: #484646; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f0eded; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cfc4c6; border-radius: 10px; }
+        .data-table-row:hover { background-color: #f9f9f9; }
+        .drawer-transition { transition: transform 0.3s ease-in-out; }
+    </style>
+</head>
+<body class="text-on-background">
+<!-- Sidebar Navigation (SideNavBar JSON Anchor) -->
+<aside class="flex flex-col w-sidebar-width h-screen fixed left-0 top-0 z-50 py-6 bg-primary-container text-on-primary">
+<div class="px-6 mb-10">
+<h1 class="font-headline-sm text-headline-sm font-bold text-on-primary">MGV Tecnologia</h1>
+<p class="font-label-sm text-label-sm text-on-primary-container uppercase tracking-wider">Technical Management</p>
+</div>
+<nav class="flex-grow space-y-1">
+<a class="flex items-center gap-3 px-6 py-3 text-on-primary-container hover:text-on-primary hover:bg-on-primary-fixed-variant transition-all duration-200" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-6 py-3 text-on-primary border-l-4 border-secondary-container bg-on-primary-fixed-variant transition-all duration-200" href="#">
+<span class="material-symbols-outlined">group</span>
+<span class="font-label-md text-label-md">Clients</span>
+</a>
+<a class="flex items-center gap-3 px-6 py-3 text-on-primary-container hover:text-on-primary hover:bg-on-primary-fixed-variant transition-all duration-200" href="#">
+<span class="material-symbols-outlined">handyman</span>
+<span class="font-label-md text-label-md">Service Orders</span>
+</a>
+<a class="flex items-center gap-3 px-6 py-3 text-on-primary-container hover:text-on-primary hover:bg-on-primary-fixed-variant transition-all duration-200" href="#">
+<span class="material-symbols-outlined">payments</span>
+<span class="font-label-md text-label-md">Billing</span>
+</a>
+<a class="flex items-center gap-3 px-6 py-3 text-on-primary-container hover:text-on-primary hover:bg-on-primary-fixed-variant transition-all duration-200" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span class="font-label-md text-label-md">Reports</span>
+</a>
+</nav>
+<div class="px-6 mt-auto space-y-4">
+<button class="w-full flex items-center justify-center gap-2 bg-secondary-container text-on-secondary-container py-3 font-label-md text-label-md rounded-lg active:scale-95 transition-transform">
+<span class="material-symbols-outlined">add</span>
+<span>New Service Order</span>
+</button>
+<div class="pt-6 border-t border-on-primary-fixed-variant space-y-1">
+<a class="flex items-center gap-3 py-2 text-on-primary-container hover:text-on-primary transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]">help</span>
+<span class="font-label-md text-label-md">Support</span>
+</a>
+<a class="flex items-center gap-3 py-2 text-on-primary-container hover:text-on-primary transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]">logout</span>
+<span class="font-label-md text-label-md">Sign Out</span>
+</a>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-sidebar-width min-h-screen">
+<!-- TopAppBar (TopNavBar JSON Anchor) -->
+<header class="flex justify-between items-center px-margin-desktop h-16 w-full bg-surface-white border-b border-outline-variant sticky top-0 z-40">
+<div class="flex items-center gap-4 flex-grow max-w-xl">
+<div class="relative w-full">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+<input class="w-full pl-10 pr-4 py-2 bg-surface-container-low border-none rounded-lg font-body-md text-body-md focus:ring-2 focus:ring-secondary-container" placeholder="Search clients, documents or serial numbers..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex gap-4 text-on-surface-variant">
+<button class="p-2 hover:bg-surface-container rounded-full transition-colors relative">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-status-error rounded-full"></span>
+</button>
+<button class="p-2 hover:bg-surface-container rounded-full transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</div>
+<div class="flex items-center gap-3 pl-6 border-l border-outline-variant">
+<div class="text-right">
+<p class="font-label-md text-label-md text-on-surface">Operador Alpha</p>
+<p class="text-[10px] text-on-surface-variant uppercase font-bold">Admin</p>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-container-highest overflow-hidden border border-outline-variant">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a technical system operator in a modern industrial setting, clean studio lighting, high-end commercial aesthetic, neutral grey background, representing efficiency and authority." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCQROG_Ghbcth-JeqBzkYwOtYZGJicvnaaL1t-xRj4Nco1iOVqhv7ts1nJ33YG0UiRQp1LK2VHlP2TxZjc1W8RdLDcHgF3_HjU4uFIDHL5qc8Siso9dFFay6e-nQZMrvo6H6SOBqFubE6IfYDDIlbfop4OLr3u-nK3nlTJYu5YaqSs_fPO2uCGQ13Vxg5ymS-tlVwpfPepQ7q400-3IdKh6PBdU68R-BijSN95Jq57S1YbFYSdw5Qad0_9HuFbGsSjKbAU-0yhgtO7Q"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Content Canvas -->
+<section class="p-margin-desktop space-y-8">
+<!-- Welcome & Primary Action -->
+<div class="flex justify-between items-end">
+<div>
+<h2 class="font-headline-lg text-headline-lg text-primary">Clientes &amp; Aparelhos</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">Gerencie a carteira de clientes e seu respectivo parque tecnológico.</p>
+</div>
+<button class="flex items-center gap-2 bg-primary text-on-primary px-6 py-3 rounded-lg font-label-md text-label-md shadow-sm hover:opacity-90 transition-opacity" onclick="toggleModal('clientModal')">
+<span class="material-symbols-outlined">person_add</span>
+<span>Novo Cliente</span>
+</button>
+</div>
+<!-- Dashboard Stats Summary (Bento Style) -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+<div class="bg-surface-white p-5 border border-outline-variant rounded-xl flex items-center gap-4 shadow-sm">
+<div class="bg-surface-container-highest p-3 rounded-lg text-primary">
+<span class="material-symbols-outlined text-3xl">corporate_fare</span>
+</div>
+<div>
+<p class="font-label-sm text-label-sm text-on-surface-variant uppercase">Total Clientes</p>
+<h4 class="font-headline-sm text-headline-sm">1,248</h4>
+</div>
+</div>
+<div class="bg-surface-white p-5 border border-outline-variant rounded-xl flex items-center gap-4 shadow-sm">
+<div class="bg-surface-container-highest p-3 rounded-lg text-secondary">
+<span class="material-symbols-outlined text-3xl">precision_manufacturing</span>
+</div>
+<div>
+<p class="font-label-sm text-label-sm text-on-surface-variant uppercase">Equipamentos</p>
+<h4 class="font-headline-sm text-headline-sm">5,892</h4>
+</div>
+</div>
+<div class="bg-surface-white p-5 border border-outline-variant rounded-xl flex items-center gap-4 shadow-sm">
+<div class="bg-surface-container-highest p-3 rounded-lg text-status-success">
+<span class="material-symbols-outlined text-3xl">check_circle</span>
+</div>
+<div>
+<p class="font-label-sm text-label-sm text-on-surface-variant uppercase">Operacionais</p>
+<h4 class="font-headline-sm text-headline-sm">94.2%</h4>
+</div>
+</div>
+<div class="bg-surface-white p-5 border border-outline-variant rounded-xl flex items-center gap-4 shadow-sm">
+<div class="bg-surface-container-highest p-3 rounded-lg text-status-warning">
+<span class="material-symbols-outlined text-3xl">build_circle</span>
+</div>
+<div>
+<p class="font-label-sm text-label-sm text-on-surface-variant uppercase">Manutenção</p>
+<h4 class="font-headline-sm text-headline-sm">142</h4>
+</div>
+</div>
+</div>
+<!-- Client Table Container -->
+<div class="bg-surface-white border border-outline-variant rounded-xl overflow-hidden shadow-sm">
+<div class="px-6 py-4 border-b border-outline-variant flex justify-between items-center bg-surface-container-lowest">
+<h3 class="font-title-lg text-title-lg">Listagem de Clientes</h3>
+<div class="flex gap-2">
+<button class="p-2 border border-outline-variant rounded hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-[20px]">filter_list</span>
+</button>
+<button class="p-2 border border-outline-variant rounded hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-[20px]">download</span>
+</button>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead class="bg-surface-container-low text-on-surface-variant font-label-md text-label-md uppercase tracking-wider">
+<tr>
+<th class="px-6 py-4">Nome / Razão Social</th>
+<th class="px-6 py-4">Documento (CNPJ/CPF)</th>
+<th class="px-6 py-4">Contato Principal</th>
+<th class="px-6 py-4">Equipamentos</th>
+<th class="px-6 py-4 text-right">Ações</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant font-data-tabular text-data-tabular">
+<!-- Table Row 1 -->
+<tr class="data-table-row cursor-pointer transition-colors" onclick="openDetails('C-90122')">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded bg-primary-container text-on-primary flex items-center justify-center font-bold text-[12px]">IM</div>
+<div>
+<p class="font-bold text-on-surface">Indústrias Metalúrgicas S.A.</p>
+<p class="text-[11px] text-on-surface-variant">ID: C-90122</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">12.345.678/0001-90</td>
+<td class="px-6 py-4">
+<p>Ricardo Santos</p>
+<p class="text-[11px] text-on-surface-variant">(11) 98877-6655</p>
+</td>
+<td class="px-6 py-4">
+<span class="bg-surface-container-highest px-3 py-1 rounded-full font-bold">24 unidades</span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="p-1 hover:text-secondary transition-colors"><span class="material-symbols-outlined">visibility</span></button>
+<button class="p-1 hover:text-primary transition-colors"><span class="material-symbols-outlined">edit</span></button>
+</td>
+</tr>
+<!-- Table Row 2 -->
+<tr class="data-table-row cursor-pointer transition-colors" onclick="openDetails('C-88721')">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded bg-primary-container text-on-primary flex items-center justify-center font-bold text-[12px]">PC</div>
+<div>
+<p class="font-bold text-on-surface">Posto de Combustíveis Rápido</p>
+<p class="text-[11px] text-on-surface-variant">ID: C-88721</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">98.765.432/0001-21</td>
+<td class="px-6 py-4">
+<p>Ana Paula Lima</p>
+<p class="text-[11px] text-on-surface-variant">(11) 97766-5544</p>
+</td>
+<td class="px-6 py-4">
+<span class="bg-surface-container-highest px-3 py-1 rounded-full font-bold">08 unidades</span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="p-1 hover:text-secondary transition-colors"><span class="material-symbols-outlined">visibility</span></button>
+<button class="p-1 hover:text-primary transition-colors"><span class="material-symbols-outlined">edit</span></button>
+</td>
+</tr>
+<!-- Table Row 3 -->
+<tr class="data-table-row cursor-pointer transition-colors" onclick="openDetails('C-44510')">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded bg-primary-container text-on-primary flex items-center justify-center font-bold text-[12px]">HL</div>
+<div>
+<p class="font-bold text-on-surface">Hospital de Luz S.A.</p>
+<p class="text-[11px] text-on-surface-variant">ID: C-44510</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">44.555.666/0002-12</td>
+<td class="px-6 py-4">
+<p>Marcos Oliveira</p>
+<p class="text-[11px] text-on-surface-variant">(11) 94433-2211</p>
+</td>
+<td class="px-6 py-4">
+<span class="bg-surface-container-highest px-3 py-1 rounded-full font-bold">12 unidades</span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="p-1 hover:text-secondary transition-colors"><span class="material-symbols-outlined">visibility</span></button>
+<button class="p-1 hover:text-primary transition-colors"><span class="material-symbols-outlined">edit</span></button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="px-6 py-4 bg-surface-container-lowest border-t border-outline-variant flex justify-between items-center">
+<p class="font-label-sm text-label-sm text-on-surface-variant">Exibindo 3 de 1,248 clientes</p>
+<div class="flex gap-1">
+<button class="px-3 py-1 border border-outline-variant rounded disabled:opacity-50">Anterior</button>
+<button class="px-3 py-1 bg-primary text-on-primary rounded">1</button>
+<button class="px-3 py-1 border border-outline-variant rounded">2</button>
+<button class="px-3 py-1 border border-outline-variant rounded">Próximo</button>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Detailed View Drawer (Side Panel) -->
+<div class="fixed inset-y-0 right-0 w-[480px] bg-surface-white shadow-2xl z-[60] translate-x-full drawer-transition flex flex-col border-l border-outline-variant" id="detailsDrawer">
+<div class="p-6 border-b border-outline-variant flex justify-between items-start bg-surface-container-lowest">
+<div>
+<span class="bg-secondary-container text-on-secondary-container px-2 py-0.5 rounded text-[10px] font-bold uppercase mb-2 inline-block">Ficha do Cliente</span>
+<h3 class="font-headline-sm text-headline-sm" id="drawerTitle">Indústrias Metalúrgicas S.A.</h3>
+<p class="text-on-surface-variant font-label-sm" id="drawerId">ID: C-90122</p>
+</div>
+<button class="p-2 hover:bg-surface-container rounded-full transition-colors" onclick="closeDetails()">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<div class="flex-grow overflow-y-auto p-6 custom-scrollbar space-y-8">
+<!-- Registration Data -->
+<div class="space-y-4">
+<div class="flex items-center gap-2 text-primary">
+<span class="material-symbols-outlined text-[20px]">contact_page</span>
+<h4 class="font-title-lg text-title-lg">Dados Cadastrais</h4>
+</div>
+<div class="grid grid-cols-2 gap-4 bg-surface-container-low p-4 rounded-lg">
+<div>
+<p class="text-[10px] text-on-surface-variant uppercase font-bold">CNPJ</p>
+<p class="font-data-tabular">12.345.678/0001-90</p>
+</div>
+<div>
+<p class="text-[10px] text-on-surface-variant uppercase font-bold">IE</p>
+<p class="font-data-tabular">109.876.543.210</p>
+</div>
+<div class="col-span-2">
+<p class="text-[10px] text-on-surface-variant uppercase font-bold">Endereço</p>
+<p class="font-body-md">Av. Industrial, 4500 - Bloco B, Santo André - SP</p>
+</div>
+</div>
+</div>
+<!-- Equipment List (The 1:N Focus) -->
+<div class="space-y-4">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2 text-primary">
+<span class="material-symbols-outlined text-[20px]">precision_manufacturing</span>
+<h4 class="font-title-lg text-title-lg">Parque Tecnológico</h4>
+</div>
+<button class="flex items-center gap-1 text-secondary font-label-md text-label-md hover:underline" onclick="toggleModal('equipModal')">
+<span class="material-symbols-outlined text-[16px]">add_circle</span>
+                        Vincular Aparelho
+                    </button>
+</div>
+<div class="space-y-3">
+<!-- Machine Item 1 -->
+<div class="border border-outline-variant p-4 rounded-lg flex items-center justify-between hover:border-secondary transition-colors cursor-default">
+<div class="flex items-center gap-4">
+<div class="bg-surface-container-high p-2 rounded text-primary">
+<span class="material-symbols-outlined">compress</span>
+</div>
+<div>
+<p class="font-bold">Compressor de Ar Industrial 50HP</p>
+<p class="text-[11px] text-on-surface-variant">S/N: MGV-CP-778210</p>
+</div>
+</div>
+<span class="bg-status-success/10 text-status-success px-2 py-1 rounded font-label-sm text-label-sm">Ativo</span>
+</div>
+<!-- Machine Item 2 -->
+<div class="border border-outline-variant p-4 rounded-lg flex items-center justify-between hover:border-secondary transition-colors">
+<div class="flex items-center gap-4">
+<div class="bg-surface-container-high p-2 rounded text-primary">
+<span class="material-symbols-outlined">electric_meter</span>
+</div>
+<div>
+<p class="font-bold">Painel Elétrico Trifásico AT-01</p>
+<p class="text-[11px] text-on-surface-variant">S/N: MGV-PNL-44109</p>
+</div>
+</div>
+<span class="bg-status-warning/10 text-status-warning px-2 py-1 rounded font-label-sm text-label-sm">Manutenção</span>
+</div>
+<!-- Machine Item 3 -->
+<div class="border border-outline-variant p-4 rounded-lg flex items-center justify-between hover:border-secondary transition-colors">
+<div class="flex items-center gap-4">
+<div class="bg-surface-container-high p-2 rounded text-primary">
+<span class="material-symbols-outlined">bolt</span>
+</div>
+<div>
+<p class="font-bold">Gerador de Emergência 150kVA</p>
+<p class="text-[11px] text-on-surface-variant">S/N: MGV-GER-88122</p>
+</div>
+</div>
+<span class="bg-status-success/10 text-status-success px-2 py-1 rounded font-label-sm text-label-sm">Ativo</span>
+</div>
+</div>
+</div>
+</div>
+<div class="p-6 border-t border-outline-variant bg-surface-container-lowest grid grid-cols-2 gap-4">
+<button class="border border-primary text-primary py-3 rounded font-label-md text-label-md hover:bg-surface-container transition-colors">Editar Ficha</button>
+<button class="bg-secondary-container text-on-secondary-container py-3 rounded font-label-md text-label-md hover:opacity-90 active:scale-95 transition-all">Ordem de Serviço</button>
+</div>
+</div>
+<!-- Modals (Client and Equipment) -->
+<!-- New Client Modal -->
+<div class="fixed inset-0 z-[70] hidden items-center justify-center bg-primary/40 backdrop-blur-sm" id="clientModal">
+<div class="bg-surface-white w-full max-w-2xl rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+<div class="px-8 py-6 border-b border-outline-variant flex justify-between items-center bg-primary-container text-on-primary">
+<h3 class="font-headline-sm text-headline-sm">Novo Cadastro de Cliente</h3>
+<button class="p-2 hover:bg-on-primary-fixed-variant rounded-full" onclick="toggleModal('clientModal')"><span class="material-symbols-outlined">close</span></button>
+</div>
+<form class="p-8 space-y-6">
+<div class="grid grid-cols-2 gap-6">
+<div class="col-span-2">
+<label class="block font-label-md text-label-md mb-2">Razão Social / Nome Completo</label>
+<input class="w-full border-outline-variant rounded focus:ring-secondary-container focus:border-primary px-4 py-3" type="text"/>
+</div>
+<div>
+<label class="block font-label-md text-label-md mb-2">Documento (CNPJ/CPF)</label>
+<input class="w-full border-outline-variant rounded focus:ring-secondary-container focus:border-primary px-4 py-3" placeholder="00.000.000/0000-00" type="text"/>
+</div>
+<div>
+<label class="block font-label-md text-label-md mb-2">Inscrição Estadual</label>
+<input class="w-full border-outline-variant rounded focus:ring-secondary-container focus:border-primary px-4 py-3" type="text"/>
+</div>
+<div>
+<label class="block font-label-md text-label-md mb-2">Telefone de Contato</label>
+<input class="w-full border-outline-variant rounded focus:ring-secondary-container focus:border-primary px-4 py-3" type="tel"/>
+</div>
+<div>
+<label class="block font-label-md text-label-md mb-2">Email Financeiro</label>
+<input class="w-full border-outline-variant rounded focus:ring-secondary-container focus:border-primary px-4 py-3" type="email"/>
+</div>
+<div class="col-span-2">
+<label class="block font-label-md text-label-md mb-2">Endereço Completo</label>
+<textarea class="w-full border-outline-variant rounded focus:ring-secondary-container focus:border-primary px-4 py-3 h-24"></textarea>
+</div>
+</div>
+<div class="flex justify-end gap-4 pt-4">
+<button class="px-6 py-3 border border-outline rounded font-label-md text-label-md hover:bg-surface-container transition-colors" onclick="toggleModal('clientModal')" type="button">Cancelar</button>
+<button class="px-8 py-3 bg-primary text-on-primary rounded font-label-md text-label-md shadow-lg active:scale-95 transition-transform" type="submit">Salvar Cliente</button>
+</div>
+</form>
+</div>
+</div>
+<!-- New Equipment Modal -->
+<div class="fixed inset-0 z-[70] hidden items-center justify-center bg-primary/40 backdrop-blur-sm" id="equipModal">
+<div class="bg-surface-white w-full max-w-lg rounded-xl shadow-2xl overflow-hidden">
+<div class="px-8 py-6 border-b border-outline-variant flex justify-between items-center bg-secondary-container text-on-secondary-container">
+<h3 class="font-headline-sm text-headline-sm">Vincular Novo Aparelho</h3>
+<button class="p-2 hover:bg-on-secondary-container/10 rounded-full" onclick="toggleModal('equipModal')"><span class="material-symbols-outlined">close</span></button>
+</div>
+<form class="p-8 space-y-6">
+<div class="space-y-4">
+<div>
+<label class="block font-label-md text-label-md mb-2">Tipo de Equipamento</label>
+<select class="w-full border-outline-variant rounded focus:ring-secondary-container px-4 py-3">
+<option>Compressor de Ar</option>
+<option>Gerador de Energia</option>
+<option>Painel Elétrico</option>
+<option>Sistema de Refrigeração</option>
+<option>Bomba Hidráulica</option>
+</select>
+</div>
+<div>
+<label class="block font-label-md text-label-md mb-2">Modelo / Descrição</label>
+<input class="w-full border-outline-variant rounded focus:ring-secondary-container px-4 py-3" placeholder="Ex: Atlas Copco GA 37" type="text"/>
+</div>
+<div>
+<label class="block font-label-md text-label-md mb-2">Número de Série (S/N)</label>
+<input class="w-full border-outline-variant rounded focus:ring-secondary-container px-4 py-3" placeholder="MGV-XXX-0000" type="text"/>
+</div>
+<div>
+<label class="block font-label-md text-label-md mb-2">Data da Última Revisão</label>
+<input class="w-full border-outline-variant rounded focus:ring-secondary-container px-4 py-3" type="date"/>
+</div>
+</div>
+<div class="flex justify-end gap-4 pt-4">
+<button class="px-6 py-3 border border-outline rounded font-label-md text-label-md hover:bg-surface-container transition-colors" onclick="toggleModal('equipModal')" type="button">Cancelar</button>
+<button class="px-8 py-3 bg-primary text-on-primary rounded font-label-md text-label-md shadow-lg active:scale-95 transition-transform" type="submit">Vincular</button>
+</div>
+</form>
+</div>
+</div>
+<!-- Background Decoration -->
+<div class="fixed bottom-0 right-0 p-8 opacity-5 pointer-events-none -z-10">
+<span class="material-symbols-outlined text-[320px]">engineering</span>
+</div>
+<script>
+        function openDetails(id) {
+            const drawer = document.getElementById('detailsDrawer');
+            const drawerTitle = document.getElementById('drawerTitle');
+            const drawerId = document.getElementById('drawerId');
+            
+            // Simulating dynamic data update
+            if (id === 'C-90122') drawerTitle.textContent = "Indústrias Metalúrgicas S.A.";
+            if (id === 'C-88721') drawerTitle.textContent = "Posto de Combustíveis Rápido";
+            if (id === 'C-44510') drawerTitle.textContent = "Hospital de Luz S.A.";
+            
+            drawerId.textContent = "ID: " + id;
+            
+            drawer.classList.remove('translate-x-full');
+        }
+
+        function closeDetails() {
+            const drawer = document.getElementById('detailsDrawer');
+            drawer.classList.add('translate-x-full');
+        }
+
+        function toggleModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal.classList.contains('hidden')) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            } else {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+        }
+
+        // Close details if clicking outside the drawer
+        document.addEventListener('mousedown', (e) => {
+            const drawer = document.getElementById('detailsDrawer');
+            const isClickInside = drawer.contains(e.target);
+            const isRowClick = e.target.closest('.data-table-row');
+            
+            if (!isClickInside && !isRowClick && !drawer.classList.contains('translate-x-full')) {
+                closeDetails();
+            }
+        });
+    </script>
+</body></html>

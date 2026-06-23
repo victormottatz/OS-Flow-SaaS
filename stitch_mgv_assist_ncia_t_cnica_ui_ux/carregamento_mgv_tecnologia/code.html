@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-br"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>MGV Tecnologia - Inicializando</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">tailwind.config = {darkMode: "class", theme: {extend: {colors: {"on-tertiary-fixed": "#1a1c1d", error: "#ba1a1a", "surface-container-highest": "#e5e2e2", "on-tertiary": "#ffffff", "on-primary-fixed-variant": "#484646", "status-error": "#EF4444", "surface-variant": "#e5e2e2", "on-error": "#ffffff", "secondary-fixed": "#ffdf9e", surface: "#fcf9f8", "surface-container-lowest": "#ffffff", "primary-container": "#1c1b1b", "on-tertiary-fixed-variant": "#454748", "inverse-primary": "#c9c6c5", background: "#fcf9f8", "on-primary": "#ffffff", "on-surface-variant": "#4c4547", "on-surface": "#1b1b1c", "status-success": "#10B981", "secondary-container": "#fdc003", "on-tertiary-container": "#838485", "primary-fixed": "#e6e1e1", "on-secondary-fixed": "#261a00", "inverse-on-surface": "#f3f0f0", "surface-container-high": "#eae7e7", tertiary: "#000001", "primary-fixed-dim": "#c9c6c5", "surface-dim": "#dcd9d9", "tertiary-fixed": "#e2e2e3", "status-warning": "#F59E0B", "on-secondary-container": "#6c5000", "on-secondary": "#ffffff", "tertiary-fixed-dim": "#c6c6c7", "status-info": "#3B82F6", "surface-tint": "#605e5e", "inverse-surface": "#313031", "surface-container": "#f0eded", "tertiary-container": "#1a1c1d", primary: "#000000", "secondary-fixed-dim": "#fabd00", "surface-container-low": "#f6f3f3", "on-error-container": "#93000a", "on-primary-fixed": "#1c1b1b", secondary: "#785900", "on-secondary-fixed-variant": "#5b4300", outline: "#7d7577", "on-background": "#1b1b1c", "surface-white": "#FFFFFF", "error-container": "#ffdad6", "on-primary-container": "#868383", "surface-bright": "#fcf9f8", "outline-variant": "#cfc4c6"}, borderRadius: {DEFAULT: "0.5rem", lg: "1rem", xl: "1.5rem", full: "9999px"}, spacing: {unit: "4px", "sidebar-width": "260px", "margin-mobile": "16px", gutter: "16px", "max-content-width": "1440px", "margin-desktop": "32px"}, fontFamily: {"headline-md": ["Inter"], "body-lg": ["Inter"], "body-md": ["Inter"], "data-tabular": ["Inter"], "label-md": ["Inter"], "title-lg": ["Inter"], "headline-sm": ["Inter"], "headline-lg": ["Inter"], "label-sm": ["Inter"], headline: ["Inter"], display: ["Inter"], body: ["Inter"], label: ["Inter"]}, fontSize: {"headline-md": ["24px", {lineHeight: "32px", letterSpacing: "-0.01em", fontWeight: "600"}], "body-lg": ["16px", {lineHeight: "24px", fontWeight: "400"}], "body-md": ["14px", {lineHeight: "20px", fontWeight: "400"}], "data-tabular": ["13px", {lineHeight: "18px", fontWeight: "400"}], "label-md": ["12px", {lineHeight: "16px", letterSpacing: "0.05em", fontWeight: "600"}], "title-lg": ["18px", {lineHeight: "24px", fontWeight: "600"}], "headline-sm": ["20px", {lineHeight: "28px", fontWeight: "600"}], "headline-lg": ["32px", {lineHeight: "40px", letterSpacing: "-0.02em", fontWeight: "700"}], "label-sm": ["11px", {lineHeight: "14px", fontWeight: "500"}]}}}};</script>
+<style>
+        @keyframes progress-shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(400%); }
+        }
+        .progress-bar-fill {
+            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .shimmer-effect {
+            animation: progress-shimmer 2s infinite linear;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #fcf9f8;
+            overflow: hidden;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen selection:bg-secondary-container">
+<!-- Splash Screen Container -->
+<main class="relative w-full max-w-lg px-margin-desktop flex flex-col items-center animate-in fade-in duration-1000">
+<!-- Logo Section -->
+<div class="mb-12 flex justify-center items-center">
+<img alt="Logo MGV Tecnologia" class="h-16 md:h-20 w-auto object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC25INvEm9I3WqS7Wgm2MiRHOgx06LpnYGyvKtvunnTOo_kDI8OLlKb8bkZQHFuuRJ8T70r5B7MtnJ_anv5wdoWfjuo41bbCxI_2hD6yqlluAyD590dLo4Qfd6Yy4Eboc7grEfUhzy2rfbdY9x1lwVydu3FK95vwWrlF5Hg4tk6JX3gVaVbWSldyIjQ_aEMsByt2N7UuZ4DKoCslgLoJ6DkstGlx_cZatqaMk4zyjfxd1h0lFni335lK2QB4hnrvc65sB2egkQriH9q"/>
+</div>
+<!-- Technical Content Area -->
+<div class="w-full max-w-sm space-y-6">
+<!-- Elegant Loading Bar -->
+<div class="relative w-full h-[2px] bg-surface-container-high overflow-hidden rounded-full">
+<div class="progress-bar-fill absolute top-0 left-0 h-full bg-secondary-container" id="progress-indicator" style="width: 0%">
+<!-- Subtle highlight/shimmer -->
+<div class="shimmer-effect absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent w-1/4"></div>
+</div>
+</div>
+<!-- Status Text Area -->
+<div class="flex flex-col items-center space-y-2 text-center">
+<div class="flex items-center gap-2">
+<span class="font-label-md text-label-md text-on-surface tracking-wider uppercase" id="status-main">
+                        Inicializando base de dados Express...
+                    </span>
+<!-- Spinning indicator -->
+<span class="material-symbols-outlined text-sm animate-spin text-secondary">
+                        sync
+                    </span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant opacity-70" id="status-secondary">
+                    Preparando seu ambiente de trabalho técnico
+                </p>
+</div>
+</div>
+<!-- Footer / Branding Hint -->
+<div class="absolute bottom-[-120px] left-1/2 -translate-x-1/2 opacity-20 pointer-events-none">
+<span class="font-label-sm text-label-sm uppercase tracking-[0.2em] whitespace-nowrap">
+                MGV TECNOLOGIA © 2024 | GESTÃO DE ATIVOS
+            </span>
+</div>
+</main>
+<!-- Interactive Loading Logic -->
+<script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const progressIndicator = document.getElementById('progress-indicator');
+            const statusMain = document.getElementById('status-main');
+            const statusSecondary = document.getElementById('status-secondary');
+            
+            const steps = [
+                { progress: 15, main: "Conectando ao servidor central...", secondary: "Autenticando credenciais de segurança" },
+                { progress: 35, main: "Carregando módulos de ativos...", secondary: "Sincronizando inventário de equipamentos" },
+                { progress: 60, main: "Processando ordens pendentes...", secondary: "Atualizando cronogramas de manutenção" },
+                { progress: 85, main: "Verificando integridade do sistema...", secondary: "Finalizando configurações de interface" },
+                { progress: 100, main: "Ambiente pronto", secondary: "Aguardando inicialização da dashboard" }
+            ];
+
+            let currentStep = 0;
+
+            const updateProgress = () => {
+                if (currentStep < steps.length) {
+                    const step = steps[currentStep];
+                    
+                    // Update visual state
+                    progressIndicator.style.width = `${step.progress}%`;
+                    
+                    // Smooth text transition
+                    statusMain.style.opacity = '0';
+                    statusSecondary.style.opacity = '0';
+                    
+                    setTimeout(() => {
+                        statusMain.textContent = step.main;
+                        statusSecondary.textContent = step.secondary;
+                        statusMain.style.opacity = '1';
+                        statusSecondary.style.opacity = '1';
+                    }, 300);
+
+                    currentStep++;
+                    
+                    // Variable loading speeds for a more "realistic" technical feel
+                    const nextDelay = Math.random() * (1500 - 800) + 800;
+                    if (currentStep < steps.length) {
+                        setTimeout(updateProgress, nextDelay);
+                    } else {
+                        // Final redirect simulation or transition
+                        setTimeout(() => {
+                            document.body.classList.add('transition-opacity', 'duration-700', 'opacity-0');
+                        }, 1200);
+                    }
+                }
+            };
+
+            // Initial start
+            setTimeout(updateProgress, 800);
+        });
+    </script>
+</body></html>

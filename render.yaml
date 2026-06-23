@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: mgv-assistencia-tecnica
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: node dist/server.cjs
+    healthCheckPath: /api/integration/bling/status
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: BLING_CLIENT_ID
+        sync: false
+      - key: BLING_CLIENT_SECRET
+        sync: false
+      - key: JWT_SECRET
+        sync: false

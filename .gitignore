@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Env and Secrets
+.env
+.env.*
+!.env.example
+
+# Build Outputs
+dist/
+build/
+
+# Local Databases and Backups
+backups/
+database.json
+database_*.json
+
+# OS files
+.DS_Store
+Thumbs.db

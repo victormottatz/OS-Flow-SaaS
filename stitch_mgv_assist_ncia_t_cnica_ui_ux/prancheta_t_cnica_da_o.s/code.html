@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>MGV Technical - Prancheta Técnica</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">tailwind.config = {darkMode: "class", theme: {extend: {colors: {secondary: "#785900", "on-error-container": "#93000a", "on-background": "#1b1b1c", "primary-fixed-dim": "#c9c6c5", error: "#ba1a1a", "on-secondary": "#ffffff", "on-primary-fixed-variant": "#484646", "on-error": "#ffffff", "surface-container-lowest": "#ffffff", "status-warning": "#F59E0B", outline: "#7d7577", "surface-container-low": "#f6f3f3", "surface-container-highest": "#e5e2e2", "tertiary-fixed-dim": "#c6c6c7", "on-primary-container": "#868383", "status-success": "#10B981", "on-secondary-fixed": "#261a00", "on-primary-fixed": "#1c1b1b", "surface-white": "#FFFFFF", "inverse-primary": "#c9c6c5", "status-info": "#3B82F6", "primary-container": "#1c1b1b", "surface-container": "#f0eded", "inverse-on-surface": "#f3f0f0", "secondary-fixed": "#ffdf9e", "tertiary-fixed": "#e2e2e3", "on-primary": "#ffffff", "tertiary-container": "#1a1c1d", "on-tertiary": "#ffffff", primary: "#000000", tertiary: "#000001", "status-error": "#EF4444", "on-tertiary-fixed": "#1a1c1d", "on-tertiary-container": "#838485", surface: "#fcf9f8", "surface-bright": "#fcf9f8", "on-secondary-container": "#6c5000", "secondary-container": "#fdc003", "error-container": "#ffdad6", "on-surface-variant": "#4c4547", "surface-tint": "#605e5e", "surface-dim": "#dcd9d9", "primary-fixed": "#e6e1e1", "on-secondary-fixed-variant": "#5b4300", "on-tertiary-fixed-variant": "#454748", "outline-variant": "#cfc4c6", "surface-container-high": "#eae7e7", "inverse-surface": "#313031", "surface-variant": "#e5e2e2", background: "#fcf9f8", "on-surface": "#1b1b1c", "secondary-fixed-dim": "#fabd00"}, borderRadius: {DEFAULT: "0.5rem", lg: "1rem", xl: "1.5rem", full: "9999px"}, spacing: {unit: "4px", "sidebar-width": "260px", "max-content-width": "1440px", gutter: "16px", "margin-mobile": "16px", "margin-desktop": "32px"}, fontFamily: {"title-lg": ["Inter"], "label-sm": ["Inter"], "label-md": ["Inter"], "headline-sm": ["Inter"], "headline-lg": ["Inter"], "body-lg": ["Inter"], "data-tabular": ["Inter"], "body-md": ["Inter"], "headline-md": ["Inter"], headline: ["Inter"], display: ["Inter"], body: ["Inter"], label: ["Inter"]}, fontSize: {"title-lg": ["18px", {lineHeight: "24px", fontWeight: "600"}], "label-sm": ["11px", {lineHeight: "14px", fontWeight: "500"}], "label-md": ["12px", {lineHeight: "16px", letterSpacing: "0.05em", fontWeight: "600"}], "headline-sm": ["20px", {lineHeight: "28px", fontWeight: "600"}], "headline-lg": ["32px", {lineHeight: "40px", letterSpacing: "-0.02em", fontWeight: "700"}], "body-lg": ["16px", {lineHeight: "24px", fontWeight: "400"}], "data-tabular": ["13px", {lineHeight: "18px", fontWeight: "400"}], "body-md": ["14px", {lineHeight: "20px", fontWeight: "400"}], "headline-md": ["24px", {lineHeight: "32px", letterSpacing: "-0.01em", fontWeight: "600"}]}}}};</script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { background-color: #F4F4F5; }
+        .modal-overlay { background-color: rgba(27, 27, 28, 0.85); }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .tab-active { border-bottom: 2px solid #fdc003; color: #000000; font-weight: 700; }
+        .status-toggle:checked + .toggle-bg { background-color: #10B981; }
+        .status-toggle:checked + .toggle-bg .toggle-dot { transform: translateX(20px); }
+    </style>
+</head>
+<body class="font-body-md text-on-surface">
+<!-- Sidebar (Shared Component Anchor) -->
+<aside class="fixed h-full w-[260px] left-0 top-0 bg-primary-container border-r border-outline-variant flex flex-col py-gutter z-40">
+<div class="px-6 mb-8">
+<h1 class="font-headline-md text-headline-md font-bold text-surface-white leading-tight">MGV Technical</h1>
+<p class="text-on-primary-container/70 font-label-sm uppercase tracking-widest mt-1">Management System</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center px-6 py-3 text-on-primary-container/70 hover:text-surface-white hover:bg-on-primary-fixed-variant/5 transition-colors" href="#">
+<span class="material-symbols-outlined mr-3">dashboard</span>
+<span class="font-body-md">Dashboard</span>
+</a>
+<a class="flex items-center px-6 py-3 text-on-primary-container/70 hover:text-surface-white hover:bg-on-primary-fixed-variant/5 transition-colors" href="#">
+<span class="material-symbols-outlined mr-3">group</span>
+<span class="font-body-md">Clients</span>
+</a>
+<a class="flex items-center px-6 py-3 text-surface-white border-l-4 border-secondary bg-on-primary-fixed-variant/10" href="#">
+<span class="material-symbols-outlined mr-3">assignment_turned_in</span>
+<span class="font-body-md">Service Orders</span>
+</a>
+<a class="flex items-center px-6 py-3 text-on-primary-container/70 hover:text-surface-white hover:bg-on-primary-fixed-variant/5 transition-colors" href="#">
+<span class="material-symbols-outlined mr-3">inventory_2</span>
+<span class="font-body-md">Inventory</span>
+</a>
+<a class="flex items-center px-6 py-3 text-on-primary-container/70 hover:text-surface-white hover:bg-on-primary-fixed-variant/5 transition-colors" href="#">
+<span class="material-symbols-outlined mr-3">payments</span>
+<span class="font-body-md">Finance</span>
+</a>
+</nav>
+<div class="mt-auto px-6 space-y-1 border-t border-outline-variant pt-4">
+<a class="flex items-center py-2 text-on-primary-container/70 hover:text-surface-white transition-colors" href="#">
+<span class="material-symbols-outlined mr-3">settings</span>
+<span class="font-body-md">Settings</span>
+</a>
+<a class="flex items-center py-2 text-on-primary-container/70 hover:text-surface-white transition-colors" href="#">
+<span class="material-symbols-outlined mr-3">help</span>
+<span class="font-body-md">Support</span>
+</a>
+</div>
+</aside>
+<!-- Top App Bar (Shared Component Anchor) -->
+<header class="fixed top-0 right-0 w-[calc(100%-260px)] h-16 bg-surface-white border-b border-surface-container-highest flex justify-between items-center px-margin-desktop z-30">
+<div class="flex items-center flex-1">
+<div class="relative w-full max-w-md">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+<input class="w-full pl-10 pr-4 py-2 bg-surface-container-low border-none focus:ring-2 focus:ring-secondary/20 rounded" placeholder="Buscar ordens de serviço..." type="text"/>
+</div>
+</div>
+<div class="flex items-center space-x-6">
+<button class="text-on-surface-variant hover:bg-surface-container-low p-2 transition-all rounded">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="text-on-surface-variant hover:bg-surface-container-low p-2 transition-all rounded">
+<span class="material-symbols-outlined">help_outline</span>
+</button>
+<div class="flex items-center space-x-3 ml-2 pl-6 border-l border-surface-container-highest">
+<div class="text-right">
+<p class="font-label-md text-primary">Admin Root</p>
+<p class="font-label-sm text-on-surface-variant">Gestor Técnico</p>
+</div>
+<div class="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a technical manager in a minimalist modern setting. The person is dressed in smart business casual attire. The image uses a clean, high-contrast light-mode aesthetic with soft lighting, reflecting the professional and dependable MGV brand identity with black and gold accents in the blurred background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD2CSXKSZ6kkL1IE5KXR2NINcsO5hiiUl3nCbO06xLxHubJS_S13UZsHxWJPzv24VU-eAoorV_WoeW0bW3vaJHTjzdh7qvxJrV2ah-2dKi8yR6YyZtNF_s496knSt_ffdIj5JWIk06c99SQVpz255J8P87BvSfvhY4XA4eap_jqO_UQ_6FVI4OdZ9xveG-RF46XisqqcMaqfGT5wTZal9X8pl4DtcCVyuSol3FZ1gEs4dXBqqCngr9db-qPM5imqB7cPvzvEJghs_Sn"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="ml-[260px] pt-16 min-h-screen">
+<!-- Modal Overlay Mockup -->
+<div class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-8">
+<div class="bg-surface-white w-full max-w-5xl h-full max-h-[850px] shadow-2xl flex flex-col border border-outline-variant overflow-hidden">
+<!-- Modal Header -->
+<header class="bg-surface-white px-8 py-6 border-b border-surface-container-highest flex justify-between items-start">
+<div>
+<div class="flex items-center space-x-3 mb-1">
+<h2 class="font-headline-sm text-headline-sm text-primary">O.S. #12845 - MacBook Pro M2</h2>
+<span class="px-3 py-1 bg-secondary-container/20 text-on-secondary-container font-label-md rounded-full uppercase">Em Diagnóstico</span>
+</div>
+<p class="font-body-md text-on-surface-variant">Cliente: <span class="font-semibold text-on-surface">Ricardo S.</span> • Data de Entrada: 24/05/2024</p>
+</div>
+<button class="text-on-surface-variant hover:text-primary p-1">
+<span class="material-symbols-outlined">close</span>
+</button>
+</header>
+<!-- Tabs Navigation -->
+<nav class="flex px-8 border-b border-surface-container-highest bg-surface-container-low">
+<button class="px-6 py-4 font-label-md text-primary tab-active border-b-2 border-secondary transition-all" id="tab-btn-1" onclick="switchTab(1)">LAUDO TÉCNICO</button>
+<button class="px-6 py-4 font-label-md text-on-surface-variant hover:text-primary transition-all" id="tab-btn-2" onclick="switchTab(2)">PEÇAS E SERVIÇOS</button>
+<button class="px-6 py-4 font-label-md text-on-surface-variant hover:text-primary transition-all" id="tab-btn-3" onclick="switchTab(3)">HISTÓRICO</button>
+</nav>
+<!-- Tab Content Area -->
+<div class="flex-1 overflow-y-auto p-8 bg-surface-white">
+<!-- Tab 1: Laudo Técnico -->
+<section class="space-y-8 block" id="tab-content-1">
+<div class="grid grid-cols-12 gap-8">
+<div class="col-span-8 space-y-6">
+<div>
+<label class="block font-label-md text-on-surface-variant uppercase mb-2">Diagnóstico Técnico Detalhado</label>
+<textarea class="w-full border-surface-container-highest focus:border-primary focus:ring-2 focus:ring-secondary/20 rounded-sm font-body-md p-4 bg-surface-container-lowest" placeholder="Descreva os testes realizados e as falhas encontradas..." rows="8"></textarea>
+</div>
+<div>
+<label class="block font-label-md text-on-surface-variant uppercase mb-2">Conclusão Técnica</label>
+<input class="w-full border-surface-container-highest focus:border-primary focus:ring-2 focus:ring-secondary/20 rounded-sm font-body-md h-12 px-4 bg-surface-container-lowest" placeholder="Resumo do veredito (Ex: Necessária troca de display)" type="text"/>
+</div>
+</div>
+<div class="col-span-4 space-y-6">
+<div class="p-6 bg-surface-container-low border border-surface-container-highest">
+<h3 class="font-label-md text-primary uppercase mb-6 flex items-center">
+<span class="material-symbols-outlined mr-2 text-secondary">verified_user</span> 
+                                        Status do Equipamento
+                                    </h3>
+<div class="space-y-4">
+<div class="flex items-center justify-between">
+<span class="font-body-md text-on-surface">Garantia MGV?</span>
+<label class="relative inline-flex items-center cursor-pointer">
+<input class="sr-only status-toggle" type="checkbox"/>
+<div class="toggle-bg w-11 h-6 bg-surface-container-highest rounded-full transition-colors">
+<div class="toggle-dot absolute top-[2px] left-[2px] bg-white w-5 h-5 rounded-full transition-transform border border-outline-variant shadow-sm"></div>
+</div>
+</label>
+</div>
+<div class="flex items-center justify-between">
+<span class="font-body-md text-on-surface">Backup Realizado?</span>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only status-toggle" type="checkbox"/>
+<div class="toggle-bg w-11 h-6 bg-surface-container-highest rounded-full transition-colors">
+<div class="toggle-dot absolute top-[2px] left-[2px] bg-white w-5 h-5 rounded-full transition-transform border border-outline-variant shadow-sm"></div>
+</div>
+</label>
+</div>
+<div class="flex items-center justify-between">
+<span class="font-body-md text-on-surface">Aprovado pelo Cliente?</span>
+<label class="relative inline-flex items-center cursor-pointer">
+<input class="sr-only status-toggle" type="checkbox"/>
+<div class="toggle-bg w-11 h-6 bg-surface-container-highest rounded-full transition-colors">
+<div class="toggle-dot absolute top-[2px] left-[2px] bg-white w-5 h-5 rounded-full transition-transform border border-outline-variant shadow-sm"></div>
+</div>
+</label>
+</div>
+</div>
+</div>
+<div class="p-6 bg-primary-container text-surface-white">
+<p class="font-label-sm uppercase text-on-primary-container mb-1">Custo Estimado Atual</p>
+<p class="font-headline-sm text-secondary-container">R$ 2.450,00</p>
+<div class="mt-4 pt-4 border-t border-on-primary-fixed-variant/20">
+<p class="font-label-sm text-on-primary-container">Tempo Estimado</p>
+<p class="font-body-md">3 - 5 dias úteis</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Tab 2: Peças e Serviços -->
+<section class="space-y-6 hidden" id="tab-content-2">
+<div class="flex justify-between items-center mb-4">
+<h3 class="font-title-lg text-title-lg">Itens Adicionados</h3>
+<button class="bg-secondary-container text-on-secondary-fixed font-label-md px-4 py-2 flex items-center hover:bg-secondary-fixed transition-colors">
+<span class="material-symbols-outlined mr-2">add_circle</span> ADICIONAR ITEM
+                            </button>
+</div>
+<div class="border border-surface-container-highest">
+<table class="w-full border-collapse">
+<thead class="bg-surface-container-low border-b border-surface-container-highest">
+<tr>
+<th class="text-left font-label-md text-on-surface-variant uppercase px-6 py-3">Descrição do Item</th>
+<th class="text-center font-label-md text-on-surface-variant uppercase px-6 py-3">Qtd.</th>
+<th class="text-right font-label-md text-on-surface-variant uppercase px-6 py-3">Valor Unit.</th>
+<th class="text-right font-label-md text-on-surface-variant uppercase px-6 py-3">Total</th>
+<th class="w-10 px-6 py-3"></th>
+</tr>
+</thead>
+<tbody class="divide-y divide-surface-container-highest">
+<tr class="hover:bg-surface-container-low/50 transition-colors">
+<td class="px-6 py-4 font-body-md">Display LCD Retina MacBook Pro 14" (A2442)</td>
+<td class="px-6 py-4 text-center font-data-tabular">1</td>
+<td class="px-6 py-4 text-right font-data-tabular">R$ 1.850,00</td>
+<td class="px-6 py-4 text-right font-data-tabular font-semibold">R$ 1.850,00</td>
+<td class="px-6 py-4 text-right">
+<button class="text-on-surface-variant hover:text-error transition-colors">
+<span class="material-symbols-outlined">delete_outline</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-low/50 transition-colors">
+<td class="px-6 py-4 font-body-md">Mão de Obra Técnica - Especializada Apple</td>
+<td class="px-6 py-4 text-center font-data-tabular">1</td>
+<td class="px-6 py-4 text-right font-data-tabular">R$ 450,00</td>
+<td class="px-6 py-4 text-right font-data-tabular font-semibold">R$ 450,00</td>
+<td class="px-6 py-4 text-right">
+<button class="text-on-surface-variant hover:text-error transition-colors">
+<span class="material-symbols-outlined">delete_outline</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-low/50 transition-colors">
+<td class="px-6 py-4 font-body-md">Kit de Higienização Interna e Térmica</td>
+<td class="px-6 py-4 text-center font-data-tabular">1</td>
+<td class="px-6 py-4 text-right font-data-tabular">R$ 150,00</td>
+<td class="px-6 py-4 text-right font-data-tabular font-semibold">R$ 150,00</td>
+<td class="px-6 py-4 text-right">
+<button class="text-on-surface-variant hover:text-error transition-colors">
+<span class="material-symbols-outlined">delete_outline</span>
+</button>
+</td>
+</tr>
+</tbody>
+<tfoot class="bg-surface-container-low/30">
+<tr>
+<td class="px-6 py-4 text-right font-label-md text-on-surface-variant" colspan="3">SUBTOTAL</td>
+<td class="px-6 py-4 text-right font-headline-sm text-primary">R$ 2.450,00</td>
+<td></td>
+</tr>
+</tfoot>
+</table>
+</div>
+</section>
+<!-- Tab 3: Mock Placeholder -->
+<section class="hidden text-center py-20" id="tab-content-3">
+<span class="material-symbols-outlined text-surface-container-highest text-7xl mb-4">history</span>
+<p class="font-body-lg text-on-surface-variant">Carregando histórico de modificações...</p>
+</section>
+</div>
+<!-- Modal Footer Actions -->
+<footer class="px-8 py-6 bg-surface-container border-t border-surface-container-highest flex justify-between items-center">
+<div class="flex space-x-4">
+<button class="px-6 py-3 border border-outline-variant font-label-md text-primary flex items-center hover:bg-surface-white transition-all bg-surface-container-lowest">
+<span class="material-symbols-outlined mr-2">print</span> IMPRIMIR LAUDO
+                        </button>
+<button class="px-6 py-3 border border-outline-variant font-label-md text-primary flex items-center hover:bg-surface-white transition-all bg-surface-container-lowest">
+<span class="material-symbols-outlined mr-2">share</span> ENVIAR PARA CLIENTE
+                        </button>
+</div>
+<div class="flex space-x-4">
+<button class="px-8 py-3 border border-primary font-label-md text-primary hover:bg-primary hover:text-surface-white transition-all">
+                            SALVAR ALTERAÇÕES
+                        </button>
+<button class="px-8 py-3 bg-primary text-surface-white font-label-md flex items-center shadow-lg hover:shadow-xl transition-all">
+                            FINALIZAR O.S. <span class="material-symbols-outlined ml-2">check_circle</span>
+</button>
+</div>
+</footer>
+</div>
+</div>
+<!-- Dashboard Content Background (Visible behind modal) -->
+<div class="p-margin-desktop opacity-20 pointer-events-none">
+<h1 class="font-headline-lg text-headline-lg mb-8">Gestão de Ordens de Serviço</h1>
+<div class="grid grid-cols-4 gap-gutter mb-12">
+<div class="bg-surface-white p-6 border border-outline-variant">
+<p class="font-label-sm text-on-surface-variant uppercase mb-2">Abertas Hoje</p>
+<p class="font-headline-md">12</p>
+</div>
+<div class="bg-surface-white p-6 border border-outline-variant">
+<p class="font-label-sm text-on-surface-variant uppercase mb-2">Em Manutenção</p>
+<p class="font-headline-md">48</p>
+</div>
+<div class="bg-surface-white p-6 border border-outline-variant">
+<p class="font-label-sm text-on-surface-variant uppercase mb-2">Aguardando Peças</p>
+<p class="font-headline-md">15</p>
+</div>
+<div class="bg-surface-white p-6 border border-outline-variant">
+<p class="font-label-sm text-on-surface-variant uppercase mb-2">Prontas para Entrega</p>
+<p class="font-headline-md">24</p>
+</div>
+</div>
+</div>
+</main>
+<script>
+        function switchTab(tabNumber) {
+            // Content
+            document.querySelectorAll('section[id^="tab-content-"]').forEach(section => {
+                section.classList.add('hidden');
+            });
+            document.getElementById('tab-content-' + tabNumber).classList.remove('hidden');
+
+            // Tabs Styling
+            document.querySelectorAll('nav button').forEach(btn => {
+                btn.classList.remove('tab-active', 'border-secondary', 'text-primary');
+                btn.classList.add('text-on-surface-variant');
+            });
+            const activeBtn = document.getElementById('tab-btn-' + tabNumber);
+            activeBtn.classList.add('tab-active', 'border-secondary', 'text-primary');
+            activeBtn.classList.remove('text-on-surface-variant');
+        }
+
+        // Simple animation for the status toggles
+        document.querySelectorAll('.status-toggle').forEach(toggle => {
+            toggle.addEventListener('change', function() {
+                const dot = this.nextElementSibling.querySelector('.toggle-dot');
+                if(this.checked) {
+                    dot.style.transform = 'translateX(20px)';
+                    this.nextElementSibling.style.backgroundColor = '#10B981';
+                } else {
+                    dot.style.transform = 'translateX(0px)';
+                    this.nextElementSibling.style.backgroundColor = '#e5e2e2';
+                }
+            });
+        });
+    </script>
+</body></html>

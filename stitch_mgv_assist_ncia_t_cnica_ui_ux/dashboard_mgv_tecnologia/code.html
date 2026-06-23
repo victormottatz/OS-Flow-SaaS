@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">tailwind.config = {darkMode: "class", theme: {extend: {colors: {"surface-white": "#FFFFFF", "on-primary": "#ffffff", "status-warning": "#F59E0B", "primary-fixed-dim": "#c9c6c5", tertiary: "#000001", "status-error": "#EF4444", error: "#ba1a1a", "tertiary-fixed-dim": "#c6c6c7", "status-success": "#10B981", "secondary-container": "#fdc003", "on-tertiary": "#ffffff", outline: "#7d7577", "on-primary-container": "#868383", "on-secondary": "#ffffff", "primary-container": "#1c1b1b", secondary: "#785900", "on-primary-fixed-variant": "#484646", "on-surface": "#1b1b1c", "surface-bright": "#fcf9f8", "secondary-fixed": "#ffdf9e", "on-error": "#ffffff", "outline-variant": "#cfc4c6", "surface-container": "#f0eded", "on-tertiary-container": "#838485", "inverse-primary": "#c9c6c5", primary: "#000000", "surface-container-low": "#f6f3f3", "on-primary-fixed": "#1c1b1b", "on-secondary-container": "#6c5000", background: "#fcf9f8", "on-tertiary-fixed": "#1a1c1d", "surface-variant": "#e5e2e2", "on-error-container": "#93000a", "error-container": "#ffdad6", "surface-container-high": "#eae7e7", "primary-fixed": "#e6e1e1", "status-info": "#3B82F6", "on-secondary-fixed-variant": "#5b4300", "on-secondary-fixed": "#261a00", "surface-container-lowest": "#ffffff", "surface-dim": "#dcd9d9", "on-background": "#1b1b1c", "tertiary-fixed": "#e2e2e3", "on-tertiary-fixed-variant": "#454748", surface: "#fcf9f8", "surface-container-highest": "#e5e2e2", "inverse-on-surface": "#f3f0f0", "surface-tint": "#605e5e", "secondary-fixed-dim": "#fabd00", "on-surface-variant": "#4c4547", "inverse-surface": "#313031", "tertiary-container": "#1a1c1d"}, borderRadius: {DEFAULT: "0.5rem", lg: "1rem", xl: "1.5rem", full: "9999px"}, spacing: {unit: "4px", gutter: "16px", "margin-mobile": "16px", "sidebar-width": "260px", "max-content-width": "1440px", "margin-desktop": "32px"}, fontFamily: {"label-md": ["Inter"], "headline-lg": ["Inter"], "body-lg": ["Inter"], "title-lg": ["Inter"], "headline-md": ["Inter"], "data-tabular": ["Inter"], "headline-sm": ["Inter"], "label-sm": ["Inter"], "body-md": ["Inter"], headline: ["Inter"], display: ["Inter"], body: ["Inter"], label: ["Inter"]}, fontSize: {"label-md": ["12px", {lineHeight: "16px", letterSpacing: "0.05em", fontWeight: "600"}], "headline-lg": ["32px", {lineHeight: "40px", letterSpacing: "-0.02em", fontWeight: "700"}], "body-lg": ["16px", {lineHeight: "24px", fontWeight: "400"}], "title-lg": ["18px", {lineHeight: "24px", fontWeight: "600"}], "headline-md": ["24px", {lineHeight: "32px", letterSpacing: "-0.01em", fontWeight: "600"}], "data-tabular": ["13px", {lineHeight: "18px", fontWeight: "400"}], "headline-sm": ["20px", {lineHeight: "28px", fontWeight: "600"}], "label-sm": ["11px", {lineHeight: "14px", fontWeight: "500"}], "body-md": ["14px", {lineHeight: "20px", fontWeight: "400"}]}}}};</script>
+<style>
+        body { background-color: #F4F4F5; font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .sidebar-active-border { border-left: 4px solid #FFC107; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cfc4c6; border-radius: 10px; }
+    </style>
+</head>
+<body class="text-on-surface">
+<!-- SideNavBar Shell -->
+<aside class="flex flex-col w-sidebar-width h-screen fixed left-0 top-0 z-50 py-6 bg-primary-container text-on-primary">
+<div class="px-6 mb-10">
+<h1 class="font-headline-sm text-headline-sm font-bold text-on-primary mb-1">MGV Tecnologia</h1>
+<p class="font-label-sm text-label-sm text-on-primary-container opacity-80 uppercase tracking-widest">Technical Management</p>
+</div>
+<nav class="flex-1 space-y-1">
+<!-- Active Tab: Dashboard -->
+<a class="flex items-center gap-3 px-4 py-3 text-on-primary border-l-4 border-secondary-container bg-on-primary-fixed-variant transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-primary-container hover:text-on-primary hover:bg-on-primary-fixed-variant transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span class="font-label-md text-label-md">Clients</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-primary-container hover:text-on-primary hover:bg-on-primary-fixed-variant transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="handyman">handyman</span>
+<span class="font-label-md text-label-md">Service Orders</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-primary-container hover:text-on-primary hover:bg-on-primary-fixed-variant transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+<span class="font-label-md text-label-md">Billing</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-primary-container hover:text-on-primary hover:bg-on-primary-fixed-variant transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+<span class="font-label-md text-label-md">Reports</span>
+</a>
+</nav>
+<div class="px-4 mt-auto space-y-4">
+<button class="w-full bg-secondary-container text-on-secondary-container py-3 font-label-md text-label-md uppercase tracking-wider hover:opacity-90 active:scale-95 transition-all">
+                New Service Order
+            </button>
+<div class="pt-6 border-t border-on-primary-fixed-variant">
+<a class="flex items-center gap-3 px-4 py-2 text-on-primary-container hover:text-on-primary transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+<span class="font-label-md text-label-md">Support</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-on-primary-container hover:text-on-primary transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<span class="font-label-md text-label-md">Sign Out</span>
+</a>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-sidebar-width min-h-screen">
+<!-- TopNavBar Shell -->
+<header class="flex justify-between items-center px-margin-desktop h-16 w-full sticky top-0 bg-surface-white border-b border-outline-variant z-40">
+<div class="flex items-center gap-4 flex-1">
+<div class="relative w-full max-w-md">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-body-md" data-icon="search">search</span>
+<input class="w-full bg-surface-container-low border-none focus:ring-2 focus:ring-secondary-container pl-10 pr-4 py-2 text-body-md rounded-lg" placeholder="Search orders, equipment or parts..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-3">
+<button class="p-2 text-on-surface-variant hover:bg-surface-container transition-colors rounded-full relative">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="absolute top-1.5 right-1.5 w-2 h-2 bg-status-error rounded-full border-2 border-surface-white"></span>
+</button>
+<button class="p-2 text-on-surface-variant hover:bg-surface-container transition-colors rounded-full">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+</div>
+<div class="h-8 w-[1px] bg-outline-variant mx-1"></div>
+<div class="flex items-center gap-3 pl-2">
+<div class="text-right hidden sm:block">
+<p class="font-label-md text-label-md text-on-surface">Ricardo Silva</p>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Operador Técnico Pleno</p>
+</div>
+<img class="w-10 h-10 rounded-full border border-outline-variant object-cover" data-alt="A professional headshot of a middle-aged technical operator with a clean-cut appearance, wearing a dark professional polo shirt. The background is a brightly lit, clean industrial office environment with soft focus. The overall aesthetic is professional, corporate, and high-quality, mirroring the technical management software style with a light-mode color palette." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCH2g0qhP2LeEyjty5qOE72X-zRdWD1VmfoSXjfLZZ5msUOBi1usmaghh9twZqjYEwOWlLQ_cVKJtS_BFcunoRW8AxOh0MOC22OFOw9wfj1HCD3GkuBpHc5xXPX5_XM_MQFIQVaUqdGYZebGp67Y8A8o4Pi9fio990M6axqOLY56nMxE2lcvaGCx2IPEH-XTHfswFHGKhqNBRik-WqeXfw4KRLCD6pz25Q9XOqF-OqBIbsQr-P2pMmtgGkO2Qlcp64sRr4ypVRX6h9z"/>
+</div>
+</div>
+</header>
+<!-- Dashboard Content -->
+<div class="p-margin-desktop space-y-8 max-w-max-content-width mx-auto">
+<!-- Welcome Header -->
+<section class="flex flex-col md:flex-row justify-between items-end gap-4">
+<div>
+<h2 class="font-headline-md text-headline-md text-primary mb-1">Bem-vindo, Ricardo.</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">Seu painel técnico está atualizado com 4 alertas pendentes.</p>
+</div>
+<div class="flex gap-3">
+<button class="flex items-center gap-2 px-4 py-2 border border-outline text-primary font-label-md text-label-md rounded hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined text-[18px]" data-icon="download">download</span>
+                        EXPORTAR RELATÓRIO
+                    </button>
+<button class="flex items-center gap-2 px-4 py-2 bg-secondary-container text-on-secondary-container font-label-md text-label-md rounded shadow-sm hover:opacity-90 active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[18px]" data-icon="bolt" style="font-variation-settings: 'FILL' 1;">bolt</span>
+                        INICIAR SERVIÇO
+                    </button>
+</div>
+</section>
+<!-- Metrics Bento Grid -->
+<section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-gutter">
+<!-- Metric Card 1 -->
+<div class="bg-surface-white border border-outline-variant p-5 hover:border-primary-container transition-colors group">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-surface-container rounded-lg text-primary group-hover:bg-primary group-hover:text-on-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="assignment">assignment</span>
+</div>
+<span class="font-label-sm text-label-sm text-status-success">+12% vs mês ant.</span>
+</div>
+<p class="font-label-md text-label-md text-on-surface-variant uppercase">O.S. Ativas</p>
+<h3 class="font-headline-lg text-headline-lg text-primary mt-1">42</h3>
+<div class="w-full bg-surface-container h-1 mt-4">
+<div class="bg-primary h-1" style="width: 65%;"></div>
+</div>
+</div>
+<!-- Metric Card 2 -->
+<div class="bg-surface-white border border-outline-variant p-5 hover:border-primary-container transition-colors group">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-surface-container rounded-lg text-primary group-hover:bg-primary group-hover:text-on-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="build">build</span>
+</div>
+<span class="font-label-sm text-label-sm text-status-warning">3 Críticas</span>
+</div>
+<p class="font-label-md text-label-md text-on-surface-variant uppercase">Equip. em Manutenção</p>
+<h3 class="font-headline-lg text-headline-lg text-primary mt-1">18</h3>
+<div class="w-full bg-surface-container h-1 mt-4">
+<div class="bg-status-warning h-1" style="width: 40%;"></div>
+</div>
+</div>
+<!-- Metric Card 3 -->
+<div class="bg-surface-white border border-outline-variant p-5 hover:border-primary-container transition-colors group">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-surface-container rounded-lg text-primary group-hover:bg-primary group-hover:text-on-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span>
+</div>
+<span class="font-label-sm text-label-sm text-status-error">7 Itens críticos</span>
+</div>
+<p class="font-label-md text-label-md text-on-surface-variant uppercase">Peças Pendentes</p>
+<h3 class="font-headline-lg text-headline-lg text-primary mt-1">24</h3>
+<div class="w-full bg-surface-container h-1 mt-4">
+<div class="bg-status-error h-1" style="width: 85%;"></div>
+</div>
+</div>
+<!-- Metric Card 4 -->
+<div class="bg-surface-white border border-outline-variant p-5 hover:border-primary-container transition-colors group">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-surface-container rounded-lg text-primary group-hover:bg-primary group-hover:text-on-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="monetization_on">monetization_on</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Projetado</span>
+</div>
+<p class="font-label-md text-label-md text-on-surface-variant uppercase">Faturamento Previsto</p>
+<h3 class="font-headline-lg text-headline-lg text-primary mt-1">R$ 84.2k</h3>
+<div class="w-full bg-surface-container h-1 mt-4">
+<div class="bg-status-info h-1" style="width: 72%;"></div>
+</div>
+</div>
+</section>
+<!-- Main Dashboard Layout -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-gutter">
+<!-- Stock Monitoring (Visual Monitor) -->
+<section class="lg:col-span-2 bg-surface-white border border-outline-variant flex flex-col">
+<div class="px-6 py-4 border-b border-outline-variant flex justify-between items-center">
+<h4 class="font-title-lg text-title-lg text-primary">Monitor Visual de Estoque</h4>
+<div class="flex gap-2">
+<span class="flex items-center gap-1 font-label-sm text-label-sm text-status-error">
+<span class="w-2 h-2 rounded-full bg-status-error"></span> Crítico
+                            </span>
+<span class="flex items-center gap-1 font-label-sm text-label-sm text-status-warning">
+<span class="w-2 h-2 rounded-full bg-status-warning"></span> Alerta
+                            </span>
+</div>
+</div>
+<div class="p-0 overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead class="bg-surface-container-low border-b border-outline-variant">
+<tr>
+<th class="px-6 py-3 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Peça / Componente</th>
+<th class="px-6 py-3 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Código</th>
+<th class="px-6 py-3 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Nível de Estoque</th>
+<th class="px-6 py-3 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-right">Qtd. Atual</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant">
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="settings_input_component">settings_input_component</span>
+<span class="font-body-md text-body-md font-semibold">Filtro de Ar Industrial H13</span>
+</div>
+</td>
+<td class="px-6 py-4 font-data-tabular text-data-tabular">FLT-H13-MGV</td>
+<td class="px-6 py-4 w-64">
+<div class="flex items-center gap-3">
+<div class="flex-1 bg-surface-container h-2 rounded-full overflow-hidden">
+<div class="bg-status-error h-full" style="width: 15%;"></div>
+</div>
+<span class="font-label-sm text-label-sm text-status-error">15%</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right font-data-tabular text-data-tabular font-bold">12 / 80</td>
+</tr>
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="valve">valve</span>
+<span class="font-body-md text-body-md font-semibold">Válvula Solenoide 24V</span>
+</div>
+</td>
+<td class="px-6 py-4 font-data-tabular text-data-tabular">VAL-SL-24V</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="flex-1 bg-surface-container h-2 rounded-full overflow-hidden">
+<div class="bg-status-warning h-full" style="width: 32%;"></div>
+</div>
+<span class="font-label-sm text-label-sm text-status-warning">32%</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right font-data-tabular text-data-tabular font-bold">45 / 140</td>
+</tr>
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="sensors">sensors</span>
+<span class="font-body-md text-body-md font-semibold">Sensor Ultrassônico Nível</span>
+</div>
+</td>
+<td class="px-6 py-4 font-data-tabular text-data-tabular">SNR-US-LVL</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="flex-1 bg-surface-container h-2 rounded-full overflow-hidden">
+<div class="bg-status-success h-full" style="width: 78%;"></div>
+</div>
+<span class="font-label-sm text-label-sm text-status-success">78%</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right font-data-tabular text-data-tabular font-bold">156 / 200</td>
+</tr>
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="memory">memory</span>
+<span class="font-body-md text-body-md font-semibold">Módulo de Controle PLC v2</span>
+</div>
+</td>
+<td class="px-6 py-4 font-data-tabular text-data-tabular">PLC-MOD-V2</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="flex-1 bg-surface-container h-2 rounded-full overflow-hidden">
+<div class="bg-status-error h-full" style="width: 8%;"></div>
+</div>
+<span class="font-label-sm text-label-sm text-status-error">8%</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right font-data-tabular text-data-tabular font-bold">2 / 25</td>
+</tr>
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="bolt">bolt</span>
+<span class="font-body-md text-body-md font-semibold">Fusível Cerâmico 10A</span>
+</div>
+</td>
+<td class="px-6 py-4 font-data-tabular text-data-tabular">FUS-CR-10A</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="flex-1 bg-surface-container h-2 rounded-full overflow-hidden">
+<div class="bg-status-success h-full" style="width: 92%;"></div>
+</div>
+<span class="font-label-sm text-label-sm text-status-success">92%</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right font-data-tabular text-data-tabular font-bold">460 / 500</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-4 bg-surface-container-low border-t border-outline-variant text-center">
+<button class="text-primary font-label-md text-label-md hover:underline">VER TODO O INVENTÁRIO</button>
+</div>
+</section>
+<!-- Recent Activities -->
+<section class="bg-surface-white border border-outline-variant flex flex-col">
+<div class="px-6 py-4 border-b border-outline-variant flex justify-between items-center">
+<h4 class="font-title-lg text-title-lg text-primary">Atividades Recentes</h4>
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="more_vert">more_vert</span>
+</button>
+</div>
+<div class="flex-1 p-6 space-y-6 custom-scrollbar overflow-y-auto max-h-[440px]">
+<!-- Activity Item 1 -->
+<div class="flex gap-4 relative">
+<div class="absolute left-[11px] top-6 bottom-[-24px] w-[2px] bg-surface-container-high"></div>
+<div class="z-10 w-6 h-6 rounded-full bg-status-success flex items-center justify-center border-4 border-surface-white">
+<span class="material-symbols-outlined text-[12px] text-on-primary" data-icon="check" style="font-variation-settings: 'wght' 700;">check</span>
+</div>
+<div class="flex-1 pb-4">
+<div class="flex justify-between items-start mb-1">
+<p class="font-body-md text-body-md font-semibold text-primary">O.S. #2841 Finalizada</p>
+<span class="font-label-sm text-label-sm text-on-surface-variant">12min atrás</span>
+</div>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Substituição de filtro concluída no cliente PetroBras S.A.</p>
+<div class="mt-2 inline-flex items-center px-2 py-1 bg-surface-container rounded font-label-sm text-label-sm text-on-surface-variant">
+<span class="material-symbols-outlined text-[14px] mr-1" data-icon="person">person</span> Ricardo Silva
+                                </div>
+</div>
+</div>
+<!-- Activity Item 2 -->
+<div class="flex gap-4 relative">
+<div class="absolute left-[11px] top-6 bottom-[-24px] w-[2px] bg-surface-container-high"></div>
+<div class="z-10 w-6 h-6 rounded-full bg-status-warning flex items-center justify-center border-4 border-surface-white">
+<span class="material-symbols-outlined text-[12px] text-on-primary" data-icon="priority_high" style="font-variation-settings: 'wght' 700;">priority_high</span>
+</div>
+<div class="flex-1 pb-4">
+<div class="flex justify-between items-start mb-1">
+<p class="font-body-md text-body-md font-semibold text-primary">Alerta de Peça Pendente</p>
+<span class="font-label-sm text-label-sm text-on-surface-variant">1h atrás</span>
+</div>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Estoque de "Filtro H13" atingiu o nível de segurança crítico.</p>
+<button class="mt-2 text-primary font-label-sm text-label-sm font-bold underline">SOLICITAR REPOSIÇÃO</button>
+</div>
+</div>
+<!-- Activity Item 3 -->
+<div class="flex gap-4 relative">
+<div class="absolute left-[11px] top-6 bottom-[-24px] w-[2px] bg-surface-container-high"></div>
+<div class="z-10 w-6 h-6 rounded-full bg-status-info flex items-center justify-center border-4 border-surface-white">
+<span class="material-symbols-outlined text-[12px] text-on-primary" data-icon="add" style="font-variation-settings: 'wght' 700;">add</span>
+</div>
+<div class="flex-1 pb-4">
+<div class="flex justify-between items-start mb-1">
+<p class="font-body-md text-body-md font-semibold text-primary">Nova O.S. Aberta</p>
+<span class="font-label-sm text-label-sm text-on-surface-variant">3h atrás</span>
+</div>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Manutenção corretiva agendada para Gerador G-02 (Hospital Central).</p>
+</div>
+</div>
+<!-- Activity Item 4 -->
+<div class="flex gap-4 relative">
+<div class="z-10 w-6 h-6 rounded-full bg-primary flex items-center justify-center border-4 border-surface-white">
+<span class="material-symbols-outlined text-[12px] text-on-primary" data-icon="sync" style="font-variation-settings: 'wght' 700;">sync</span>
+</div>
+<div class="flex-1 pb-0">
+<div class="flex justify-between items-start mb-1">
+<p class="font-body-md text-body-md font-semibold text-primary">Backup do Sistema</p>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Hoje, 04:00</span>
+</div>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Sincronização diária de inventário realizada com sucesso.</p>
+</div>
+</div>
+</div>
+</section>
+</div>
+<!-- Dashboard Visualization Section (Asymmetric / Bento) -->
+<section class="grid grid-cols-1 md:grid-cols-4 gap-gutter">
+<div class="md:col-span-1 bg-primary text-on-primary p-6 rounded-lg flex flex-col justify-between">
+<div>
+<h5 class="font-label-md text-label-md uppercase tracking-widest opacity-70 mb-4">Quick Stats</h5>
+<p class="font-headline-sm text-headline-sm font-bold">Eficiência da Equipe</p>
+<p class="text-[42px] font-extrabold text-secondary-container leading-none mt-4">94%</p>
+</div>
+<p class="font-label-sm text-label-sm opacity-60">Baseado no SLA de 48h para chamados técnicos de Nível 1.</p>
+</div>
+<div class="md:col-span-3 bg-surface-white border border-outline-variant p-6 rounded-lg relative overflow-hidden">
+<div class="relative z-10 flex flex-col h-full">
+<div class="flex justify-between items-center mb-6">
+<h4 class="font-title-lg text-title-lg text-primary">Distribuição de Carga Técnica</h4>
+<select class="bg-surface-container border-none text-label-md font-label-md rounded-md focus:ring-secondary-container">
+<option>Últimos 7 dias</option>
+<option>Últimos 30 dias</option>
+</select>
+</div>
+<div class="flex-1 flex items-end gap-2 sm:gap-4 justify-between pt-4">
+<!-- Simple Bar Chart Mockup -->
+<div class="flex-1 flex flex-col items-center gap-2">
+<div class="w-full bg-surface-container-high relative group h-32 flex items-end">
+<div class="w-full bg-primary group-hover:bg-secondary-container transition-colors" style="height: 60%"></div>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Seg</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-2">
+<div class="w-full bg-surface-container-high relative group h-32 flex items-end">
+<div class="w-full bg-primary group-hover:bg-secondary-container transition-colors" style="height: 85%"></div>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Ter</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-2">
+<div class="w-full bg-surface-container-high relative group h-32 flex items-end">
+<div class="w-full bg-primary group-hover:bg-secondary-container transition-colors" style="height: 45%"></div>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Qua</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-2">
+<div class="w-full bg-surface-container-high relative group h-32 flex items-end">
+<div class="w-full bg-primary group-hover:bg-secondary-container transition-colors" style="height: 95%"></div>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Qui</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-2">
+<div class="w-full bg-surface-container-high relative group h-32 flex items-end">
+<div class="w-full bg-primary group-hover:bg-secondary-container transition-colors" style="height: 70%"></div>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Sex</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-2">
+<div class="w-full bg-surface-container-high relative group h-32 flex items-end">
+<div class="w-full bg-primary group-hover:bg-secondary-container transition-colors" style="height: 30%"></div>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Sab</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-2">
+<div class="w-full bg-surface-container-high relative group h-32 flex items-end">
+<div class="w-full bg-primary group-hover:bg-secondary-container transition-colors" style="height: 15%"></div>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Dom</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+</div>
+</main>
+<!-- FAB for quick action -->
+<button class="fixed bottom-8 right-8 w-14 h-14 bg-secondary-container text-on-secondary-container rounded-full shadow-lg flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50">
+<span class="material-symbols-outlined text-[28px]" data-icon="add">add</span>
+</button>
+<script>
+        // Micro-interaction for stock rows
+        document.querySelectorAll('tr').forEach(row => {
+            row.addEventListener('click', () => {
+                row.classList.toggle('bg-surface-container-low');
+            });
+        });
+
+        // Theme toggle simulation (optional)
+        const toggleTheme = () => {
+            document.documentElement.classList.toggle('dark');
+        };
+    </script>
+</body></html>

@@ -1,0 +1,756 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState } from "react";
+import { Client, Device, UserRole } from "../types";
+
+
+interface ClientManagerProps {
+  clients: (Client & { devices: Device[] })[];
+  userRole: UserRole;
+  isOffline: boolean;
+  onRefresh: () => void;
+}
+
+export default function ClientManager({ clients, userRole, isOffline, onRefresh }: ClientManagerProps) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showDeviceModal, setShowDeviceModal] = useState(false);
+  const [activeClientForDevice, setActiveClientForDevice] = useState<string | null>(null);
+
+  // Form Fields - Client
+  const [clientName, setClientName] = useState("");
+  const [clientCpfCnpj, setClientCpfCnpj] = useState("");
+  const [clientPhone, setClientPhone] = useState("");
+  const [clientEmail, setClientEmail] = useState("");
+  const [clientAddress, setClientAddress] = useState("");
+  const [clientCep, setClientCep] = useState("");
+  const [isCepLoading, setIsCepLoading] = useState(false);
+  
+  // Custom list of devices inside the Add Client modal
+  const [tempDevices, setTempDevices] = useState<{ type: string; brand: string; model: string; serialNumber: string; description: string }[]>([]);
+
+  // Form Fields - Individual Device addition
+  const [devType, setDevType] = useState("Notebook");
+  const [devBrand, setDevBrand] = useState("");
+  const [devModel, setDevModel] = useState("");
+  const [devSerial, setDevSerial] = useState("");
+  const [devDesc, setDevDesc] = useState("");
+
+  const [errorMsg, setErrorMsg] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleCepLookup = async () => {
+    const cleanCep = clientCep.replace(/\D/g, "");
+    if (cleanCep.length !== 8) {
+      setErrorMsg("Por favor, informe um CEP válido com 8 dígitos para a consulta.");
+      return;
+    }
+
+    setIsCepLoading(true);
+    setErrorMsg("");
+
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+      if (!response.ok) {
+        throw new Error("Falha ao se conectar com o servidor do ViaCEP.");
+      }
+      const data = await response.json();
+      if (data.erro) {
+        throw new Error("CEP não encontrado.");
+      }
+
+      // Pre-fill address formatting: Rua, [nº] - Bairro - Cidade / UF
+      const preFilled = `${data.logradouro},  - ${data.bairro} - ${data.localidade} / ${data.uf}`;
+      setClientAddress(preFilled);
+    } catch (err: any) {
+      setErrorMsg(err.message || "Ocorreu um erro ao consultar o CEP.");
+    } finally {
+      setIsCepLoading(false);
+    }
+  };
+
+  // Helper validation for CPF/CNPJ
+  const formatCpfCnpj = (val: string) => {
+    // Basic format filter
+    return val.replace(/\D/g, "");
+  };
+
+  const addTempDeviceField = () => {
+    setTempDevices([...tempDevices, { type: "Notebook", brand: "", model: "", serialNumber: "", description: "" }]);
+  };
+
+  const updateTempDevice = (index: number, field: string, value: string) => {
+    const updated = [...tempDevices];
+    updated[index] = { ...updated[index], [field]: value };
+    setTempDevices(updated);
+  };
+
+  const removeTempDevice = (index: number) => {
+    setTempDevices(tempDevices.filter((_, idx) => idx !== index));
+  };
+
+  const handleCreateClient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg("");
+    setSuccessMsg("");
+
+    if (isOffline) {
+      setErrorMsg("O sistema está offline. Conexão física de rede indisponível.");
+      return;
+    }
+
+    if (!clientName || !clientCpfCnpj || !clientPhone || !clientEmail || !clientAddress) {
+      setErrorMsg("Todos os campos do cliente são de preenchimento obrigatório.");
+      return;
+    }
+
+    // Validation for "Sem Série" description length minimum
+    for (const [idx, dev] of tempDevices.entries()) {
+      const isBlankSerial = !dev.serialNumber || dev.serialNumber.trim() === "" || dev.serialNumber === "Sem Série";
+      if (isBlankSerial && (!dev.description || dev.description.trim().length < 5)) {
+        setErrorMsg(`Para o equipamento nº ${idx + 1} sem número de série, é obrigatório preencher uma descrição detalhada das características estéticas/físicas.`);
+        return;
+      }
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await fetch("/api/clients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: clientName,
+          cpfCnpj: clientCpfCnpj,
+          phone: clientPhone,
+          email: clientEmail,
+          address: clientAddress,
+          devices: tempDevices
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Erro ao salvar cliente.");
+      }
+
+      setSuccessMsg("Cliente e seus respectivos aparelhos cadastrados com excelência!");
+      onRefresh();
+      
+      // Cleanup
+      setTimeout(() => {
+        setShowAddModal(false);
+        setClientName("");
+        setClientCpfCnpj("");
+        setClientPhone("");
+        setClientEmail("");
+        setClientAddress("");
+        setClientCep("");
+        setTempDevices([]);
+        setSuccessMsg("");
+      }, 1500);
+
+    } catch (err: any) {
+      setErrorMsg(err.message || "Erro inesperado.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddIndividualDevice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg("");
+    setSuccessMsg("");
+
+    if (isOffline) {
+      setErrorMsg("Aparelho não pôde ser gravado: Sistema offline.");
+      return;
+    }
+
+    const resolvedSerial = devSerial.trim() === "" ? "Sem Série" : devSerial.trim();
+    if (resolvedSerial === "Sem Série" && (!devDesc || devDesc.trim().length < 5)) {
+      setErrorMsg("Para equipamentos sem número de série, descreva características estéticas detalhadas (ex: marcas de uso, etiquetas, adesivos).");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await fetch("/api/devices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: activeClientForDevice,
+          type: devType,
+          brand: devBrand,
+          model: devModel,
+          serialNumber: resolvedSerial,
+          description: devDesc
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Erro ao associar dispositivo.");
+      }
+
+      setSuccessMsg("Dispositivo adicionado à conta do cliente!");
+      onRefresh();
+
+      setTimeout(() => {
+        setShowDeviceModal(false);
+        setActiveClientForDevice(null);
+        setDevBrand("");
+        setDevModel("");
+        setDevSerial("");
+        setDevDesc("");
+        setSuccessMsg("");
+      }, 1200);
+
+    } catch (err: any) {
+      setErrorMsg(err.message || "Erro inesperado.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteClient = async (id: string) => {
+    if (isOffline) {
+      alert("Operação impossibilitada: Modo Offline ativo.");
+      return;
+    }
+
+    if (userRole !== UserRole.OWNER) {
+      alert("Acesso Negado: Apenas a função OWNER possui permissão para excluir clientes e ativos.");
+      return;
+    }
+
+    if (!confirm("Aviso: Esta exclusão é lógica (Soft Delete) e tornará o cliente e todas as suas OSs inacessíveis para edição. Deseja prosseguir de forma definitiva?")) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("mgv_token") || "";
+      const response = await fetch(`/api/clients/${id}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+          "x-user-role": userRole
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Não foi possível excluir");
+      }
+
+      alert("Exclusão lógica realizada com sucesso!");
+      onRefresh();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  // Filter lists based on search
+  const filteredClients = clients.filter(c => {
+    const searchLow = searchTerm.toLowerCase();
+    const hasMatch = c.name.toLowerCase().includes(searchLow) || 
+                     c.cpfCnpj.includes(searchLow) || 
+                     c.email.toLowerCase().includes(searchLow) ||
+                     c.devices.some(d => 
+                       d.brand.toLowerCase().includes(searchLow) || 
+                       d.model.toLowerCase().includes(searchLow) || 
+                       d.serialNumber.toLowerCase().includes(searchLow)
+                     );
+    return hasMatch && !c.deletedAt;
+  });
+
+  return (
+    <div className="space-y-6 anim-fadein">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-950 tracking-tight font-display">Clientes & Equipamentos</h2>
+          <p className="text-slate-500 text-sm font-semibold">Controle de fichas cadastrais e histórico de dispositivos de entrada</p>
+        </div>
+        
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs uppercase tracking-wider px-4.5 py-2.5 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 hover-premium active-premium flex items-center space-x-2 shrink-0 cursor-pointer"
+        >
+          <span className="material-symbols-outlined text-[16px]">person_add</span>
+          <span>Cadastrar Cliente</span>
+        </button>
+      </div>
+
+      {/* Search Header */}
+      <div className="relative shadow-sm rounded-xl">
+        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+          <span className="material-symbols-outlined text-[18px]">search</span>
+        </div>
+        <input
+          type="text"
+          placeholder="Filtrar por nome, CPF/CNPJ, e-mail, marca, modelo ou nº de série do equipamento..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 placeholder:text-slate-400 font-semibold transition"
+        />
+      </div>
+
+      {/* Clients grid layout list */}
+      {filteredClients.length === 0 ? (
+        <div className="text-center py-16 bg-white rounded-2xl border border-slate-200 shadow-sm">
+          <p className="text-slate-500 text-sm font-semibold">Nenhum cliente ou aparelho coincide com a pesquisa no momento.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-5">
+          {filteredClients.map((client) => (
+            <div key={client.id} className="bg-white rounded-2xl border border-slate-200/80 shadow-premium p-6 flex flex-col md:flex-row justify-between gap-6 hover:shadow-premium-hover transition-all duration-300 hover:-translate-y-0.5">
+              {/* Left hand side: Client details */}
+              <div className="space-y-4 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-lg font-extrabold text-slate-900 font-display leading-tight">{client.name}</h3>
+                  <span className="text-[10px] sm:text-xs bg-slate-100/90 text-slate-700 font-mono font-bold border border-slate-200/60 px-2 py-0.5 rounded-md select-none">{client.cpfCnpj}</span>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-slate-600 font-semibold">
+                  <p><span className="text-slate-400 block text-[9px] uppercase tracking-wider">Telefone</span> <span className="text-slate-800 block mt-0.5">{client.phone}</span></p>
+                  <p><span className="text-slate-400 block text-[9px] uppercase tracking-wider">E-mail</span> <span className="text-slate-800 block mt-0.5">{client.email}</span></p>
+                  <p className="sm:col-span-2"><span className="text-slate-400 block text-[9px] uppercase tracking-wider">Endereço de Entrega</span> <span className="text-slate-800 block mt-0.5">{client.address}</span></p>
+                </div>
+
+                <div className="pt-4 border-t border-slate-100">
+                  <div className="flex items-center justify-between mb-3.5">
+                    <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center space-x-1.5">
+                      <span className="material-symbols-outlined text-[16px] text-blue-600">laptop_mac</span>
+                      <span>Aparelhos vinculados ({client.devices?.length || 0}):</span>
+                    </span>
+                    
+                    <button
+                      onClick={() => {
+                        setActiveClientForDevice(client.id);
+                        setShowDeviceModal(true);
+                      }}
+                      className="text-[10px] uppercase tracking-wider font-extrabold text-blue-600 hover:text-blue-700 flex items-center space-x-1 transition active:scale-95 cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">add</span>
+                      <span>Vincular Outro</span>
+                    </button>
+                  </div>
+
+                  {client.devices?.length === 0 ? (
+                    <p className="text-xs text-amber-600 font-semibold italic">Nenhum aparelho associado à ficha cadastral.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {client.devices.map((dev) => (
+                        <div key={dev.id} className="bg-slate-50/60 p-3 rounded-xl border border-slate-200 text-xs hover:border-slate-350 transition duration-150">
+                          <div className="flex items-center justify-between font-bold text-slate-800">
+                            <span>{dev.type} ({dev.brand})</span>
+                            <span className={`font-mono text-[9px] uppercase px-2 py-0.5 rounded-full border ${
+                              dev.serialNumber === "Sem Série" ? "bg-amber-100 text-amber-800 border-amber-250/50" : "bg-slate-200 text-slate-700 border-slate-300"
+                            }`}>
+                              N/S: {dev.serialNumber}
+                            </span>
+                          </div>
+                          <p className="text-slate-650 mt-2 font-semibold"><strong className="text-slate-700">Modelo:</strong> {dev.model}</p>
+                          <p className="text-slate-500 text-[11px] mt-1 italic pointer-events-none line-clamp-2" title={dev.description}>
+                            {dev.description}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Right hand side: Operations */}
+              <div className="flex flex-row md:flex-col justify-end gap-2 shrink-0 pt-4 md:pt-0 border-t md:border-t-0 border-slate-100">
+                <button
+                  onClick={() => handleDeleteClient(client.id)}
+                  disabled={userRole !== UserRole.OWNER}
+                  className={`flex items-center justify-center space-x-1.5 px-3 py-2 rounded-lg text-xs font-semibold hover-premium active-premium cursor-pointer ${
+                    userRole === UserRole.OWNER
+                      ? "text-red-700 bg-red-50 hover:bg-red-100 border border-red-200"
+                      : "text-slate-400 bg-slate-100 border border-slate-200 cursor-not-allowed"
+                  }`}
+                  title={userRole !== UserRole.OWNER ? "Apenas OWNER possui privilégios de exclusão" : "Excluir cadastro logicamente"}
+                >
+                  <span className="material-symbols-outlined text-[14px]">delete</span>
+                  <span>Excluir Ficha</span>
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* MODAL: ADD CLIENT & LINKED DEVICES */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[90vh] overflow-y-auto anim-slideup">
+            {/* Header */}
+            <div className="px-6 py-4.5 bg-gradient-to-r from-slate-900 to-indigo-950 text-white flex items-center justify-between rounded-t-2xl sticky top-0 z-10 border-b border-slate-800">
+              <div className="flex items-center space-x-2.5">
+                <span className="material-symbols-outlined text-teal-400 text-[20px]">person_add</span>
+                <h3 className="font-bold text-base font-display">Novo Cadastro de Cliente e Vínculo 1:N</h3>
+              </div>
+              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-white transition cursor-pointer">
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleCreateClient} className="p-6 space-y-6">
+              {errorMsg && (
+                <div className="bg-red-50 border border-red-200/30 p-3.5 rounded-xl text-xs text-red-700 font-semibold flex items-start gap-2">
+                  <span className="material-symbols-outlined text-[16px] text-rose-600 shrink-0 mt-0.5">shield_alert</span>
+                  <span>{errorMsg}</span>
+                </div>
+              )}
+
+              {successMsg && (
+                <div className="bg-green-50 border border-green-200/30 p-3.5 rounded-xl text-xs text-emerald-700 font-semibold flex items-start gap-2">
+                  <span className="material-symbols-outlined text-[16px] text-emerald-600 shrink-0 mt-0.5">check_circle</span>
+                  <span>{successMsg}</span>
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100 pb-2">Proprietário / Cadastros Base</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Nome Completo</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ex: Carlos Roberto Silva"
+                      value={clientName}
+                      onChange={(e) => setClientName(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">CPF / CNPJ (Somente Números)</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ex: 14259388210"
+                      value={clientCpfCnpj}
+                      onChange={(e) => setClientCpfCnpj(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Telefone / Fone Oficina</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ex: (11) 98112-2233"
+                      value={clientPhone}
+                      onChange={(e) => setClientPhone(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Email Principal</label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="Ex: carlos@silva.com"
+                      value={clientEmail}
+                      onChange={(e) => setClientEmail(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-650 uppercase tracking-wider mb-1">CEP de Busca (ViaCEP)</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Ex: 01310-100"
+                        maxLength={9}
+                        value={clientCep}
+                        onChange={(e) => setClientCep(e.target.value)}
+                        className="flex-1 min-w-0 px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none transition"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleCepLookup}
+                        disabled={isCepLoading || !clientCep}
+                        className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-[10px] uppercase tracking-wider px-3.5 rounded-lg transition disabled:bg-slate-200 disabled:text-slate-400 cursor-pointer shrink-0"
+                      >
+                        {isCepLoading ? "Consultando..." : "Buscar"}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="hidden sm:block"></div> {/* Grid spacer */}
+                  <div className="sm:col-span-2">
+                    <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Endereço Residencial/Comercial Completo</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ex: Av. Paulista, 1000 - Ap 21 - CEP 01310-100, São Paulo SP"
+                      value={clientAddress}
+                      onChange={(e) => setClientAddress(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none transition"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Devices 1:N Sub-entry */}
+              <div className="space-y-4 pt-2">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Aparelhos Iniciais a Registrar</h4>
+                  <button
+                    type="button"
+                    onClick={addTempDeviceField}
+                    className="text-[10px] font-bold text-blue-600 hover:text-blue-700 flex items-center space-x-1 uppercase tracking-wider transition active:scale-95 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">add</span>
+                    <span>Adicionar Linha</span>
+                  </button>
+                </div>
+
+                {tempDevices.length === 0 ? (
+                  <div className="text-center py-8 bg-slate-50/60 rounded-2xl border border-dashed border-slate-200/80">
+                    <p className="text-slate-505 text-xs font-semibold">Nenhum aparelho adicionado à ficha inicial de abertura.</p>
+                    <button
+                      type="button"
+                      onClick={addTempDeviceField}
+                      className="mt-3 text-xs font-bold text-blue-600 hover:underline"
+                    >
+                      Registrar 1º Equipamento Agora
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {tempDevices.map((dev, idx) => (
+                      <div key={idx} className="bg-slate-50/60 rounded-2xl border border-slate-200 p-4 relative space-y-4 hover:border-slate-300 transition duration-150">
+                        <button
+                          type="button"
+                          onClick={() => removeTempDevice(idx)}
+                          className="absolute top-3 right-3 text-slate-400 hover:text-red-500 transition active:scale-90 cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">close</span>
+                        </button>
+                        
+                        <span className="text-[9px] font-bold bg-slate-800 text-white rounded px-2.5 py-0.5 select-none font-mono uppercase tracking-wider shadow-sm">
+                          Aparelho #{idx + 1}
+                        </span>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-600 mb-1 uppercase tracking-wider">Tipo</label>
+                            <select
+                              value={dev.type}
+                              onChange={(e) => updateTempDevice(idx, "type", e.target.value)}
+                              className="w-full px-2.5 py-1.8 border border-slate-200 rounded-lg bg-white text-xs text-slate-850"
+                            >
+                              <option value="Notebook">Notebook</option>
+                              <option value="Computador Desktop">Computador Desktop</option>
+                              <option value="Impressora">Impressora</option>
+                              <option value="Monitor LCD">Monitor LCD</option>
+                              <option value="Video Game Console">Vídeo Game / Console</option>
+                              <option value="Smart TV">Smart TV</option>
+                              <option value="Outro">Outro Equipamento</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-600 mb-1 uppercase tracking-wider">Marca</label>
+                            <input
+                              type="text"
+                              required
+                              placeholder="Ex: LG, Dell"
+                              value={dev.brand}
+                              onChange={(e) => updateTempDevice(idx, "brand", e.target.value)}
+                              className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-800 bg-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-600 mb-1 uppercase tracking-wider">Modelo</label>
+                            <input
+                              type="text"
+                              required
+                              placeholder="Ex: Inspiron 14"
+                              value={dev.model}
+                              onChange={(e) => updateTempDevice(idx, "model", e.target.value)}
+                              className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-800 bg-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-600 mb-1 uppercase tracking-wider">Nº de Série</label>
+                            <input
+                              type="text"
+                              placeholder="Deixe em branco p/ 'Sem Série'"
+                              value={dev.serialNumber}
+                              onChange={(e) => updateTempDevice(idx, "serialNumber", e.target.value)}
+                              className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-800 bg-white font-mono"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-600 mb-1 uppercase tracking-wider flex items-center space-x-1.5">
+                            <span>Estado Físico / Especificações</span>
+                            <span className="text-slate-400 font-normal lowercase">(Exigido se sem número de série)</span>
+                          </label>
+                          <textarea
+                            rows={2}
+                            placeholder="Descreva marcas estéticas, riscos, avarias ou ausência de travas para garantir a integridade."
+                            value={dev.description}
+                            onChange={(e) => updateTempDevice(idx, "description", e.target.value)}
+                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Actions Footer */}
+              <div className="flex justify-end space-x-2 border-t border-slate-100 pt-4.5">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-sm rounded-lg transition hover-premium active-premium"
+                >
+                  {loading ? "Gravando Fichas no Banco..." : "Salvar no Supabase"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD INDIVIDUAL DEVICE */}
+      {showDeviceModal && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md anim-slideup">
+            <div className="px-6 py-4.5 bg-gradient-to-r from-slate-900 to-indigo-950 text-white flex items-center justify-between rounded-t-2xl border-b border-slate-850">
+              <div className="flex items-center space-x-2.5">
+                <span className="material-symbols-outlined text-teal-400 text-[20px]">laptop_mac</span>
+                <h3 className="font-bold text-base font-display">Vincular Novo Aparelho</h3>
+              </div>
+              <button onClick={() => setShowDeviceModal(false)} className="text-slate-450 hover:text-white transition cursor-pointer">
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleAddIndividualDevice} className="p-6 space-y-4">
+              {errorMsg && (
+                <div className="bg-red-50 border-l-4 border-red-500 p-2.5 rounded-lg text-xs text-red-700 font-semibold border border-red-200/20">
+                  {errorMsg}
+                </div>
+              )}
+
+              {successMsg && (
+                <div className="bg-emerald-50 border-l-4 border-emerald-500 p-2.5 rounded-lg text-xs text-emerald-700 font-semibold border border-emerald-200/20 border-emerald-900/20">
+                  {successMsg}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 mb-1 uppercase tracking-wider">Tipo de Aparelho</label>
+                <select
+                  value={devType}
+                  onChange={(e) => setDevType(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white text-slate-800"
+                >
+                  <option value="Notebook">Notebook</option>
+                  <option value="Computador Desktop">Computador Desktop</option>
+                  <option value="Impressora">Impressora</option>
+                  <option value="Monitor LCD">Monitor LCD</option>
+                  <option value="Video Game Console">Vídeo Game / Console</option>
+                  <option value="Smart TV">Smart TV</option>
+                  <option value="Outro">Outro</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 mb-1 uppercase tracking-wider">Marca</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Dell, Samsung"
+                  value={devBrand}
+                  onChange={(e) => setDevBrand(e.target.value)}
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 mb-1 uppercase tracking-wider">Modelo</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Inspiron 15"
+                  value={devModel}
+                  onChange={(e) => setDevModel(e.target.value)}
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 mb-1 uppercase tracking-wider">Número de Série (Deixar branco p/ "Sem Série")</label>
+                <input
+                  type="text"
+                  placeholder="Deixe em branco se Sem Série"
+                  value={devSerial}
+                  onChange={(e) => setDevSerial(e.target.value)}
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-xs font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 mb-1 uppercase tracking-wider">
+                  Características Físicas / Estado (Exigido se Sem Série)
+                </label>
+                <textarea
+                  rows={3}
+                  required={devSerial.trim() === ""}
+                  placeholder="Descreva marcas, riscos ou quebras estéticas fundamentais para a responsabilidade jurídica técnica da MGV."
+                  value={devDesc}
+                  onChange={(e) => setDevDesc(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowDeviceModal(false)}
+                  className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-lg transition hover-premium active-premium"
+                >
+                  {loading ? "Gravando..." : "Salvar Aparelho"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Login | MGV Tecnologia</title>
+<!-- Google Fonts: Inter -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">tailwind.config = {darkMode: "class", theme: {extend: {colors: {"on-tertiary-fixed-variant": "#454748", "inverse-primary": "#c9c6c5", "secondary-container": "#fdc003", "surface-variant": "#e5e2e2", secondary: "#785900", "surface-dim": "#dcd9d9", "on-tertiary-fixed": "#1a1c1d", "on-primary-fixed-variant": "#484646", "surface-bright": "#fcf9f8", tertiary: "#000001", "status-error": "#EF4444", "status-info": "#3B82F6", outline: "#7d7577", "surface-white": "#FFFFFF", "inverse-on-surface": "#f3f0f0", "tertiary-container": "#1a1c1d", error: "#ba1a1a", "primary-fixed-dim": "#c9c6c5", "on-tertiary-container": "#838485", "on-primary-container": "#868383", "surface-container": "#f0eded", "on-secondary-fixed-variant": "#5b4300", "secondary-fixed-dim": "#fabd00", "on-primary-fixed": "#1c1b1b", "on-secondary-fixed": "#261a00", "surface-container-highest": "#e5e2e2", "primary-fixed": "#e6e1e1", "on-surface": "#1b1b1c", background: "#fcf9f8", "tertiary-fixed-dim": "#c6c6c7", "on-tertiary": "#ffffff", "on-surface-variant": "#4c4547", "on-error-container": "#93000a", "secondary-fixed": "#ffdf9e", "on-background": "#1b1b1c", "status-success": "#10B981", "status-warning": "#F59E0B", "on-secondary-container": "#6c5000", "error-container": "#ffdad6", surface: "#fcf9f8", "surface-container-lowest": "#ffffff", "outline-variant": "#cfc4c6", "primary-container": "#1c1b1b", "on-secondary": "#ffffff", "inverse-surface": "#313031", "on-error": "#ffffff", primary: "#000000", "tertiary-fixed": "#e2e2e3", "surface-tint": "#605e5e", "on-primary": "#ffffff", "surface-container-low": "#f6f3f3", "surface-container-high": "#eae7e7"}, borderRadius: {DEFAULT: "0.5rem", lg: "1rem", xl: "1.5rem", full: "9999px"}, spacing: {"margin-mobile": "16px", "margin-desktop": "32px", "sidebar-width": "260px", gutter: "16px", "max-content-width": "1440px", unit: "4px"}, fontFamily: {"body-md": ["Inter"], "headline-md": ["Inter"], "label-md": ["Inter"], "headline-lg": ["Inter"], "body-lg": ["Inter"], "title-lg": ["Inter"], "label-sm": ["Inter"], "data-tabular": ["Inter"], "headline-sm": ["Inter"], headline: ["Inter"], display: ["Inter"], body: ["Inter"], label: ["Inter"]}, fontSize: {"body-md": ["14px", {lineHeight: "20px", fontWeight: "400"}], "headline-md": ["24px", {lineHeight: "32px", letterSpacing: "-0.01em", fontWeight: "600"}], "label-md": ["12px", {lineHeight: "16px", letterSpacing: "0.05em", fontWeight: "600"}], "headline-lg": ["32px", {lineHeight: "40px", letterSpacing: "-0.02em", fontWeight: "700"}], "body-lg": ["16px", {lineHeight: "24px", fontWeight: "400"}], "title-lg": ["18px", {lineHeight: "24px", fontWeight: "600"}], "label-sm": ["11px", {lineHeight: "14px", fontWeight: "500"}], "data-tabular": ["13px", {lineHeight: "18px", fontWeight: "400"}], "headline-sm": ["20px", {lineHeight: "28px", fontWeight: "600"}]}}}};</script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        
+        .technical-grid {
+            background-color: #fcf9f8;
+            background-image: 
+                linear-gradient(rgba(234, 231, 231, 0.4) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(234, 231, 231, 0.4) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+
+        .loader-spinner {
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top: 2px solid #ffffff;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .toast-entrance {
+            animation: slideInRight 0.4s ease-out forwards;
+        }
+
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="bg-background font-body-md text-on-background min-h-screen flex items-center justify-center relative overflow-hidden technical-grid">
+<!-- Toast Notification (Hidden by default) -->
+<div class="fixed top-8 right-8 z-50 hidden toast-entrance" id="errorToast">
+<div class="bg-surface-white border-l-4 border-status-error shadow-lg p-4 flex items-center space-x-3 min-w-[320px] rounded-lg">
+<span class="material-symbols-outlined text-status-error">error</span>
+<div>
+<p class="font-label-md text-on-surface uppercase tracking-tight">Falha na Autenticação</p>
+<p class="text-body-md text-on-surface-variant">E-mail ou senha incorretos. Tente novamente.</p>
+</div>
+<button class="ml-auto text-outline-variant hover:text-on-surface transition-colors" onclick="hideToast()">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+</div>
+<!-- Main Container -->
+<main class="w-full max-w-md px-margin-mobile md:px-0 z-10">
+<!-- Brand Identity -->
+<div class="flex flex-col items-center mb-10">
+<img alt="MGV Tecnologia Logo" class="h-12 w-auto mb-4" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDydCIZ4ApQDPxhyoHD128NDXcVTMpGyHFU1jXaFusaQfCd0cjKiLzr2mJgzX_dr87bnzxK0kBbsybYZPWzHSz5jIVJWNydNPDjqqKjzgUgcAZ1LChi2VADht7qtJD0U7xF6sqEFzHj52GP7ld2gt4Ul2ZVf4SVgeSIhbjA1vb2A-w9ihfECYg_kgsetX-3bwjjFXRMKvi7bygmaRgJ_z718OOB5OoldFt8L5wjX8gvuz09pcUW11Rh9slZRqVuqLurlMRxZWtAUCDE"/>
+<div class="text-center">
+<h1 class="font-headline-sm text-headline-sm text-primary uppercase tracking-widest">MGV TECNOLOGIA</h1>
+<p class="text-label-md font-label-md text-on-surface-variant uppercase mt-1">Technical Assistance Management</p>
+</div>
+</div>
+<!-- Login Card -->
+<div class="bg-surface-white border border-outline-variant rounded shadow-sm overflow-hidden p-8">
+<form class="space-y-6" id="loginForm" onsubmit="handleLogin(event)">
+<!-- Email Field -->
+<div class="space-y-2">
+<label class="block font-label-md text-label-md text-on-surface-variant uppercase tracking-wider" for="email">E-mail Corporativo</label>
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-primary transition-colors">mail</span>
+<input class="w-full pl-10 pr-4 py-3 bg-background border border-outline-variant rounded focus:border-primary focus:ring-2 focus:ring-secondary-container outline-none transition-all text-body-md placeholder:text-outline-variant" id="email" placeholder="usuario@mgv.com.br" required="" type="email"/>
+</div>
+</div>
+<!-- Password Field -->
+<div class="space-y-2">
+<div class="flex justify-between items-center">
+<label class="block font-label-md text-label-md text-on-surface-variant uppercase tracking-wider" for="password">Senha de Acesso</label>
+<a class="text-label-sm font-label-sm text-secondary hover:underline" href="#">Esqueci minha senha</a>
+</div>
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-primary transition-colors">lock</span>
+<input class="w-full pl-10 pr-12 py-3 bg-background border border-outline-variant rounded focus:border-primary focus:ring-2 focus:ring-secondary-container outline-none transition-all text-body-md placeholder:text-outline-variant" id="password" placeholder="••••••••" required="" type="password"/>
+<button class="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface-variant transition-colors" type="button">
+<span class="material-symbols-outlined">visibility</span>
+</button>
+</div>
+</div>
+<!-- Submit Button / Loading State -->
+<button class="w-full bg-primary text-on-primary font-label-md text-label-md uppercase tracking-[0.1em] py-4 rounded hover:bg-on-primary-fixed-variant transition-all flex items-center justify-center space-x-3 active:scale-[0.98]" id="submitBtn" type="submit">
+<span id="btnText">Entrar no Sistema</span>
+<div class="hidden loader-spinner" id="btnLoader"></div>
+</button>
+</form>
+<div class="mt-8 pt-8 border-t border-outline-variant text-center">
+<p class="text-body-md text-on-surface-variant">
+                    Primeiro acesso? <a class="text-primary font-bold hover:underline" href="#">Cadastre-se</a>
+</p>
+</div>
+</div>
+<!-- System Status Info -->
+<div class="mt-8 flex justify-between items-center text-label-sm font-label-sm text-outline px-2">
+<div class="flex items-center">
+<span class="inline-block w-2 h-2 rounded-full bg-status-success mr-2"></span>
+                Sistemas Operacionais
+            </div>
+<div>v2.4.0-stable</div>
+</div>
+</main>
+<!-- Footer Copyright -->
+<footer class="absolute bottom-6 w-full text-center">
+<p class="text-label-sm font-label-sm text-outline-variant uppercase tracking-tighter">
+            © 2024 MGV Tecnologia. Technical Assistance Management System.
+        </p>
+</footer>
+<script>
+        function handleLogin(event) {
+            event.preventDefault();
+            
+            const btn = document.getElementById('submitBtn');
+            const btnText = document.getElementById('btnText');
+            const btnLoader = document.getElementById('btnLoader');
+            const toast = document.getElementById('errorToast');
+
+            // Disable UI
+            btn.disabled = true;
+            btn.classList.add('opacity-80', 'cursor-not-allowed');
+            btnText.textContent = 'Autenticando...';
+            btnLoader.classList.remove('hidden');
+            toast.classList.add('hidden');
+
+            // Simulate API Call (Supabase/Auth)
+            setTimeout(() => {
+                // Re-enable UI
+                btn.disabled = false;
+                btn.classList.remove('opacity-80', 'cursor-not-allowed');
+                btnText.textContent = 'Entrar no Sistema';
+                btnLoader.classList.add('hidden');
+
+                // Show error feedback (Simulated failure for demo)
+                showToast();
+            }, 2000);
+        }
+
+        function showToast() {
+            const toast = document.getElementById('errorToast');
+            toast.classList.remove('hidden');
+            
+            // Auto hide after 5 seconds
+            setTimeout(() => {
+                hideToast();
+            }, 5000);
+        }
+
+        function hideToast() {
+            const toast = document.getElementById('errorToast');
+            toast.classList.add('hidden');
+        }
+
+        // Toggle password visibility interaction
+        document.querySelector('button[type="button"]')?.addEventListener('click', function() {
+            const input = document.getElementById('password');
+            const icon = this.querySelector('.material-symbols-outlined');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.textContent = 'visibility_off';
+            } else {
+                input.type = 'password';
+                icon.textContent = 'visibility';
+            }
+        });
+    </script>
+</body></html>

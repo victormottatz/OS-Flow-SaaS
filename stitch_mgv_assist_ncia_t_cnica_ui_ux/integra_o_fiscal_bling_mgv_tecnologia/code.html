@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .terminal-scroll::-webkit-scrollbar { width: 4px; }
+        .terminal-scroll::-webkit-scrollbar-track { background: transparent; }
+        .terminal-scroll::-webkit-scrollbar-thumb { background: #4c4547; border-radius: 2px; }
+        .bg-grid-pattern {
+            background-image: radial-gradient(circle, #e5e2e2 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+    </style>
+<script id="tailwind-config">tailwind.config = {darkMode: "class", theme: {extend: {colors: {"tertiary-fixed-dim": "#c6c6c7", "inverse-primary": "#c9c6c5", "on-tertiary-fixed-variant": "#454748", "primary-container": "#1c1b1b", tertiary: "#000001", "on-secondary-fixed-variant": "#5b4300", "on-error": "#ffffff", "on-primary-fixed": "#1c1b1b", background: "#fcf9f8", "error-container": "#ffdad6", "on-secondary-container": "#6c5000", "status-error": "#EF4444", "surface-dim": "#dcd9d9", error: "#ba1a1a", "on-tertiary-fixed": "#1a1c1d", surface: "#fcf9f8", outline: "#7d7577", "on-surface-variant": "#4c4547", "status-warning": "#F59E0B", "secondary-fixed-dim": "#fabd00", secondary: "#785900", "on-tertiary": "#ffffff", "status-success": "#10B981", "on-secondary": "#ffffff", "primary-fixed": "#e6e1e1", "surface-white": "#FFFFFF", "on-primary-fixed-variant": "#484646", "inverse-on-surface": "#f3f0f0", "on-primary": "#ffffff", "surface-container-highest": "#e5e2e2", "surface-tint": "#605e5e", "outline-variant": "#cfc4c6", "surface-container-high": "#eae7e7", "surface-bright": "#fcf9f8", "inverse-surface": "#313031", "on-surface": "#1b1b1c", "surface-container-low": "#f6f3f3", "tertiary-fixed": "#e2e2e3", "surface-container-lowest": "#ffffff", "status-info": "#3B82F6", "on-background": "#1b1b1c", "on-primary-container": "#868383", "on-error-container": "#93000a", primary: "#000000", "tertiary-container": "#1a1c1d", "surface-variant": "#e5e2e2", "on-tertiary-container": "#838485", "primary-fixed-dim": "#c9c6c5", "secondary-container": "#fdc003", "secondary-fixed": "#ffdf9e", "surface-container": "#f0eded", "on-secondary-fixed": "#261a00"}, borderRadius: {DEFAULT: "0.5rem", lg: "1rem", xl: "1.5rem", full: "9999px"}, spacing: {"margin-mobile": "16px", "sidebar-width": "260px", "margin-desktop": "32px", gutter: "16px", unit: "4px", "max-content-width": "1440px"}, fontFamily: {"title-lg": ["Inter"], "label-md": ["Inter"], "label-sm": ["Inter"], "headline-sm": ["Inter"], "headline-lg": ["Inter"], "body-lg": ["Inter"], "data-tabular": ["Inter"], "body-md": ["Inter"], "headline-md": ["Inter"], headline: ["Inter"], display: ["Inter"], body: ["Inter"], label: ["Inter"]}, fontSize: {"title-lg": ["18px", {lineHeight: "24px", fontWeight: "600"}], "label-md": ["12px", {lineHeight: "16px", letterSpacing: "0.05em", fontWeight: "600"}], "label-sm": ["11px", {lineHeight: "14px", fontWeight: "500"}], "headline-sm": ["20px", {lineHeight: "28px", fontWeight: "600"}], "headline-lg": ["32px", {lineHeight: "40px", letterSpacing: "-0.02em", fontWeight: "700"}], "body-lg": ["16px", {lineHeight: "24px", fontWeight: "400"}], "data-tabular": ["13px", {lineHeight: "18px", fontWeight: "400"}], "body-md": ["14px", {lineHeight: "20px", fontWeight: "400"}], "headline-md": ["24px", {lineHeight: "32px", letterSpacing: "-0.01em", fontWeight: "600"}]}}}};</script>
+</head>
+<body class="bg-background text-on-surface overflow-hidden">
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full w-sidebar-width bg-primary-container flex flex-col py-6 px-4 z-50">
+<div class="mb-10 px-2 flex flex-col gap-2">
+<img alt="MGV Tecnologia Logo" class="h-8 w-auto self-start filter brightness-0 invert" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDtFZwnt39qC2Ya_-_cZeQXFyuq8Ytf-wlL8tDdeDtmt0Ckeb1n4XM1j_kE-1WRQExPr4fpmLRrkwMqJkoaRRdVJ78FYUcSrpLa-S3ChEPV5cfWspwejG25NgWauAtzedq1cu8PXbW87uTLc78J2eJyOpxlry3z8xttmBPhIo2KEJgFWYGa85RqOyemqoZNHKSr3r1W6nkiZgMQTUYQQtQ4sx9J7DzLktALJaK5DXz9vgXj-bFMHVwrz4USU-GxTQTf6hPNoacA3RTs"/>
+<div class="mt-4">
+<h1 class="font-headline-sm text-headline-sm text-surface-white leading-tight">MGV Tecnologia</h1>
+<p class="font-label-md text-label-md text-on-primary-container opacity-80 uppercase tracking-widest">Technical Operations</p>
+</div>
+</div>
+<nav class="flex-grow flex flex-col gap-1">
+<a class="flex items-center gap-3 px-4 py-3 font-label-md text-label-md text-on-primary-container hover:bg-on-primary-fixed-variant hover:text-surface-white transition-all rounded" href="#">
+<span class="material-symbols-outlined">dashboard</span> Dashboard
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 font-label-md text-label-md text-on-primary-container hover:bg-on-primary-fixed-variant hover:text-surface-white transition-all rounded" href="#">
+<span class="material-symbols-outlined">group</span> Clients
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 font-label-md text-label-md text-on-primary-container hover:bg-on-primary-fixed-variant hover:text-surface-white transition-all rounded" href="#">
+<span class="material-symbols-outlined">precision_manufacturing</span> Equipment
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 font-label-md text-label-md text-on-primary-container hover:bg-on-primary-fixed-variant hover:text-surface-white transition-all rounded" href="#">
+<span class="material-symbols-outlined">assignment</span> Service Orders
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 font-label-md text-label-md text-surface-white border-l-4 border-secondary-container bg-on-primary-fixed-variant transition-all" href="#">
+<span class="material-symbols-outlined">sync_alt</span> Integração Fiscal
+            </a>
+</nav>
+<div class="mt-auto flex flex-col gap-1 pt-6 border-t border-on-primary-fixed-variant/30">
+<button class="bg-secondary-container text-on-secondary-fixed w-full py-3 px-4 rounded font-label-md text-label-md flex items-center justify-center gap-2 mb-4 hover:brightness-110 active:opacity-80 transition-all">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">bolt</span> Start Service
+            </button>
+<a class="flex items-center gap-3 px-4 py-3 font-label-md text-label-md text-on-primary-container hover:bg-on-primary-fixed-variant hover:text-surface-white transition-all" href="#">
+<span class="material-symbols-outlined">help</span> Support
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 font-label-md text-label-md text-on-primary-container hover:bg-on-primary-fixed-variant hover:text-surface-white transition-all" href="#">
+<span class="material-symbols-outlined">logout</span> Sign Out
+            </a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="ml-sidebar-width h-screen flex flex-col relative overflow-hidden">
+<!-- TopAppBar -->
+<header class="h-16 w-full flex justify-between items-center px-margin-desktop border-b border-outline-variant bg-surface z-40">
+<div class="flex items-center gap-4">
+<h2 class="font-headline-md text-headline-md font-bold text-primary">Integração Fiscal &amp; Bling</h2>
+<div class="flex items-center gap-2 bg-status-success/10 px-3 py-1 rounded-full border border-status-success/20">
+<span class="w-2 h-2 rounded-full bg-status-success animate-pulse"></span>
+<span class="font-label-md text-label-md text-status-success">Bling API: Conectado</span>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2">
+<span class="font-label-sm text-label-sm text-on-surface-variant">Sincronização:</span>
+<span class="font-label-sm text-label-sm font-bold text-primary uppercase">Manual / Automática</span>
+</div>
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-on-surface-variant hover:text-primary cursor-pointer transition-colors">notifications</button>
+<button class="material-symbols-outlined text-on-surface-variant hover:text-primary cursor-pointer transition-colors">settings</button>
+<div class="w-8 h-8 rounded-full bg-surface-container-high border border-outline-variant overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Close-up portrait of a technical supervisor in a clean, modern corporate office. High-key lighting, soft white background, and professional attire. The supervisor looks confident and technically proficient, fitting a high-end corporate identity for a technology management dashboard." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBIhJ_Dx_RtBiJPW6bRFpao60VHmG9Ibv3lKymUg621O1vI_0RomhbikV8aL0N4Unzm1QjYdcTgGYvx-Mo4JelnFTlgNqHleiEKe28A6CNL39AcQbsGWAIu7_Okc78IvKYnHpwW__zigbO8O4wakwZgH__78Uk-3u7nvh5cMpzYrVgVWa5fL5wpaWeKZN0v5kFEIDtQ7AwTpwP80jhKHJyqJ7YELWtngY0ukOP9nmWXO6XlVLFQbL6GYOfRE0JPHH7qtJ09xwzHodcZ"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Dynamic Content Area -->
+<div class="flex-grow p-8 flex gap-6 overflow-hidden bg-grid-pattern">
+<!-- Left Column: Transmission & Logs -->
+<div class="w-3/5 flex flex-col gap-6 overflow-hidden">
+<!-- Transmission Control -->
+<section class="bg-surface-white border border-outline-variant shadow-sm rounded flex flex-col flex-grow overflow-hidden">
+<div class="p-4 border-b border-outline-variant flex justify-between items-center bg-surface-container-lowest">
+<div>
+<h3 class="font-title-lg text-title-lg text-primary flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary">fact_check</span> 
+                                Ready to Invoice
+                            </h3>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Ordens de Serviço prontas para transmissão fiscal</p>
+</div>
+<div class="flex gap-2">
+<button class="bg-primary text-surface-white px-4 py-2 font-label-md text-label-md rounded flex items-center gap-2 hover:opacity-90 active:scale-95 transition-all">
+<span class="material-symbols-outlined">send</span> Transmitir em Lote
+                            </button>
+<button class="bg-surface border border-outline text-primary px-4 py-2 font-label-md text-label-md rounded flex items-center gap-2 hover:bg-surface-container-low transition-all">
+<span class="material-symbols-outlined">sync</span> Sincronizar Manualmente
+                            </button>
+</div>
+</div>
+<div class="overflow-auto flex-grow">
+<table class="w-full text-left border-collapse">
+<thead class="sticky top-0 bg-surface-container z-10">
+<tr>
+<th class="px-4 py-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant uppercase">OS ID</th>
+<th class="px-4 py-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant uppercase">Cliente / CNPJ</th>
+<th class="px-4 py-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant uppercase">Valor (R$)</th>
+<th class="px-4 py-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant uppercase">Status</th>
+<th class="px-4 py-3 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant uppercase text-right">Ação</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant">
+<tr class="hover:bg-surface-container-lowest transition-colors group cursor-pointer">
+<td class="px-4 py-4 font-data-tabular text-data-tabular font-bold text-primary">#OS-8842</td>
+<td class="px-4 py-4">
+<div class="font-data-tabular text-data-tabular font-semibold">TechLogistics S.A.</div>
+<div class="font-label-sm text-label-sm text-on-surface-variant">00.123.456/0001-99</div>
+</td>
+<td class="px-4 py-4 font-data-tabular text-data-tabular text-right">1.450,00</td>
+<td class="px-4 py-4">
+<span class="px-2 py-0.5 rounded-full bg-status-info/10 text-status-info font-label-sm text-label-sm border border-status-info/20">Pendente</span>
+</td>
+<td class="px-4 py-4 text-right">
+<button class="material-symbols-outlined text-primary hover:text-secondary-container transition-colors">launch</button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-lowest transition-colors group cursor-pointer bg-error-container/5">
+<td class="px-4 py-4 font-data-tabular text-data-tabular font-bold text-primary">#OS-8843</td>
+<td class="px-4 py-4">
+<div class="font-data-tabular text-data-tabular font-semibold">AutoPeças Imperial</div>
+<div class="font-label-sm text-label-sm text-on-surface-variant">99.888.777/0001-01</div>
+</td>
+<td class="px-4 py-4 font-data-tabular text-data-tabular text-right">890,50</td>
+<td class="px-4 py-4">
+<span class="px-2 py-0.5 rounded-full bg-status-error/10 text-status-error font-label-sm text-label-sm border border-status-error/20">Rejeitada</span>
+</td>
+<td class="px-4 py-4 text-right">
+<button class="material-symbols-outlined text-status-error hover:scale-110 transition-transform">error</button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-lowest transition-colors group cursor-pointer">
+<td class="px-4 py-4 font-data-tabular text-data-tabular font-bold text-primary">#OS-8845</td>
+<td class="px-4 py-4">
+<div class="font-data-tabular text-data-tabular font-semibold">Constructo Brasil Ltda</div>
+<div class="font-label-sm text-label-sm text-on-surface-variant">12.345.678/0001-12</div>
+</td>
+<td class="px-4 py-4 font-data-tabular text-data-tabular text-right">4.200,00</td>
+<td class="px-4 py-4">
+<span class="px-2 py-0.5 rounded-full bg-status-info/10 text-status-info font-label-sm text-label-sm border border-status-info/20">Pendente</span>
+</td>
+<td class="px-4 py-4 text-right">
+<button class="material-symbols-outlined text-primary hover:text-secondary-container transition-colors">launch</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<!-- Network Log -->
+<section class="h-64 bg-primary-container rounded shadow-lg flex flex-col border border-white/10">
+<div class="px-4 py-2 border-b border-white/10 flex justify-between items-center">
+<h4 class="font-label-md text-label-md text-surface-white uppercase tracking-widest flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">terminal</span> Log de Operações
+                        </h4>
+<div class="flex gap-4">
+<span class="text-[10px] text-on-primary-container font-mono">NET_SPEED: 45ms</span>
+<span class="text-[10px] text-on-primary-container font-mono">STATUS: MONITORING</span>
+</div>
+</div>
+<div class="p-4 overflow-auto terminal-scroll font-mono text-[11px] space-y-1">
+<div class="text-on-primary-container opacity-50">[14:20:01] Inciando handshake com Bling API...</div>
+<div class="text-status-success">[14:20:02] Autenticação OAuth2 realizada com sucesso.</div>
+<div class="text-on-primary-container opacity-50">[14:20:15] Consultando fila de OS para transmissão (Lote #442)</div>
+<div class="text-status-error">[14:21:05] ERRO SEFAZ: Falha de Comunicação - Timeout na resposta do Webservice.</div>
+<div class="text-on-primary-container opacity-50">[14:21:05] Retrying in 15 seconds... (Attempt 1/3)</div>
+<div class="text-status-warning">[14:21:20] Transmissão Rejeitada: Duplicidade de NF-e [chNFe: 3523...]</div>
+<div class="text-on-primary-container opacity-50">[14:22:40] Syncing #OS-8842 data structure...</div>
+<div class="text-on-primary-container opacity-50">[14:22:42] Building XML payload for Client ID: 10442...</div>
+<div class="text-status-success">[14:22:45] XML validado localmente via XSD Schema.</div>
+<div class="animate-pulse text-surface-white">&gt; Monitoring network interface eth0...</div>
+</div>
+</section>
+</div>
+<!-- Right Column: DANFE Preview & Fiscal Details -->
+<div class="w-2/5 flex flex-col gap-6">
+<!-- DANFE Preview -->
+<section class="bg-surface-white border border-outline-variant shadow-md rounded-lg flex flex-col flex-grow overflow-hidden">
+<div class="p-4 border-b border-outline-variant flex justify-between items-center bg-surface-container-lowest">
+<h3 class="font-title-lg text-title-lg text-primary flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">description</span>
+                            DANFE Preview
+                        </h3>
+<div class="flex gap-2">
+<button class="p-2 rounded hover:bg-surface-container transition-colors material-symbols-outlined text-on-surface-variant">zoom_in</button>
+<button class="p-2 rounded hover:bg-surface-container transition-colors material-symbols-outlined text-on-surface-variant">print</button>
+<button class="p-2 rounded hover:bg-surface-container transition-colors material-symbols-outlined text-on-surface-variant">download</button>
+</div>
+</div>
+<div class="flex-grow bg-surface-container p-6 overflow-auto flex justify-center">
+<!-- Mock DANFE Paper -->
+<div class="bg-white w-[400px] min-h-[560px] shadow-2xl p-6 border border-outline-variant flex flex-col gap-4">
+<!-- Header Mock -->
+<div class="border-2 border-primary p-2 flex justify-between items-start">
+<div class="w-1/2">
+<div class="font-bold text-[10px] uppercase">MGV TECNOLOGIA LTDA</div>
+<div class="text-[8px]">Av. Industrial, 1500 - Sala 42<br/>São Paulo - SP | 01234-000</div>
+</div>
+<div class="w-1/2 text-right">
+<div class="font-bold text-[10px]">DANFE</div>
+<div class="text-[8px]">Documento Auxiliar da Nota Fiscal Eletrônica</div>
+</div>
+</div>
+<!-- Barcode Mock -->
+<div class="h-10 w-full bg-primary flex items-center justify-center text-white text-[8px] font-mono">
+                                || ||| | |||| | || | ||| || ||| | |||| | || | ||| || ||| | |||| | || | ||| || ||| | |||| | || | |||
+                            </div>
+<!-- Main Data Mocks -->
+<div class="grid grid-cols-2 gap-2">
+<div class="border border-outline-variant p-1">
+<label class="block text-[6px] uppercase font-bold text-on-surface-variant">Natureza da Operação</label>
+<div class="text-[8px] font-bold">Prestação de Serviço</div>
+</div>
+<div class="border border-outline-variant p-1">
+<label class="block text-[6px] uppercase font-bold text-on-surface-variant">Protocolo de Autorização</label>
+<div class="text-[8px] font-bold">135230004567890</div>
+</div>
+</div>
+<div class="border border-outline-variant p-1 flex-grow">
+<label class="block text-[6px] uppercase font-bold text-on-surface-variant">Dados do Destinatário</label>
+<div class="text-[9px] font-bold mt-1">TechLogistics S.A.</div>
+<div class="text-[8px]">CNPJ: 00.123.456/0001-99</div>
+<div class="text-[8px]">Rua das Inovações, 500 - Bloco B</div>
+<div class="text-[8px]">São Paulo - SP</div>
+</div>
+<div class="h-32 border border-outline-variant p-1">
+<label class="block text-[6px] uppercase font-bold text-on-surface-variant">Dados do Serviço / Impostos</label>
+<table class="w-full text-[7px] mt-1">
+<tbody><tr class="border-b border-outline-variant">
+<th class="text-left py-1">Cód.</th>
+<th class="text-left py-1">Descrição</th>
+<th class="text-right py-1">V. Total</th>
+</tr>
+<tr>
+<td>SERV04</td>
+<td>MANUTENÇÃO PREVENTIVA SERVIDOR HP</td>
+<td class="text-right">1.450,00</td>
+</tr>
+</tbody></table>
+</div>
+</div>
+</div>
+<!-- Fiscal Info Sidebar (Footer of Preview Section) -->
+<div class="p-4 bg-surface-container-low border-t border-outline-variant">
+<div class="grid grid-cols-1 gap-3">
+<div class="bg-surface-white p-3 rounded border border-outline-variant">
+<label class="block font-label-sm text-label-sm text-on-surface-variant uppercase mb-1">Chave de Acesso</label>
+<div class="font-mono text-xs text-primary flex justify-between items-center">
+<span>3523 0900 1234 5600 0199 5500 1000 0456 7810 0045 6789</span>
+<button class="material-symbols-outlined text-sm hover:text-secondary-container">content_copy</button>
+</div>
+</div>
+<div class="flex gap-2">
+<button class="flex-grow bg-primary text-surface-white py-3 rounded font-label-md text-label-md flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">code</span> Exportar XML
+                                </button>
+<button class="flex-grow bg-secondary-container text-on-secondary-fixed py-3 rounded font-label-md text-label-md flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition-all">
+<span class="material-symbols-outlined">send_and_archive</span> Enviar p/ Bling
+                                </button>
+</div>
+</div>
+</div>
+</section>
+</div>
+</div>
+<!-- Floating Status Overlay (Subtle Atmospheric Interaction) -->
+<div class="fixed bottom-8 right-8 bg-inverse-surface text-inverse-on-surface px-6 py-4 rounded-xl shadow-2xl flex items-center gap-4 translate-y-20 transition-transform duration-500 z-[100]" id="toast">
+<span class="material-symbols-outlined text-status-success">check_circle</span>
+<div class="flex flex-col">
+<span class="font-title-lg text-sm">Transmissão Concluída</span>
+<span class="font-label-sm text-[10px] opacity-70">NF-e #4458 emitida com sucesso.</span>
+</div>
+</div>
+</main>
+<script>
+        // Micro-interaction: Simulate the notification appearing after 2 seconds
+        window.addEventListener('load', () => {
+            const toast = document.getElementById('toast');
+            setTimeout(() => {
+                toast.classList.remove('translate-y-20');
+            }, 2000);
+            
+            setTimeout(() => {
+                toast.classList.add('translate-y-20');
+            }, 7000);
+        });
+
+        // Interactive effect for terminal logs
+        const terminal = document.querySelector('.terminal-scroll');
+        setInterval(() => {
+            if (terminal.scrollTop + terminal.clientHeight < terminal.scrollHeight) {
+                terminal.scrollTop += 1;
+            }
+        }, 100);
+    </script>
+</body></html>

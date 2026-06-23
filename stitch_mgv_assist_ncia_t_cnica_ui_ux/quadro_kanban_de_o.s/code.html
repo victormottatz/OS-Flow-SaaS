@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>MGV Technical - Quadro de O.S.</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">tailwind.config = {darkMode: "class", theme: {extend: {colors: {secondary: "#785900", "on-error-container": "#93000a", "on-background": "#1b1b1c", "primary-fixed-dim": "#c9c6c5", error: "#ba1a1a", "on-secondary": "#ffffff", "on-primary-fixed-variant": "#484646", "on-error": "#ffffff", "surface-container-lowest": "#ffffff", "status-warning": "#F59E0B", outline: "#7d7577", "surface-container-low": "#f6f3f3", "surface-container-highest": "#e5e2e2", "tertiary-fixed-dim": "#c6c6c7", "on-primary-container": "#868383", "status-success": "#10B981", "on-secondary-fixed": "#261a00", "on-primary-fixed": "#1c1b1b", "surface-white": "#FFFFFF", "inverse-primary": "#c9c6c5", "status-info": "#3B82F6", "primary-container": "#1c1b1b", "surface-container": "#f0eded", "inverse-on-surface": "#f3f0f0", "secondary-fixed": "#ffdf9e", "tertiary-fixed": "#e2e2e3", "on-primary": "#ffffff", "tertiary-container": "#1a1c1d", "on-tertiary": "#ffffff", primary: "#000000", tertiary: "#000001", "status-error": "#EF4444", "on-tertiary-fixed": "#1a1c1d", "on-tertiary-container": "#838485", surface: "#fcf9f8", "surface-bright": "#fcf9f8", "on-secondary-container": "#6c5000", "secondary-container": "#fdc003", "error-container": "#ffdad6", "on-surface-variant": "#4c4547", "surface-tint": "#605e5e", "surface-dim": "#dcd9d9", "primary-fixed": "#e6e1e1", "on-secondary-fixed-variant": "#5b4300", "on-tertiary-fixed-variant": "#454748", "outline-variant": "#cfc4c6", "surface-container-high": "#eae7e7", "inverse-surface": "#313031", "surface-variant": "#e5e2e2", background: "#fcf9f8", "on-surface": "#1b1b1c", "secondary-fixed-dim": "#fabd00"}, borderRadius: {DEFAULT: "0.5rem", lg: "1rem", xl: "1.5rem", full: "9999px"}, spacing: {unit: "4px", "sidebar-width": "260px", "max-content-width": "1440px", gutter: "16px", "margin-mobile": "16px", "margin-desktop": "32px"}, fontFamily: {"title-lg": ["Inter"], "label-sm": ["Inter"], "label-md": ["Inter"], "headline-sm": ["Inter"], "headline-lg": ["Inter"], "body-lg": ["Inter"], "data-tabular": ["Inter"], "body-md": ["Inter"], "headline-md": ["Inter"], headline: ["Inter"], display: ["Inter"], body: ["Inter"], label: ["Inter"]}, fontSize: {"title-lg": ["18px", {lineHeight: "24px", fontWeight: "600"}], "label-sm": ["11px", {lineHeight: "14px", fontWeight: "500"}], "label-md": ["12px", {lineHeight: "16px", letterSpacing: "0.05em", fontWeight: "600"}], "headline-sm": ["20px", {lineHeight: "28px", fontWeight: "600"}], "headline-lg": ["32px", {lineHeight: "40px", letterSpacing: "-0.02em", fontWeight: "700"}], "body-lg": ["16px", {lineHeight: "24px", fontWeight: "400"}], "data-tabular": ["13px", {lineHeight: "18px", fontWeight: "400"}], "body-md": ["14px", {lineHeight: "20px", fontWeight: "400"}], "headline-md": ["24px", {lineHeight: "32px", letterSpacing: "-0.01em", fontWeight: "600"}]}}}};</script>
+<style>
+        body { font-family: 'Inter', sans-serif; background-color: #F4F4F5; }
+        .kanban-column { min-width: 280px; max-width: 320px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cfc4c6; border-radius: 10px; }
+        .card-priority-critical { border-left: 4px solid #EF4444; }
+        .card-priority-normal { border-left: 4px solid #3B82F6; }
+        .card-priority-low { border-left: 4px solid #10B981; }
+    </style>
+</head>
+<body class="text-on-background">
+<!-- Sidebar (Shared Component Anchor) -->
+<aside class="fixed h-full w-[260px] left-0 top-0 bg-primary-container border-r border-outline-variant flex flex-col py-gutter z-50">
+<div class="px-6 mb-8">
+<h1 class="font-headline-md text-headline-md font-bold text-surface-white tracking-tight">MGV Technical</h1>
+<p class="text-label-sm text-on-primary-container uppercase tracking-widest mt-1">Management System</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center px-6 py-3 text-on-primary-container/70 hover:text-surface-white hover:bg-on-primary-fixed-variant/5 transition-colors group" href="#">
+<span class="material-symbols-outlined mr-3">dashboard</span>
+<span class="font-body-md text-body-md">Dashboard</span>
+</a>
+<a class="flex items-center px-6 py-3 text-surface-white border-l-4 border-secondary bg-on-primary-fixed-variant/10 transition-colors" href="#">
+<span class="material-symbols-outlined mr-3 text-secondary">assignment_turned_in</span>
+<span class="font-body-md text-body-md">Service Orders</span>
+</a>
+<a class="flex items-center px-6 py-3 text-on-primary-container/70 hover:text-surface-white hover:bg-on-primary-fixed-variant/5 transition-colors" href="#">
+<span class="material-symbols-outlined mr-3">group</span>
+<span class="font-body-md text-body-md">Clients</span>
+</a>
+<a class="flex items-center px-6 py-3 text-on-primary-container/70 hover:text-surface-white hover:bg-on-primary-fixed-variant/5 transition-colors" href="#">
+<span class="material-symbols-outlined mr-3">inventory_2</span>
+<span class="font-body-md text-body-md">Inventory</span>
+</a>
+<a class="flex items-center px-6 py-3 text-on-primary-container/70 hover:text-surface-white hover:bg-on-primary-fixed-variant/5 transition-colors" href="#">
+<span class="material-symbols-outlined mr-3">payments</span>
+<span class="font-body-md text-body-md">Finance</span>
+</a>
+</nav>
+<div class="mt-auto px-6 space-y-4">
+<button class="w-full bg-secondary text-on-primary font-bold py-3 rounded flex items-center justify-center gap-2 hover:brightness-110 transition-all">
+<span class="material-symbols-outlined text-[18px]">add</span>
+<span>Nova O.S.</span>
+</button>
+<div class="pt-4 border-t border-on-primary-fixed-variant/20 space-y-2">
+<a class="flex items-center py-2 text-on-primary-container/70 hover:text-surface-white text-body-md" href="#">
+<span class="material-symbols-outlined mr-3 text-[20px]">settings</span>
+                    Settings
+                </a>
+<a class="flex items-center py-2 text-on-primary-container/70 hover:text-surface-white text-body-md" href="#">
+<span class="material-symbols-outlined mr-3 text-[20px]">help</span>
+                    Support
+                </a>
+</div>
+</div>
+</aside>
+<!-- Top AppBar (Shared Component Anchor) -->
+<header class="fixed top-0 right-0 w-[calc(100%-260px)] h-16 bg-surface-white border-b border-surface-container-highest flex justify-between items-center px-margin-desktop z-40">
+<div class="flex items-center gap-6">
+<h2 class="font-headline-sm text-headline-sm font-black text-primary">MGV Management</h2>
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+<input class="bg-surface-container-low border-none rounded pl-10 pr-4 py-2 w-80 text-body-md focus:ring-2 focus:ring-secondary/20 transition-all outline-none" placeholder="Buscar por O.S., Cliente ou Equipamento..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-all relative">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-status-error rounded-full border-2 border-surface-white"></span>
+</button>
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-all">
+<span class="material-symbols-outlined">help_outline</span>
+</button>
+<div class="h-8 w-px bg-surface-container-highest mx-2"></div>
+<div class="flex items-center gap-3 cursor-pointer group">
+<div class="text-right">
+<p class="text-label-md font-bold text-on-surface">Ricardo Silva</p>
+<p class="text-[10px] text-on-surface-variant uppercase tracking-wider">Supervisor Técnico</p>
+</div>
+<img class="w-10 h-10 rounded-full border border-surface-container-highest" data-alt="A professional studio headshot of a mature technician in his 40s wearing a clean black corporate polo shirt with a subtle MGV logo. He has a friendly but professional expression, short groomed hair, and is set against a clean, minimalist gray background with professional lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBLtyqlc3WihGlcTJjotEpIBd0mYCi2sbfovni3dBpTGgPg6qYEw8ej6wdKPjLNMYIVCHDGj0Ne-c_gcDmQiSDmq5VXL2n0XwzPSi0lF3NWIsliCU3-38GBD5yyyW1QuEsGFocsGoWWcm_gC_HXL1hw6k7F7sKrl8kFK3ynhE9qGatsLjoUcFWe_P8ajiJ2NzwlqzSQTFRYpJaaLRKfmxIDlimB23qbkYCMyEDDGj8KDYrWSAMpPuiH3GKsgM5MQxdtZvfJ7uPofHwP"/>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="ml-[260px] mt-16 p-8 min-h-[calc(100vh-64px)] overflow-hidden">
+<div class="flex justify-between items-end mb-8">
+<div>
+<h3 class="font-headline-md text-headline-md text-primary">Quadro de Ordens de Serviço</h3>
+<nav class="flex text-label-md text-on-surface-variant mt-1 gap-2">
+<span>Dashboard</span>
+<span class="material-symbols-outlined text-[14px] leading-none flex items-center">chevron_right</span>
+<span class="text-secondary font-bold">O.S. Kanban</span>
+</nav>
+</div>
+<div class="flex gap-3">
+<button class="flex items-center gap-2 bg-surface-white border border-outline-variant px-4 py-2 rounded text-label-md hover:bg-surface-container-low transition-all">
+<span class="material-symbols-outlined text-[18px]">filter_list</span>
+                    Filtrar
+                </button>
+<button class="flex items-center gap-2 bg-primary text-surface-white px-4 py-2 rounded text-label-md hover:opacity-90 transition-all">
+<span class="material-symbols-outlined text-[18px]">view_week</span>
+                    Alternar Visualização
+                </button>
+</div>
+</div>
+<!-- Kanban Board Area -->
+<div class="flex gap-6 overflow-x-auto pb-8 custom-scrollbar h-[calc(100vh-220px)] items-start">
+<!-- Column: Entrada/Triagem -->
+<section class="kanban-column flex flex-col flex-shrink-0 h-full">
+<div class="flex items-center justify-between mb-4 px-1">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-outline"></span>
+<h4 class="font-label-md text-label-md text-on-surface uppercase">Entrada / Triagem</h4>
+<span class="bg-surface-container-highest px-2 py-0.5 rounded text-[10px] font-bold">04</span>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+<!-- Card 1 -->
+<div class="bg-surface-white p-4 rounded border border-surface-container-high card-priority-critical hover:shadow-md transition-shadow cursor-pointer group">
+<div class="flex justify-between items-start mb-2">
+<span class="text-[11px] font-bold text-on-surface-variant tracking-wider">#OS-2024-0891</span>
+<span class="bg-red-50 text-red-700 text-[10px] font-black px-1.5 py-0.5 rounded uppercase">Urgente</span>
+</div>
+<h5 class="text-body-md font-bold text-primary mb-1">Manutenção Hidráulica</h5>
+<p class="text-label-sm text-on-surface-variant mb-4">Cliente: Construtora Alvorada</p>
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px]">precision_manufacturing</span>
+<span class="text-[11px] font-medium">Bomba KSB-200</span>
+</div>
+<img class="w-6 h-6 rounded-full border border-surface-container-highest" data-alt="Small circular avatar of a technical staff member, minimalist and professional with neutral tones." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAx4BQBYlK0ikcgJt9oQijhQyf7D1jGz-V1e-3D18X4Jqy8zTDj3mzsUYq_BBnipQZoLNu_fPPx45B1p6aOF6P09QxH4nrQz-UwHaaEDixcC2s4jeEmUoYaZC-uuXFzysOTpQe3rfWm6sik01UCj03TsqPRzU4tR2EPXtOeLXl91MFc3wOIJTsy8LCYLaD2ojR4f2yUgTAPBnPFQVp3Ejylw8Yfi6m-F5X1KwaUPgRNJCdoExaPflzj6TuEdfyPN8r-GCBY9PtHcNis"/>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="bg-surface-white p-4 rounded border border-surface-container-high card-priority-normal hover:shadow-md transition-shadow cursor-pointer">
+<div class="flex justify-between items-start mb-2">
+<span class="text-[11px] font-bold text-on-surface-variant tracking-wider">#OS-2024-0902</span>
+</div>
+<h5 class="text-body-md font-bold text-primary mb-1">Troca de Rolamentos</h5>
+<p class="text-label-sm text-on-surface-variant mb-4">Cliente: Fábrica Metalúrgica S.A.</p>
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px]">settings_input_component</span>
+<span class="text-[11px] font-medium">Motor Weg 5HP</span>
+</div>
+<span class="text-[10px] text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">calendar_today</span>
+                                Hoje, 09:15
+                            </span>
+</div>
+</div>
+</div>
+</section>
+<!-- Column: Diagnóstico Técnico -->
+<section class="kanban-column flex flex-col flex-shrink-0 h-full">
+<div class="flex items-center justify-between mb-4 px-1">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-status-info"></span>
+<h4 class="font-label-md text-label-md text-on-surface uppercase">Diagnóstico Técnico</h4>
+<span class="bg-surface-container-highest px-2 py-0.5 rounded text-[10px] font-bold">03</span>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+<div class="bg-surface-white p-4 rounded border border-surface-container-high card-priority-normal hover:shadow-md transition-shadow cursor-pointer">
+<div class="flex justify-between items-start mb-2">
+<span class="text-[11px] font-bold text-on-surface-variant tracking-wider">#OS-2024-0885</span>
+</div>
+<h5 class="text-body-md font-bold text-primary mb-1">Calibração de Inversores</h5>
+<p class="text-label-sm text-on-surface-variant mb-4">Cliente: TecnoPlast LTDA</p>
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2 text-status-info">
+<span class="material-symbols-outlined text-[16px]">analytics</span>
+<span class="text-[11px] font-bold uppercase tracking-tighter">Em Análise</span>
+</div>
+<div class="flex -space-x-2">
+<img class="w-6 h-6 rounded-full border-2 border-surface-white" data-alt="Small circular avatar of a professional technician." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAcLRItZDLzcozK1agsVhmKdjqlr3xDujlwVaNNcvOZ2blOkJNaCx-65W6P7496Z0VIwc1t2PxqilaxWyEJHJrvS8G66Lrz9dHUfcb2HzwprjvASvwFSDBJTBJVQRg76ErsyQl3CLv9rF3HU1pxukAAaXqqBDdxAZ9qyIgmholeZHBHq7a4UYMh6G_w40v8NFbQWEslGea614JUYLq2UY8W_OCRsBH5EM0y4WvfzF8XaByX4YUdFnuXgfiZebR6il1-cC8AkWmHhM60"/>
+<img class="w-6 h-6 rounded-full border-2 border-surface-white" data-alt="Small circular avatar of a professional technician." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD7XAQAF7aHMBo_UxGSztRcVCcvGhIJOLDFJs32YqyYwogOlNzwezKMHd-kDbVRqZExDWMkhrmOB66mVJbQy0YZF4HG0vF-w6RqMWJQpiaOVKMGIZAOLXJXPwyl-q7A5Go5VNLotOsm-0n0mQknefYn9O5EWrlkmzIWhc-DVfWS7zNg-Ms6iY2m6nGBQJiA2aIvKP9uk9rMHvTyIpP4SLZPxjGjEjIFg0yX2-2OzJHXWwNslpqtDv8tUboAiqkKIsf_9BnwwpbVwy20"/>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Column: Aguardando Peças -->
+<section class="kanban-column flex flex-col flex-shrink-0 h-full">
+<div class="flex items-center justify-between mb-4 px-1">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-status-warning"></span>
+<h4 class="font-label-md text-label-md text-on-surface uppercase">Aguardando Peças</h4>
+<span class="bg-surface-container-highest px-2 py-0.5 rounded text-[10px] font-bold">02</span>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+<div class="bg-surface-white p-4 rounded border border-surface-container-high card-priority-low hover:shadow-md transition-shadow cursor-pointer">
+<div class="flex justify-between items-start mb-2">
+<span class="text-[11px] font-bold text-on-surface-variant tracking-wider">#OS-2024-0870</span>
+<span class="bg-amber-50 text-amber-700 text-[10px] font-black px-1.5 py-0.5 rounded uppercase">Peça Pedida</span>
+</div>
+<h5 class="text-body-md font-bold text-primary mb-1">Reparo Painel Elétrico</h5>
+<p class="text-label-sm text-on-surface-variant mb-4">Cliente: Supermercados BH</p>
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px]">local_shipping</span>
+<span class="text-[11px] font-medium italic">Prev: 3 dias</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Column: Em Manutenção -->
+<section class="kanban-column flex flex-col flex-shrink-0 h-full">
+<div class="flex items-center justify-between mb-4 px-1">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-primary"></span>
+<h4 class="font-label-md text-label-md text-on-surface uppercase">Em Manutenção</h4>
+<span class="bg-surface-container-highest px-2 py-0.5 rounded text-[10px] font-bold">06</span>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+<div class="bg-surface-white p-4 rounded border border-surface-container-high card-priority-critical hover:shadow-md transition-shadow cursor-pointer">
+<div class="flex justify-between items-start mb-2">
+<span class="text-[11px] font-bold text-on-surface-variant tracking-wider">#OS-2024-0812</span>
+<div class="flex items-center gap-1 animate-pulse">
+<span class="w-1.5 h-1.5 rounded-full bg-status-success"></span>
+<span class="text-[10px] font-bold text-status-success uppercase">Ativo</span>
+</div>
+</div>
+<h5 class="text-body-md font-bold text-primary mb-1">Retífica de Cabeçote</h5>
+<p class="text-label-sm text-on-surface-variant mb-4">Cliente: Transportes Unificados</p>
+<div class="w-full bg-surface-container-highest h-1 rounded-full mb-3 overflow-hidden">
+<div class="bg-primary h-full w-[75%]"></div>
+</div>
+<div class="flex items-center justify-between text-on-surface-variant">
+<span class="text-[10px] font-medium uppercase">Progresso: 75%</span>
+<img class="w-6 h-6 rounded-full border border-surface-container-highest" data-alt="Technician avatar, clean and professional." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDgiPwicsZ5mmKfPKCroku9ZukHLhKYEi4wPWzhOLYOpeb-_lqhqC4cc2JDeGPmSIPd_Zii869PJxwTA_4vIMRa9dlC9LAu2uGGABwYzL6S8558NDFffnkBXTLwz4wkXoq3JJUCWxIFVvZdS1qavHUiL0DLDyKFBk9LiDeNGDMqBu_XqP2_IYTVOSfzJ47ewlJUFcsgbtH3OuQqtmZwK9GCFCAHX_WeKuRAVsmLnGz1KZRFx3yOMDHEYldmz2nyL134RBL1CFDtHzxw"/>
+</div>
+</div>
+</div>
+</section>
+<!-- Column: Pronto para Retirada -->
+<section class="kanban-column flex flex-col flex-shrink-0 h-full">
+<div class="flex items-center justify-between mb-4 px-1">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-status-success"></span>
+<h4 class="font-label-md text-label-md text-on-surface uppercase">Pronto para Retirada</h4>
+<span class="bg-surface-container-highest px-2 py-0.5 rounded text-[10px] font-bold">08</span>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+<div class="bg-surface-white/60 p-4 rounded border border-dashed border-outline-variant card-priority-low grayscale">
+<div class="flex justify-between items-start mb-2">
+<span class="text-[11px] font-bold text-on-surface-variant tracking-wider">#OS-2024-0799</span>
+<span class="material-symbols-outlined text-status-success text-[18px]" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</div>
+<h5 class="text-body-md font-bold text-primary/50 mb-1 line-through">Manutenção Preventiva</h5>
+<p class="text-label-sm text-on-surface-variant/50 mb-4">Cliente: Hospital Regional</p>
+<button class="w-full py-1.5 bg-status-success/10 text-status-success text-[10px] font-black rounded uppercase tracking-wider hover:bg-status-success hover:text-white transition-all">Notificar Cliente</button>
+</div>
+</div>
+</section>
+</div>
+</main>
+<!-- Contextual FAB (Floating Action Button) -->
+<button class="fixed bottom-margin-desktop right-margin-desktop w-16 h-16 bg-secondary text-on-primary rounded-full shadow-xl flex items-center justify-center group hover:scale-110 transition-all active:scale-95 z-50 overflow-hidden">
+<span class="material-symbols-outlined text-[32px]">add</span>
+<div class="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+</button>
+<script>
+        // Simple drag-and-drop placeholder interaction logic
+        document.querySelectorAll('.kanban-column').forEach(column => {
+            column.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                column.classList.add('bg-surface-container-low/50');
+            });
+            column.addEventListener('dragleave', () => {
+                column.classList.remove('bg-surface-container-low/50');
+            });
+            column.addEventListener('drop', () => {
+                column.classList.remove('bg-surface-container-low/50');
+            });
+        });
+
+        // Toggle Active States for UI Demo
+        document.querySelectorAll('nav a').forEach(link => {
+            link.addEventListener('click', (e) => {
+                document.querySelectorAll('nav a').forEach(l => {
+                    l.classList.remove('text-surface-white', 'border-l-4', 'border-secondary', 'bg-on-primary-fixed-variant/10');
+                    l.classList.add('text-on-primary-container/70');
+                    const icon = l.querySelector('.material-symbols-outlined');
+                    if(icon) icon.classList.remove('text-secondary');
+                });
+                link.classList.add('text-surface-white', 'border-l-4', 'border-secondary', 'bg-on-primary-fixed-variant/10');
+                link.classList.remove('text-on-primary-container/70');
+                const icon = link.querySelector('.material-symbols-outlined');
+                if(icon) icon.classList.add('text-secondary');
+            });
+        });
+    </script>
+</body></html>
