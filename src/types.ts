@@ -66,6 +66,20 @@ export interface UsedPart {
   serialNumber?: string; // Nº de série da peça instalada (obrigatório se Part.requiresSerial = true)
 }
 
+export interface ChecklistItem {
+  id: string;          // ex: 'tela', 'carcaca', 'teclado'
+  label: string;       // ex: 'Tela / Display'
+  status: 'OK' | 'AVARIA' | 'NA'; // N/A = Não Aplicável
+  observacao?: string; // nota livre por item
+}
+
+export interface EntradaFoto {
+  id: string;
+  dataUrl: string;     // Base64 da imagem comprimida
+  legenda?: string;    // Descrição da foto
+  capturedAt: string;  // ISO timestamp
+}
+
 export interface OrdemServico {
   id: string;
   osNumber: string; // Ex: OS-0001
@@ -78,7 +92,13 @@ export interface OrdemServico {
   diagnostic?: string;
   usedParts: UsedPart[];
   laborCost: number;
+  technicianLaborHours?: number;
+  technicianHourlyRate?: number;
   totalCost: number;
+  
+  // Checklist de Entrada e Laudo Fotográfico
+  checklistEntrada?: ChecklistItem[];
+  laudoFotos?: EntradaFoto[];
   
   // Faturamento e Integração Bling
   billingStatus: 'PENDENTE' | 'PROCESSANDO' | 'FATURADO' | 'REJEITADO' | 'TIMEOUT';
@@ -91,3 +111,4 @@ export interface OrdemServico {
   deletedAt?: string | null;
   createdAt: string;
 }
+

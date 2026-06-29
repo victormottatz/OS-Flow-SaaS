@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from "react";
-import { Client, Device, UserRole } from "../types";
+import { Client, Device, UserRole, OrdemServico } from "../types";
 
 
 interface ClientManagerProps {
@@ -19,6 +19,11 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh 
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDeviceModal, setShowDeviceModal] = useState(false);
   const [activeClientForDevice, setActiveClientForDevice] = useState<string | null>(null);
+
+  // Visão 360
+  const [selectedDevice360, setSelectedDevice360] = useState<Device | null>(null);
+  const [deviceHistory, setDeviceHistory] = useState<OrdemServico[]>([]);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
 
   // Form Fields - Client
   const [clientName, setClientName] = useState("");
@@ -69,7 +74,38 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh 
     } catch (err: any) {
       setErrorMsg(err.message || "Ocorreu um erro ao consultar o CEP.");
     } finally {
-      setIsCepLoading(false);
+      setIsHistoryLoading(false);
+    }
+  };
+
+  const openDeviceHistory = async (dev: Device) => {
+    if (isOffline) {
+      alert("Acesso ao histórico completo indisponível offline.");
+      return;
+    }
+    setSelectedDevice360(dev);
+    setIsHistoryLoading(true);
+    setDeviceHistory([]);
+    try {
+      const token = localStorage.getItem("mgv_token") || "";
+      const res = await fetch("/api/ordens-servico", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const allOs: OrdemServico[] = await res.json();
+        const hist = allOs
+          .filter(os => os.deviceId === dev.id)
+          .sort((a, b) => {
+            const dateA = new Date((a as any).createdAt || 0).getTime();
+            const dateB = new Date((b as any).createdAt || 0).getTime();
+            return dateB - dateA;
+          });
+        setDeviceHistory(hist);
+      }
+    } catch(err) {
+      console.error(err);
+    } finally {
+      setIsHistoryLoading(false);
     }
   };
 
@@ -349,7 +385,11 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh 
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {client.devices.map((dev) => (
-                        <div key={dev.id} className="bg-slate-50/60 p-3 rounded-xl border border-slate-200 text-xs hover:border-slate-350 transition duration-150">
+                        <button 
+                          key={dev.id} 
+                          onClick={() => openDeviceHistory(dev)}
+                          className="bg-slate-50/60 p-3 rounded-xl border border-slate-200 text-xs hover:border-indigo-400 hover:shadow-sm hover:bg-indigo-50/30 transition duration-150 text-left cursor-pointer focus:outline-none"
+                        >
                           <div className="flex items-center justify-between font-bold text-slate-800">
                             <span>{dev.type} ({dev.brand})</span>
                             <span className={`font-mono text-[9px] uppercase px-2 py-0.5 rounded-full border ${
@@ -362,7 +402,7 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh 
                           <p className="text-slate-500 text-[11px] mt-1 italic pointer-events-none line-clamp-2" title={dev.description}>
                             {dev.description}
                           </p>
-                        </div>
+                        </button>
                       ))}
                     </div>
                   )}
@@ -751,6 +791,89 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh 
         </div>
       )}
 
+      {/* MODAL: VISÃO 360 / TIMELINE */}
+      {selectedDevice360 && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-[70]">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh]">
+            <div className="px-6 py-4.5 bg-gradient-to-r from-slate-900 to-indigo-950 text-white flex items-center justify-between border-b border-slate-800">
+              <div className="flex items-center space-x-2.5">
+                <span className="material-symbols-outlined text-[20px] text-teal-400">history</span>
+                <h3 className="font-bold text-base font-display">Visão 360º - Histórico do Aparelho</h3>
+              </div>
+              <button onClick={() => setSelectedDevice360(null)} className="text-slate-400 hover:text-white transition cursor-pointer">
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+            
+            <div className="p-6 bg-slate-50 border-b border-slate-200">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h4 className="font-bold text-slate-900 text-lg">{selectedDevice360.brand} {selectedDevice360.model}</h4>
+                  <span className="text-[10px] uppercase font-bold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full mr-2">{selectedDevice360.type}</span>
+                  <span className="text-xs text-slate-500 font-mono font-semibold">N/S: {selectedDevice360.serialNumber}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Total de OSs</span>
+                  <p className="text-xl font-bold text-indigo-700">{deviceHistory.length}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1 bg-slate-50/50">
+              {isHistoryLoading ? (
+                <div className="flex flex-col items-center justify-center py-10 text-slate-400">
+                  <span className="material-symbols-outlined text-[32px] animate-spin mb-3 text-indigo-400">autorenew</span>
+                  <p className="text-sm font-semibold">Carregando histórico completo...</p>
+                </div>
+              ) : deviceHistory.length === 0 ? (
+                <div className="text-center py-10 bg-white border border-dashed border-slate-200 rounded-xl">
+                  <span className="material-symbols-outlined text-[32px] text-slate-300 mb-2">assignment</span>
+                  <p className="text-slate-500 font-semibold text-sm">Este aparelho não possui OSs anteriores.</p>
+                </div>
+              ) : (
+                <div className="relative border-l-2 border-indigo-200 ml-4 space-y-8 pb-4">
+                  {deviceHistory.map((os, index) => {
+                    const statusColor = 
+                      os.status === 'FINALIZADO' ? 'text-emerald-600 bg-emerald-100 border-emerald-300' :
+                      os.status === 'ORCAMENTO' ? 'text-amber-600 bg-amber-100 border-amber-300' :
+                      os.status === 'EM_MANUTENCAO' ? 'text-blue-600 bg-blue-100 border-blue-300' :
+                      'text-indigo-600 bg-indigo-100 border-indigo-300';
+                      
+                    return (
+                      <div key={os.id} className="relative pl-6">
+                        <div className={`absolute -left-[9px] top-1 w-4 h-4 rounded-full border-2 bg-white ${statusColor.split(' ')[2]}`} />
+                        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:shadow-md transition">
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <span className="font-mono font-bold text-slate-900 text-sm bg-slate-100 px-2 py-0.5 rounded mr-2 border border-slate-200">{os.osNumber}</span>
+                              <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full ${statusColor}`}>{os.status.replace("_", " ")}</span>
+                            </div>
+                            <span className="text-[10px] text-slate-400 font-semibold">{new Date((os as any).createdAt).toLocaleDateString('pt-BR')}</span>
+                          </div>
+                          
+                          <div className="mt-3 space-y-2 text-xs">
+                            <p><strong className="text-slate-600 text-[10px] uppercase tracking-wider block mb-0.5">Defeito Relatado:</strong> <span className="text-slate-800 italic">"{os.reportedDefect}"</span></p>
+                            {os.diagnostic && (
+                              <div className="bg-slate-50 border border-slate-100 p-2.5 rounded-lg mt-2">
+                                <strong className="text-indigo-600 text-[10px] uppercase tracking-wider block mb-1">Diagnóstico / Laudo:</strong>
+                                <p className="text-slate-700">{os.diagnostic}</p>
+                              </div>
+                            )}
+                            <div className="text-right mt-3 border-t border-slate-100 pt-2">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mr-2">Valor Cobrado:</span>
+                              <span className="font-mono font-bold text-slate-800">R$ {os.totalCost?.toFixed(2) || '0.00'}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from "react";
-import { OrdemServico, OSStatus, Part, UsedPart, UserRole, Client, Device } from "../types";
+import { OrdemServico, OSStatus, Part, UsedPart, UserRole, Client, Device, ChecklistItem, EntradaFoto } from "../types";
 
 
 interface KanbanBoardProps {
@@ -37,18 +37,25 @@ const getOSCardBorders = (status: OSStatus) => {
 
 const KanbanCard = React.memo(({
   os,
+  hasRecurrence,
   onDragStart,
   onClick
 }: {
   os: OrdemServico;
+  hasRecurrence?: boolean;
   onDragStart: (e: React.DragEvent, id: string) => void;
   onClick: (os: OrdemServico) => void;
 }) => {
   const total = (os.usedParts?.reduce((s, i) => s + (i.price * i.quantity), 0) || 0) + (os.laborCost || 0);
   return (
     <div draggable onDragStart={(e) => onDragStart(e, os.id)} onClick={() => onClick(os)} className={`bg-white rounded-xl border border-slate-200 p-4 shadow-sm cursor-pointer transition hover:shadow-md ${getOSCardBorders(os.status)}`}>
-      <div className="flex justify-between mb-2">
+      <div className="flex justify-between items-start mb-2">
         <span className="text-[10px] font-bold font-mono text-slate-900 bg-slate-100 px-2 py-0.5 rounded">{os.osNumber}</span>
+        {hasRecurrence && (
+          <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded flex items-center font-bold gap-0.5" title="Recorrência: > 2 OS em 90 dias">
+            <span className="material-symbols-outlined text-[12px]">warning</span> Recorrente
+          </span>
+        )}
       </div>
       <h4 className="font-extrabold text-slate-900 text-xs truncate">{(os as any).client?.name}</h4>
       <p className="text-[11px] text-slate-500 font-semibold">{(os as any).device?.model}</p>
@@ -58,7 +65,7 @@ const KanbanCard = React.memo(({
       </div>
     </div>
   );
-}, (prevProps, nextProps) => prevProps.os === nextProps.os);
+}, (prevProps, nextProps) => prevProps.os === nextProps.os && prevProps.hasRecurrence === nextProps.hasRecurrence);
 
 export default function KanbanBoard({ 
   ordensServico, 
@@ -71,7 +78,13 @@ export default function KanbanBoard({
   const [selectedOS, setSelectedOS] = useState<OrdemServico | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [modalTab, setModalTab] = useState<"laudo" | "pecas">("laudo");
+  const [modalTab, setModalTab] = useState<"laudo" | "pecas" | "entrada">("laudo");
+
+  // Checklist & Photos states in modal
+  const [isEditingEntrada, setIsEditingEntrada] = useState(false);
+  const [editChecklist, setEditChecklist] = useState<ChecklistItem[]>([]);
+  const [editPhotos, setEditPhotos] = useState<EntradaFoto[]>([]);
+  const [lightboxPhoto, setLightboxPhoto] = useState<EntradaFoto | null>(null);
 
   // Print state
   const [activePrintOS, setActivePrintOS] = useState<OrdemServico | null>(null);
@@ -86,6 +99,9 @@ export default function KanbanBoard({
   // Form states
   const [diagnostic, setDiagnostic] = useState("");
   const [laborCost, setLaborCost] = useState(0);
+  const [technicianLaborHours, setTechnicianLaborHours] = useState(0);
+  const [technicianHourlyRate, setTechnicianHourlyRate] = useState(0);
+  const [closingOS, setClosingOS] = useState<OrdemServico | null>(null);
   const [selectedParts, setSelectedParts] = useState<UsedPart[]>([]);
   const [tempPartId, setTempPartId] = useState("");
   const [tempPartQty, setTempPartQty] = useState(1);
@@ -97,12 +113,112 @@ export default function KanbanBoard({
     setSelectedOS(os);
     setDiagnostic(os.diagnostic || "");
     setLaborCost(os.laborCost || 0);
+    setTechnicianLaborHours(os.technicianLaborHours || 0);
+    setTechnicianHourlyRate(os.technicianHourlyRate || 0);
     setSelectedParts(os.usedParts || []);
+    setEditChecklist(os.checklistEntrada && os.checklistEntrada.length > 0 ? os.checklistEntrada : [
+      { id: "tela", label: "Tela / Display", status: "NA", observacao: "" },
+      { id: "teclado", label: "Touchscreen / Teclado", status: "NA", observacao: "" },
+      { id: "camera", label: "Câmera(s)", status: "NA", observacao: "" },
+      { id: "botoes", label: "Botões físicos (ligar, volume)", status: "NA", observacao: "" },
+      { id: "porta_carga", label: "Porta de carregamento", status: "NA", observacao: "" },
+      { id: "carcaca", label: "Carcaça / Tampa traseira", status: "NA", observacao: "" },
+      { id: "dobradicas", label: "Dobradiças (notebooks)", status: "NA", observacao: "" },
+      { id: "bateria", label: "Bateria / Nível de carga", status: "NA", observacao: "" },
+      { id: "carregador", label: "Adaptador / Carregador entregue", status: "NA", observacao: "" },
+      { id: "umidade", label: "Alta umidade / Corrosão", status: "NA", observacao: "" },
+      { id: "queda", label: "Sinais de queda ou impacto", status: "NA", observacao: "" },
+      { id: "temperatura", label: "Temperatura anormal", status: "NA", observacao: "" },
+      { id: "memoria", label: "SIM / Memória externa", status: "NA", observacao: "" },
+      { id: "acessorios_extra", label: "Acessórios entregues junto", status: "NA", observacao: "" },
+      { id: "garantia", label: "Selo de garantia intacto", status: "NA", observacao: "" }
+    ]);
+    setEditPhotos(os.laudoFotos || []);
+    setIsEditingEntrada(false);
     setModalTab("laudo");
     setErrorMsg("");
     setSuccessMsg("");
     setShowEditModal(true);
   };
+
+  const handleModalPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    if (editPhotos.length + files.length > 6) {
+      alert("Limite de 6 fotos por Ordem de Serviço atingido.");
+      return;
+    }
+
+    (Array.from(files) as File[]).forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          let width = img.width;
+          let height = img.height;
+          const maxDim = 800;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+            setEditPhotos((prev) => [
+              ...prev,
+              {
+                id: `foto-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+                dataUrl,
+                legenda: "",
+                capturedAt: new Date().toISOString()
+              }
+            ]);
+          }
+        };
+        img.src = event.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleSaveLaudoFotos = async () => {
+    if (isOffline || !selectedOS) return;
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/ordens-servico/${selectedOS.id}/laudo-fotos`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ checklistEntrada: editChecklist, laudoFotos: editPhotos })
+      });
+      if (!response.ok) throw new Error("Erro ao gravar laudo de entrada.");
+      
+      setSuccessMsg("Checklist e fotos de entrada gravados com sucesso!");
+      onRefresh();
+      
+      setSelectedOS({
+        ...selectedOS,
+        checklistEntrada: editChecklist,
+        laudoFotos: editPhotos
+      });
+      setIsEditingEntrada(false);
+      setTimeout(() => setSuccessMsg(""), 1200);
+    } catch (err: any) {
+      setErrorMsg(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   const handleDragStart = (e: React.DragEvent, id: string) => {
     if (isOffline) { e.preventDefault(); return; }
@@ -114,6 +230,14 @@ export default function KanbanBoard({
   const handleDrop = async (e: React.DragEvent, targetStatus: OSStatus) => {
     e.preventDefault();
     if (!draggingId || isOffline) return;
+
+    const osToMove = ordensServico.find(o => o.id === draggingId);
+    if (targetStatus === "FINALIZADO" && userRole === UserRole.OWNER && osToMove) {
+      setClosingOS(osToMove);
+      setDraggingId(null);
+      return;
+    }
+
     try {
       const token = localStorage.getItem("mgv_token") || "";
       const response = await fetch(`/api/ordens-servico/${draggingId}/status`, {
@@ -132,6 +256,13 @@ export default function KanbanBoard({
 
   const handleStatusChangeBtn = async (id: string, newStatus: OSStatus) => {
     if (isOffline) return;
+
+    const osToMove = ordensServico.find(o => o.id === id);
+    if (newStatus === "FINALIZADO" && userRole === UserRole.OWNER && osToMove) {
+      setClosingOS(osToMove);
+      return;
+    }
+
     try {
       const token = localStorage.getItem("mgv_token") || "";
       const response = await fetch(`/api/ordens-servico/${id}/status`, {
@@ -184,7 +315,7 @@ export default function KanbanBoard({
       const response = await fetch(`/api/ordens-servico/${selectedOS.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ diagnostic, usedParts: selectedParts, laborCost })
+        body: JSON.stringify({ diagnostic, usedParts: selectedParts, laborCost, technicianLaborHours, technicianHourlyRate })
       });
       if (!response.ok) throw new Error("Erro ao gravar.");
       setSuccessMsg("Laudo pericial e peças salvas com sucesso!");
@@ -234,12 +365,23 @@ export default function KanbanBoard({
                 <h3 className="font-bold text-sm text-slate-900">{column.name}</h3>
                 <span className="bg-slate-900 text-white font-mono text-[10px] px-2 py-0.5 rounded-full">{colOS.length}</span>
               </div>
-              <div className="flex-1 space-y-3 overflow-y-auto">
+              <div className="flex-1 space-y-3 overflow-y-auto pr-1">
                 {colOS.map((os) => {
+                  // Motor de Recorrência
+                  const ninetyDaysAgo = new Date(os.createdAt);
+                  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+                  const recurrenceCount = ordensServico.filter(otherOS => 
+                    otherOS.deviceId === os.deviceId &&
+                    new Date(otherOS.createdAt) >= ninetyDaysAgo &&
+                    new Date(otherOS.createdAt) <= new Date(os.createdAt)
+                  ).length;
+                  const hasRecurrence = recurrenceCount >= 3;
+
                   return (
                     <KanbanCard 
                       key={os.id} 
-                      os={os} 
+                      os={os}
+                      hasRecurrence={hasRecurrence}
                       onDragStart={handleDragStart} 
                       onClick={openOSDetails} 
                     />
@@ -285,6 +427,15 @@ export default function KanbanBoard({
                 }`}
               >
                 2. Substituição de Peças
+              </button>
+              <button 
+                type="button" 
+                onClick={() => setModalTab("entrada")}
+                className={`px-3 py-1.5 text-xs font-extrabold rounded-lg transition-all duration-200 active:scale-95 ${
+                  modalTab === "entrada" ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-slate-200/60"
+                }`}
+              >
+                3. Laudo & Checklist de Entrada
               </button>
             </div>
 
@@ -335,6 +486,28 @@ export default function KanbanBoard({
                         className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 font-mono font-bold focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none transition"
                       />
                       <p className="text-[10px] text-slate-450 mt-1.5 font-semibold">Valor do serviço técnico especializado da MGV.</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">Horas do Técnico</label>
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.5"
+                        value={technicianLaborHours}
+                        onChange={(e) => setTechnicianLaborHours(Math.max(0, Number(e.target.value)))}
+                        className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">Custo/Hora Técnico (R$)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={technicianHourlyRate}
+                        onChange={(e) => setTechnicianHourlyRate(Math.max(0, Number(e.target.value)))}
+                        className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none"
+                      />
                     </div>
 
                     <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-2xl p-4 flex flex-col justify-center items-end text-right border border-slate-850 shadow-md select-none">
@@ -459,6 +632,214 @@ export default function KanbanBoard({
                 </div>
               )}
 
+              {/* TAB 3: CHECKLIST E FOTOS DE ENTRADA */}
+              {modalTab === "entrada" && (
+                <div className="space-y-6 anim-fadein text-xs">
+                  <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                    <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5 font-display">
+                      <span className="material-symbols-outlined text-[18px] text-indigo-650">fact_check</span>
+                      <span>Checklist e Fotos de Entrada</span>
+                    </h4>
+                    {!isEditingEntrada && selectedOS.status !== "FINALIZADO" && (
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingEntrada(true)}
+                        className="text-xs font-extrabold text-indigo-600 hover:text-indigo-850 flex items-center gap-1 cursor-pointer bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-lg transition"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">edit</span> Editar Laudo
+                      </button>
+                    )}
+                    {isEditingEntrada && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditChecklist(selectedOS.checklistEntrada && selectedOS.checklistEntrada.length > 0 ? selectedOS.checklistEntrada : []);
+                          setEditPhotos(selectedOS.laudoFotos || []);
+                          setIsEditingEntrada(false);
+                        }}
+                        className="text-xs font-extrabold text-slate-600 hover:text-slate-850 flex items-center gap-1 cursor-pointer bg-slate-100 border border-slate-250 px-3 py-1.5 rounded-lg transition"
+                      >
+                        Cancelar Edição
+                      </button>
+                    )}
+                  </div>
+
+                  {isEditingEntrada ? (
+                    /* EDITING MODE */
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {/* Checklist Section */}
+                      <div className="space-y-4">
+                        <h5 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Checklist de Entrada</h5>
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3 max-h-[350px] overflow-y-auto pr-2">
+                          {editChecklist.map((item, idx) => (
+                            <div key={item.id} className="flex flex-col border-b border-slate-200/50 pb-2.5 last:border-0 last:pb-0 gap-2">
+                              <span className="text-xs font-semibold text-slate-700">{item.label}</span>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <div className="inline-flex rounded-lg border border-slate-205 bg-white p-0.5 shrink-0">
+                                  {(["OK", "AVARIA", "NA"] as const).map((status) => {
+                                    let activeClass = "";
+                                    if (item.status === status) {
+                                      if (status === "OK") activeClass = "bg-emerald-500 text-white shadow-sm font-bold";
+                                      else if (status === "AVARIA") activeClass = "bg-rose-500 text-white shadow-sm font-bold";
+                                      else activeClass = "bg-slate-500 text-white shadow-sm font-bold";
+                                    } else {
+                                      activeClass = "text-slate-600 hover:bg-slate-100";
+                                    }
+                                    return (
+                                      <button
+                                        key={status}
+                                        type="button"
+                                        onClick={() => {
+                                          const updated = [...editChecklist];
+                                          updated[idx].status = status;
+                                          if (status !== "AVARIA") {
+                                            updated[idx].observacao = "";
+                                          }
+                                          setEditChecklist(updated);
+                                        }}
+                                        className={`px-3 py-1 text-[10px] rounded-md transition-all cursor-pointer ${activeClass}`}
+                                      >
+                                        {status === "OK" ? "OK" : status === "AVARIA" ? "Avaria" : "N/A"}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                                {item.status === "AVARIA" && (
+                                  <input
+                                    type="text"
+                                    placeholder="Descrição da avaria..."
+                                    value={item.observacao || ""}
+                                    onChange={(e) => {
+                                      const updated = [...editChecklist];
+                                      updated[idx].observacao = e.target.value;
+                                      setEditChecklist(updated);
+                                    }}
+                                    className="px-2.5 py-1 text-xs border border-slate-200 rounded-lg bg-white outline-none focus:border-indigo-500 w-full sm:w-48"
+                                  />
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Photos Section */}
+                      <div className="space-y-4">
+                        <h5 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Fotos (Máx 6)</h5>
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-slate-500 font-semibold">{editPhotos.length} de 6 fotos anexadas</span>
+                            {editPhotos.length < 6 && (
+                              <>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  multiple
+                                  onChange={handleModalPhotoUpload}
+                                  className="hidden"
+                                  id="modal-checklist-photo-upload"
+                                />
+                                <label
+                                  htmlFor="modal-checklist-photo-upload"
+                                  className="inline-flex items-center gap-1.5 bg-indigo-50 text-indigo-650 hover:bg-indigo-100 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer border border-indigo-150 shadow-sm"
+                                >
+                                  <span className="material-symbols-outlined text-[16px]">upload</span>
+                                  <span>Adicionar Fotos</span>
+                                </label>
+                              </>
+                            )}
+                          </div>
+
+                          {editPhotos.length > 0 ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-1">
+                              {editPhotos.map((p, pIdx) => (
+                                <div key={p.id} className="relative bg-white border border-slate-200 rounded-xl p-2 flex flex-col group hover:shadow-sm transition">
+                                  <img src={p.dataUrl} alt={`Laudo ${pIdx + 1}`} className="w-full h-24 object-cover rounded-lg" />
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditPhotos((prev) => prev.filter((ph) => ph.id !== p.id))}
+                                    className="absolute top-2 right-2 bg-rose-600/90 text-white w-5 h-5 rounded-full flex items-center justify-center hover:bg-rose-700 transition"
+                                    title="Remover foto"
+                                  >
+                                    <span className="material-symbols-outlined text-[12px]">close</span>
+                                  </button>
+                                  <input
+                                    type="text"
+                                    placeholder="Descreva a foto (opcional)"
+                                    value={p.legenda || ""}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setEditPhotos((prev) => prev.map((ph) => ph.id === p.id ? { ...ph, legenda: val } : ph));
+                                    }}
+                                    className="mt-2 w-full px-2 py-1 text-[10px] border border-slate-200 rounded-lg outline-none focus:border-indigo-500"
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-center py-8 text-slate-400 bg-white border border-dashed border-slate-200 rounded-xl">
+                              <span className="material-symbols-outlined text-[24px] text-slate-350 mx-auto mb-1.5 block">add_a_photo</span>
+                              <p className="text-[10px] font-bold">Nenhuma foto adicionada</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    /* VIEW-ONLY MODE */
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 bg-slate-50/50 p-4 rounded-xl border border-slate-200/80">
+                      {/* Checklist Summary */}
+                      <div className="space-y-4">
+                        <h5 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Estado Conferido na Entrada</h5>
+                        <div className="grid grid-cols-1 gap-2.5 max-h-[400px] overflow-y-auto pr-1">
+                          {editChecklist.map((item) => (
+                            <div key={item.id} className="flex items-center justify-between bg-white border border-slate-200 rounded-xl p-2.5">
+                              <div>
+                                <span className="font-bold text-slate-800 block text-xs">{item.label}</span>
+                                {item.observacao && <span className="text-[10px] text-slate-500 italic block mt-0.5">{item.observacao}</span>}
+                              </div>
+                              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+                                item.status === "OK" 
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
+                                  : item.status === "AVARIA" 
+                                    ? "bg-rose-50 text-rose-700 border-rose-200 font-extrabold" 
+                                    : "bg-slate-100 text-slate-500 border-slate-200"
+                              }`}>
+                                {item.status === "OK" ? "OK" : item.status === "AVARIA" ? "AVARIA" : "N/A"}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Photos Gallery */}
+                      <div className="space-y-4">
+                        <h5 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Fotos do Laudo</h5>
+                        {editPhotos.length > 0 ? (
+                          <div className="grid grid-cols-2 gap-3 max-h-[400px] overflow-y-auto pr-1">
+                            {editPhotos.map((p, pIdx) => (
+                              <div 
+                                key={p.id} 
+                                onClick={() => setLightboxPhoto(p)}
+                                className="bg-white border border-slate-200 rounded-xl p-1.5 cursor-pointer hover:border-indigo-500 transition hover:shadow-sm"
+                              >
+                                <img src={p.dataUrl} alt={`Foto ${pIdx + 1}`} className="w-full h-24 object-cover rounded-lg" />
+                                {p.legenda && <p className="text-[9px] text-slate-500 font-medium truncate mt-1 text-center">{p.legenda}</p>}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center py-12 text-slate-400 bg-white border border-dashed border-slate-200 rounded-xl">
+                            <span className="material-symbols-outlined text-[32px] text-slate-300 mx-auto mb-1.5 block">image</span>
+                            <p className="text-xs font-semibold">Sem fotos anexadas</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Bling Transition reminder */}
               {selectedOS.status === "PRONTO_RETIRADA" && (
                 <div className="bg-blue-50 border border-blue-200/60 rounded-xl p-3.5 text-xs text-blue-800 flex items-start space-x-2.5 font-semibold leading-relaxed shadow-sm">
@@ -558,13 +939,26 @@ export default function KanbanBoard({
                   >
                     Fechar
                   </button>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="px-5 py-2 bg-blue-650 hover:bg-blue-700 text-white font-extrabold text-sm rounded-lg flex-1 sm:flex-none transition shadow-sm hover-premium active-premium"
-                  >
-                    {loading ? "Salvando..." : "Salvar Gravações"}
-                  </button>
+                  {modalTab === "entrada" ? (
+                    selectedOS.status !== "FINALIZADO" && isEditingEntrada && (
+                      <button
+                        type="button"
+                        onClick={handleSaveLaudoFotos}
+                        disabled={loading}
+                        className="px-5 py-2 bg-indigo-650 hover:bg-indigo-700 text-white font-extrabold text-sm rounded-lg flex-1 sm:flex-none transition shadow-sm hover-premium active-premium"
+                      >
+                        {loading ? "Salvando..." : "Salvar Entrada"}
+                      </button>
+                    )
+                  ) : (
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="px-5 py-2 bg-blue-650 hover:bg-blue-700 text-white font-extrabold text-sm rounded-lg flex-1 sm:flex-none transition shadow-sm hover-premium active-premium"
+                    >
+                      {loading ? "Salvando..." : "Salvar Gravações"}
+                    </button>
+                  )}
                 </div>
               </div>
             </form>
@@ -732,6 +1126,89 @@ export default function KanbanBoard({
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {closingOS && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60]">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md p-6">
+            <h3 className="font-bold text-lg mb-4 text-slate-900">Encerramento de OS (Rentabilidade)</h3>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100">
+                <span className="text-sm font-semibold text-slate-600">Faturamento Bruto</span>
+                <span className="font-mono font-bold text-emerald-600">R$ {closingOS.totalCost.toFixed(2)}</span>
+              </div>
+              
+              <div className="flex justify-between items-center bg-red-50 p-3 rounded-lg border border-red-100">
+                <span className="text-sm font-semibold text-slate-600">Custos Operacionais (Peças + Mão de Obra)</span>
+                <span className="font-mono font-bold text-red-600">
+                  - R$ { ((closingOS.usedParts?.reduce((sum, item) => sum + ((item.costSnapshot || 0) * item.quantity), 0) || 0) + ((closingOS.technicianLaborHours || 0) * (closingOS.technicianHourlyRate || 0))).toFixed(2) }
+                </span>
+              </div>
+              
+              <div className="flex justify-between items-center bg-indigo-50 p-3 rounded-lg border border-indigo-200">
+                <span className="text-sm font-bold text-slate-800">Margem de Lucro Real</span>
+                <span className="font-mono font-extrabold text-indigo-700">
+                  R$ { (closingOS.totalCost - ((closingOS.usedParts?.reduce((sum, item) => sum + ((item.costSnapshot || 0) * item.quantity), 0) || 0) + ((closingOS.technicianLaborHours || 0) * (closingOS.technicianHourlyRate || 0)))).toFixed(2) }
+                </span>
+              </div>
+              
+              {closingOS.usedParts?.some(p => !p.costSnapshot) && (
+                <div className="text-[10px] text-amber-700 bg-amber-50 p-2 border border-amber-200 rounded-lg">
+                  <strong>Aviso:</strong> Algumas peças desta OS não possuem preço de custo (Custo Zero), afetando a exatidão do lucro.
+                </div>
+              )}
+            </div>
+            
+            <div className="flex justify-end gap-3 mt-6">
+              <button 
+                onClick={() => setClosingOS(null)}
+                className="px-4 py-2 border border-slate-300 rounded-xl text-slate-700 font-bold hover:bg-slate-100"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={async () => {
+                  try {
+                    const token = localStorage.getItem("mgv_token") || "";
+                    const res = await fetch(`/api/ordens-servico/${closingOS.id}/status`, {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                      body: JSON.stringify({ status: "FINALIZADO" })
+                    });
+                    if (!res.ok) {
+                      const data = await res.json();
+                      alert(data.error || "Erro.");
+                    } else {
+                      onRefresh();
+                    }
+                  } catch(e: any) { alert(e.message); }
+                  setClosingOS(null);
+                }}
+                className="px-4 py-2 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 shadow-md"
+              >
+                Confirmar Fechamento
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox for viewing photos in large size */}
+      {lightboxPhoto && (
+        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-4 z-[70]" onClick={() => setLightboxPhoto(null)}>
+          <div className="max-w-3xl w-full max-h-[80vh] flex items-center justify-center relative select-none">
+            <img src={lightboxPhoto.dataUrl} alt="Visualização em tamanho real" className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl border border-slate-800" />
+            <button 
+              onClick={() => setLightboxPhoto(null)} 
+              className="absolute top-4 right-4 bg-slate-900/60 hover:bg-slate-900 text-white w-10 h-10 rounded-full flex items-center justify-center transition border border-slate-700"
+            >
+              <span className="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          {lightboxPhoto.legenda && (
+            <p className="mt-4 text-white font-medium text-sm bg-slate-900/60 px-4 py-2 rounded-xl border border-slate-800">{lightboxPhoto.legenda}</p>
+          )}
         </div>
       )}
     </div>

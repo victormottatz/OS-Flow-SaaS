@@ -1,11 +1,23 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React, { useState } from "react";
-import { Client, Device, OrdemServico } from "../types";
+import { Client, Device, OrdemServico, ChecklistItem, EntradaFoto } from "../types";
 
+const DEFAULT_CHECKLIST: ChecklistItem[] = [
+  { id: "tela", label: "Tela / Display", status: "NA", observacao: "" },
+  { id: "teclado", label: "Touchscreen / Teclado", status: "NA", observacao: "" },
+  { id: "camera", label: "Câmera(s)", status: "NA", observacao: "" },
+  { id: "botoes", label: "Botões físicos (ligar, volume)", status: "NA", observacao: "" },
+  { id: "porta_carga", label: "Porta de carregamento", status: "NA", observacao: "" },
+  { id: "carcaca", label: "Carcaça / Tampa traseira", status: "NA", observacao: "" },
+  { id: "dobradicas", label: "Dobradiças (notebooks)", status: "NA", observacao: "" },
+  { id: "bateria", label: "Bateria / Nível de carga", status: "NA", observacao: "" },
+  { id: "carregador", label: "Adaptador / Carregador entregue", status: "NA", observacao: "" },
+  { id: "umidade", label: "Alta umidade / Corrosão", status: "NA", observacao: "" },
+  { id: "queda", label: "Sinais de queda ou impacto", status: "NA", observacao: "" },
+  { id: "temperatura", label: "Temperatura anormal", status: "NA", observacao: "" },
+  { id: "memoria", label: "SIM / Memória externa", status: "NA", observacao: "" },
+  { id: "acessorios_extra", label: "Acessórios entregues junto", status: "NA", observacao: "" },
+  { id: "garantia", label: "Selo de garantia intacto", status: "NA", observacao: "" }
+];
 
 interface OSManagerProps {
   clients: (Client & { devices: Device[] })[];
@@ -16,14 +28,27 @@ interface OSManagerProps {
 
 export default function OSManager({ clients, ordensServico, isOffline, onRefresh }: OSManagerProps) {
   // Wizard steps
+  const [activeStep, setActiveStep] = useState(1);
   const [selectedClientId, setSelectedClientId] = useState("");
   const [selectedDeviceId, setSelectedDeviceId] = useState("");
   const [clientSearch, setClientSearch] = useState("");
+
+  // New Device / Avulso fields
+  const [isCreatingDevice, setIsCreatingDevice] = useState(false);
+  const [devType, setDevType] = useState("Notebook");
+  const [devBrand, setDevBrand] = useState("");
+  const [devModel, setDevModel] = useState("");
+  const [devSerial, setDevSerial] = useState("");
+  const [devDesc, setDevDesc] = useState("");
   
   // OS fields
   const [reportedDefect, setReportedDefect] = useState("");
   const [accessoriesLeft, setAccessoriesLeft] = useState("");
   const [physicalState, setPhysicalState] = useState("");
+
+  // Checklist & Photos fields
+  const [checklist, setChecklist] = useState<ChecklistItem[]>(DEFAULT_CHECKLIST);
+  const [photos, setPhotos] = useState<EntradaFoto[]>([]);
 
   // Control
   const [loading, setLoading] = useState(false);
@@ -35,6 +60,56 @@ export default function OSManager({ clients, ordensServico, isOffline, onRefresh
   const availableDevices = (selectedClient?.devices || []).filter(d => !d.deletedAt);
   const selectedDevice = availableDevices.find(d => d.id === selectedDeviceId);
 
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    if (photos.length + files.length > 6) {
+      alert("Limite de 6 fotos por Ordem de Serviço atingido.");
+      return;
+    }
+
+    (Array.from(files) as File[]).forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          let width = img.width;
+          let height = img.height;
+          const maxDim = 800;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+            setPhotos((prev) => [
+              ...prev,
+              {
+                id: `foto-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+                dataUrl,
+                legenda: "",
+                capturedAt: new Date().toISOString()
+              }
+            ]);
+          }
+        };
+        img.src = event.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleCreateOS = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg("");
@@ -44,7 +119,7 @@ export default function OSManager({ clients, ordensServico, isOffline, onRefresh
       return;
     }
 
-    if (!selectedClientId || !selectedDeviceId || !reportedDefect) {
+    if (!selectedClientId || (!selectedDeviceId && !isCreatingDevice) || !reportedDefect) {
       setErrorMsg("O preenchimento de Cliente, Aparelho e Defeito Relatado é estritamente obrigatório.");
       return;
     }
@@ -52,15 +127,47 @@ export default function OSManager({ clients, ordensServico, isOffline, onRefresh
     setLoading(true);
 
     try {
+      let finalDeviceId = selectedDeviceId;
+
+      // Se for aparelho avulso, cadastra primeiro
+      if (isCreatingDevice) {
+        if (!devType || !devBrand || !devModel) {
+          throw new Error("Preencha Tipo, Marca e Modelo do novo aparelho.");
+        }
+        const token = localStorage.getItem("mgv_token") || "";
+        const devRes = await fetch("/api/devices", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+          body: JSON.stringify({
+            clientId: selectedClientId,
+            type: devType,
+            brand: devBrand,
+            model: devModel,
+            serialNumber: devSerial,
+            description: devDesc
+          })
+        });
+        
+        if (!devRes.ok) {
+          const err = await devRes.json();
+          throw new Error(err.error || "Erro ao cadastrar novo aparelho avulso.");
+        }
+        
+        const newDev = await devRes.json();
+        finalDeviceId = newDev.id;
+      }
+
       const response = await fetch("/api/ordens-servico", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clientId: selectedClientId,
-          deviceId: selectedDeviceId,
+          deviceId: finalDeviceId,
           reportedDefect,
           accessoriesLeft,
-          physicalState
+          physicalState,
+          checklistEntrada: checklist,
+          laudoFotos: photos
         })
       });
 
@@ -76,9 +183,17 @@ export default function OSManager({ clients, ordensServico, isOffline, onRefresh
       // Reset form fields
       setSelectedClientId("");
       setSelectedDeviceId("");
+      setIsCreatingDevice(false);
+      setDevBrand("");
+      setDevModel("");
+      setDevSerial("");
+      setDevDesc("");
       setReportedDefect("");
       setAccessoriesLeft("");
       setPhysicalState("");
+      setChecklist(DEFAULT_CHECKLIST);
+      setPhotos([]);
+      setActiveStep(1);
 
     } catch (err: any) {
       setErrorMsg(err.message || "Erro inesperado.");
@@ -122,12 +237,12 @@ export default function OSManager({ clients, ordensServico, isOffline, onRefresh
 
       {/* Wizard Step Indicator */}
       {!createdOS && (
-        <div className="glassmorphism rounded-2xl p-4 shadow-sm border border-slate-200 flex items-center justify-between">
+        <div className="glassmorphism rounded-2xl p-4 shadow-sm border border-slate-200 flex items-center justify-between flex-wrap gap-y-4">
           <div className="flex items-center space-x-3">
             <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs transition-all duration-300 ${
-              selectedClientId ? "bg-emerald-500 text-white" : "bg-indigo-600 text-white"
+              activeStep > 1 ? "bg-emerald-500 text-white" : "bg-indigo-600 text-white animate-pulse"
             }`}>
-              {selectedClientId ? <span className="material-symbols-outlined text-[16px]">check</span> : "1"}
+              {activeStep > 1 ? <span className="material-symbols-outlined text-[16px]">check</span> : "1"}
             </div>
             <div>
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Passo 1</p>
@@ -135,39 +250,55 @@ export default function OSManager({ clients, ordensServico, isOffline, onRefresh
             </div>
           </div>
           
-          <div className="h-0.5 flex-1 mx-4 bg-slate-200" />
+          <div className="h-0.5 flex-1 mx-4 bg-slate-200 min-w-[20px]" />
           
           <div className="flex items-center space-x-3">
             <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs transition-all duration-300 ${
-              selectedDeviceId 
+              activeStep > 2
                 ? "bg-emerald-500 text-white" 
-                : selectedClientId 
-                  ? "bg-indigo-600 text-white anim-pulse" 
+                : activeStep === 2 
+                  ? "bg-indigo-600 text-white animate-pulse" 
                   : "bg-slate-200 text-slate-500"
             }`}>
-              {selectedDeviceId ? <span className="material-symbols-outlined text-[16px]">check</span> : "2"}
+              {activeStep > 2 ? <span className="material-symbols-outlined text-[16px]">check</span> : "2"}
             </div>
             <div>
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Passo 2</p>
-              <p className="text-xs font-bold text-slate-800">Equipamento</p>
+              <p className="text-xs font-bold text-slate-850">Equipamento</p>
             </div>
           </div>
           
-          <div className="h-0.5 flex-1 mx-4 bg-slate-200" />
+          <div className="h-0.5 flex-1 mx-4 bg-slate-200 min-w-[20px]" />
           
           <div className="flex items-center space-x-3">
             <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs transition-all duration-300 ${
-              reportedDefect 
+              activeStep > 3 
                 ? "bg-emerald-500 text-white" 
-                : selectedDeviceId 
-                  ? "bg-indigo-600 text-white anim-pulse" 
+                : activeStep === 3 
+                  ? "bg-indigo-600 text-white animate-pulse" 
                   : "bg-slate-200 text-slate-500"
             }`}>
-              3
+              {activeStep > 3 ? <span className="material-symbols-outlined text-[16px]">check</span> : "3"}
             </div>
             <div>
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Passo 3</p>
-              <p className="text-xs font-bold text-slate-800">Sintomas</p>
+              <p className="text-xs font-bold text-slate-850">Sintomas</p>
+            </div>
+          </div>
+
+          <div className="h-0.5 flex-1 mx-4 bg-slate-200 min-w-[20px]" />
+          
+          <div className="flex items-center space-x-3">
+            <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs transition-all duration-300 ${
+              activeStep === 4 
+                ? "bg-indigo-600 text-white animate-pulse" 
+                : "bg-slate-200 text-slate-500"
+            }`}>
+              4
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Passo 4</p>
+              <p className="text-xs font-bold text-slate-850">Laudo & Fotos</p>
             </div>
           </div>
         </div>
@@ -312,6 +443,34 @@ export default function OSManager({ clients, ordensServico, isOffline, onRefresh
                   </p>
                 </div>
               </div>
+
+              {createdOS.checklistEntrada && createdOS.checklistEntrada.length > 0 && (
+                <div className="border-t border-slate-200 pt-4">
+                  <h4 className="font-bold text-slate-800 uppercase text-[10px] tracking-wider mb-2 flex items-center">
+                    <span className="material-symbols-outlined text-[16px] mr-1.5 text-indigo-650">fact_check</span>
+                    Checklist de Entrada do Equipamento
+                  </h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200/50">
+                    {createdOS.checklistEntrada.map((item) => (
+                      <div key={item.id} className="text-[10px] border-b border-slate-100 pb-1 last:border-0 flex flex-col justify-center">
+                        <span className="font-semibold text-slate-700 block truncate">{item.label}</span>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <span className={`text-[8px] font-bold px-1.5 py-0.2 rounded ${
+                            item.status === "OK" 
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-100" 
+                              : item.status === "AVARIA" 
+                                ? "bg-rose-50 text-rose-700 border border-rose-100 font-extrabold" 
+                                : "bg-slate-100 text-slate-500 border border-slate-200"
+                          }`}>
+                            {item.status === "OK" ? "OK" : item.status === "AVARIA" ? "AVARIA" : "N/A"}
+                          </span>
+                          {item.observacao && <span className="text-[9px] text-slate-550 italic truncate max-w-[90px]" title={item.observacao}>({item.observacao})</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Firm clauses and agreements for assistance */}
@@ -353,7 +512,7 @@ export default function OSManager({ clients, ordensServico, isOffline, onRefresh
             )}
 
             {/* STEP 1: CLIENT SELECTION */}
-            {!selectedClientId && (
+            {activeStep === 1 && (
               <div className="space-y-4 anim-slideup">
                 <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center space-x-2 border-b border-indigo-50 pb-2">
                   <span className="bg-indigo-600 text-white rounded-xl w-6 h-6 text-xs flex items-center justify-center font-mono font-bold shrink-0">1</span>
@@ -391,6 +550,8 @@ export default function OSManager({ clients, ordensServico, isOffline, onRefresh
                           onClick={() => {
                             setSelectedClientId(c.id);
                             setSelectedDeviceId("");
+                            setIsCreatingDevice(false);
+                            setActiveStep(2);
                           }}
                           className="text-left p-4 bg-white border border-slate-200 hover:border-indigo-600 rounded-xl transition duration-150 hover:shadow-premium hover-premium active-premium flex flex-col justify-between cursor-pointer"
                         >
@@ -419,7 +580,7 @@ export default function OSManager({ clients, ordensServico, isOffline, onRefresh
             )}
 
             {/* STEP 2: DEVICE SELECTION */}
-            {selectedClientId && !selectedDeviceId && (
+            {activeStep === 2 && !isCreatingDevice && (
               <div className="space-y-4 anim-slideup">
                 {/* Selected Client Card Summary */}
                 <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-4 flex justify-between items-center">
@@ -438,6 +599,8 @@ export default function OSManager({ clients, ordensServico, isOffline, onRefresh
                     onClick={() => {
                       setSelectedClientId("");
                       setSelectedDeviceId("");
+                      setIsCreatingDevice(false);
+                      setActiveStep(1);
                     }}
                     className="text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-100/50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition hover-premium active-premium cursor-pointer"
                   >
@@ -445,10 +608,15 @@ export default function OSManager({ clients, ordensServico, isOffline, onRefresh
                   </button>
                 </div>
 
-                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center space-x-2 border-b border-indigo-50 pb-2">
-                  <span className="bg-indigo-600 text-white rounded-xl w-6 h-6 text-xs flex items-center justify-center font-mono font-bold shrink-0">2</span>
-                  <span>Escolha o Aparelho Deixado</span>
-                </h3>
+                <div className="flex items-center justify-between border-b border-indigo-50 pb-2">
+                  <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center space-x-2">
+                    <span className="bg-indigo-600 text-white rounded-xl w-6 h-6 text-xs flex items-center justify-center font-mono font-bold shrink-0">2</span>
+                    <span>Escolha o Aparelho Deixado</span>
+                  </h3>
+                  <button type="button" onClick={() => setIsCreatingDevice(true)} className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer">
+                    <span className="material-symbols-outlined text-[16px]">add_circle</span> Adicionar Avulso
+                  </button>
+                </div>
 
                 {availableDevices.length === 0 ? (
                   <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl text-sm text-amber-800 flex items-start space-x-3">
@@ -456,7 +624,7 @@ export default function OSManager({ clients, ordensServico, isOffline, onRefresh
                     <div>
                       <p className="font-semibold text-amber-950">Este cliente não possui equipamentos cadastrados</p>
                       <p className="text-xs mt-1 leading-relaxed text-amber-850">
-                        Por favor, adicione pelo menos um equipamento na ficha do cliente no menu de <strong>Clientes & Aparelhos</strong> para prosseguir com a abertura desta Ordem de Serviço.
+                        Por favor, adicione pelo menos um equipamento na ficha do cliente no menu de <strong>Clientes & Aparelhos</strong> ou adicione um aparelho <strong>avulso</strong> para prosseguir.
                       </p>
                     </div>
                   </div>
@@ -465,13 +633,16 @@ export default function OSManager({ clients, ordensServico, isOffline, onRefresh
                     {availableDevices.map((d) => {
                       const isNotebook = d.type.toLowerCase().includes("note") || d.type.toLowerCase().includes("comp") || d.type.toLowerCase().includes("pc");
                       const isPrinter = d.type.toLowerCase().includes("imp") || d.type.toLowerCase().includes("print");
-                      const isPhone = d.type.toLowerCase().includes("cel") || d.type.toLowerCase().includes("fone") || d.type.toLowerCase().includes("phone") || d.type.toLowerCase().includes("sm");
                       
                       return (
                         <button
                           key={d.id}
                           type="button"
-                          onClick={() => setSelectedDeviceId(d.id)}
+                          onClick={() => {
+                            setSelectedDeviceId(d.id);
+                            setIsCreatingDevice(false);
+                            setActiveStep(3);
+                          }}
                           className="text-left p-4 bg-white border border-slate-200 hover:border-indigo-600 rounded-xl transition duration-150 hover:shadow-premium hover-premium active-premium flex items-start space-x-3.5 cursor-pointer"
                         >
                           <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-600 shrink-0">
@@ -488,11 +659,93 @@ export default function OSManager({ clients, ordensServico, isOffline, onRefresh
                     })}
                   </div>
                 )}
+
+                <div className="pt-4 border-t border-slate-100 flex justify-start">
+                  <button
+                    type="button"
+                    onClick={() => setActiveStep(1)}
+                    className="bg-white border border-slate-200 text-slate-700 font-bold text-xs px-4 py-2.5 rounded-xl hover:bg-slate-50 transition cursor-pointer"
+                  >
+                    Voltar
+                  </button>
+                </div>
               </div>
             )}
 
-            {/* STEP 3: OS DETAILS & SUBMIT */}
-            {selectedClientId && selectedDeviceId && (
+            {/* CREATE NEW DEVICE FORM */}
+            {activeStep === 2 && isCreatingDevice && (
+              <div className="space-y-4 anim-slideup">
+                <div className="flex items-center justify-between border-b border-indigo-50 pb-2">
+                  <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center space-x-2">
+                    <span className="bg-indigo-600 text-white rounded-xl w-6 h-6 text-xs flex items-center justify-center font-mono font-bold shrink-0">2</span>
+                    <span>Cadastrar Aparelho Avulso</span>
+                  </h3>
+                  <button type="button" onClick={() => setIsCreatingDevice(false)} className="text-xs font-bold text-slate-500 hover:text-slate-700 cursor-pointer flex items-center">
+                    <span className="material-symbols-outlined text-[16px] mr-1">arrow_back</span> Voltar para Lista
+                  </button>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                   <div>
+                      <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Tipo</label>
+                      <select value={devType} onChange={(e) => setDevType(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none">
+                        <option value="Notebook">Notebook</option>
+                        <option value="Desktop">Desktop PC</option>
+                        <option value="Monitor">Monitor</option>
+                        <option value="Impressora">Impressora</option>
+                        <option value="Smartphone">Smartphone</option>
+                        <option value="Tablet">Tablet</option>
+                        <option value="Nobreak">Nobreak</option>
+                        <option value="Outro">Outro</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Marca</label>
+                      <input type="text" placeholder="Ex: Dell" value={devBrand} onChange={(e) => setDevBrand(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Modelo</label>
+                      <input type="text" placeholder="Ex: Inspiron 15" value={devModel} onChange={(e) => setDevModel(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Nº de Série</label>
+                      <input type="text" placeholder="Deixe em branco se não houver" value={devSerial} onChange={(e) => setDevSerial(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none" />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Características Físicas / Estética</label>
+                      <input type="text" placeholder="Ex: Riscos na tampa, sem carregador" value={devDesc} onChange={(e) => setDevDesc(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none" />
+                    </div>
+                </div>
+
+                <div className="pt-4 border-t border-slate-100 flex justify-between">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCreatingDevice(false);
+                    }}
+                    className="bg-white border border-slate-200 text-slate-700 font-bold text-xs px-4 py-2.5 rounded-xl hover:bg-slate-50 transition cursor-pointer"
+                  >
+                    Voltar para Lista
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!devType || !devBrand || !devModel) {
+                        alert("Preencha Tipo, Marca e Modelo do novo aparelho.");
+                        return;
+                      }
+                      setActiveStep(3);
+                    }}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition cursor-pointer shadow-sm"
+                  >
+                    Avançar para Sintomas
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 3: OS DETAILS (SYMPTOMS) */}
+            {activeStep === 3 && (
               <div className="space-y-5 anim-slideup">
                 {/* Customer and Device Quick Info Summary Panel */}
                 <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -508,6 +761,8 @@ export default function OSManager({ clients, ordensServico, isOffline, onRefresh
                           onClick={() => {
                             setSelectedClientId("");
                             setSelectedDeviceId("");
+                            setIsCreatingDevice(false);
+                            setActiveStep(1);
                           }}
                           className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer flex items-center gap-0.5"
                         >
@@ -526,18 +781,22 @@ export default function OSManager({ clients, ordensServico, isOffline, onRefresh
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-center">
-                        <span className="text-[9px] uppercase font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">Equipamento</span>
+                        <span className="text-[9px] uppercase font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">Equipamento {isCreatingDevice ? "(Novo)" : ""}</span>
                         <button
                           type="button"
-                          onClick={() => setSelectedDeviceId("")}
+                          onClick={() => {
+                            setSelectedDeviceId("");
+                            setIsCreatingDevice(false);
+                            setActiveStep(2);
+                          }}
                           className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer flex items-center gap-0.5"
                         >
                           <span className="material-symbols-outlined text-[12px]">edit</span>
                           <span>Alterar</span>
                         </button>
                       </div>
-                      <h4 className="font-bold text-slate-900 text-xs mt-1.5 truncate">{selectedDevice?.brand} {selectedDevice?.model}</h4>
-                      <p className="text-[10px] text-slate-500 font-mono mt-0.5">Série: {selectedDevice?.serialNumber}</p>
+                      <h4 className="font-bold text-slate-900 text-xs mt-1.5 truncate">{isCreatingDevice ? `${devBrand} ${devModel}` : `${selectedDevice?.brand} ${selectedDevice?.model}`}</h4>
+                      <p className="text-[10px] text-slate-500 font-mono mt-0.5">S/N: {isCreatingDevice ? (devSerial || "N/D") : selectedDevice?.serialNumber}</p>
                     </div>
                   </div>
                 </div>
@@ -635,7 +894,174 @@ export default function OSManager({ clients, ordensServico, isOffline, onRefresh
                   </div>
                 </div>
 
-                <div className="pt-4 border-t border-slate-100 flex justify-end">
+                <div className="pt-4 border-t border-slate-100 flex justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setActiveStep(2)}
+                    className="bg-white border border-slate-200 text-slate-700 font-bold text-xs px-4 py-2.5 rounded-xl hover:bg-slate-50 transition cursor-pointer"
+                  >
+                    Voltar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!reportedDefect.trim()) {
+                        alert("O Defeito Relatado é obrigatório.");
+                        return;
+                      }
+                      setActiveStep(4);
+                    }}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition cursor-pointer shadow-sm font-semibold"
+                  >
+                    Avançar para Checklist e Fotos
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 4: CHECKLIST & PHOTOS */}
+            {activeStep === 4 && (
+              <div className="space-y-6 anim-slideup">
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center space-x-2 border-b border-indigo-50 pb-2">
+                  <span className="bg-indigo-600 text-white rounded-xl w-6 h-6 text-xs flex items-center justify-center font-mono font-bold shrink-0">4</span>
+                  <span>Checklist & Laudo Fotográfico</span>
+                </h3>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Checklist Section */}
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[18px] text-indigo-600">fact_check</span>
+                      <span>Checklist de Entrada</span>
+                    </h4>
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3 max-h-[500px] overflow-y-auto pr-2">
+                      {checklist.map((item, idx) => (
+                        <div key={item.id} className="flex flex-col border-b border-slate-200/50 pb-2.5 last:border-0 last:pb-0 gap-2">
+                          <span className="text-xs font-semibold text-slate-700">{item.label}</span>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shrink-0">
+                              {(["OK", "AVARIA", "NA"] as const).map((status) => {
+                                let activeClass = "";
+                                if (item.status === status) {
+                                  if (status === "OK") activeClass = "bg-emerald-500 text-white shadow-sm font-bold";
+                                  else if (status === "AVARIA") activeClass = "bg-rose-500 text-white shadow-sm font-bold";
+                                  else activeClass = "bg-slate-500 text-white shadow-sm font-bold";
+                                } else {
+                                  activeClass = "text-slate-600 hover:bg-slate-100";
+                                }
+                                return (
+                                  <button
+                                    key={status}
+                                    type="button"
+                                    onClick={() => {
+                                      const updated = [...checklist];
+                                      updated[idx].status = status;
+                                      if (status !== "AVARIA") {
+                                        updated[idx].observacao = "";
+                                      }
+                                      setChecklist(updated);
+                                    }}
+                                    className={`px-3 py-1 text-[10px] rounded-md transition-all cursor-pointer ${activeClass}`}
+                                  >
+                                    {status === "OK" ? "OK" : status === "AVARIA" ? "Avaria" : "N/A"}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            {item.status === "AVARIA" && (
+                              <input
+                                type="text"
+                                placeholder="Descrição da avaria..."
+                                value={item.observacao || ""}
+                                onChange={(e) => {
+                                  const updated = [...checklist];
+                                  updated[idx].observacao = e.target.value;
+                                  setChecklist(updated);
+                                }}
+                                className="px-2.5 py-1 text-xs border border-slate-200 rounded-lg bg-white outline-none focus:border-indigo-500 w-full sm:w-48"
+                              />
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Photos Section */}
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[18px] text-indigo-650">photo_camera</span>
+                      <span>Laudo Fotográfico (Máximo 6 Fotos)</span>
+                    </h4>
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-slate-500 font-semibold">{photos.length} de 6 fotos anexadas</span>
+                        {photos.length < 6 && (
+                          <>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              onChange={handlePhotoUpload}
+                              className="hidden"
+                              id="checklist-photo-upload"
+                            />
+                            <label
+                              htmlFor="checklist-photo-upload"
+                              className="inline-flex items-center gap-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer border border-indigo-150 shadow-sm"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">upload</span>
+                              <span>Adicionar Fotos</span>
+                            </label>
+                          </>
+                        )}
+                      </div>
+
+                      {photos.length > 0 ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[440px] overflow-y-auto pr-1">
+                          {photos.map((p, pIdx) => (
+                            <div key={p.id} className="relative bg-white border border-slate-200 rounded-xl p-2 flex flex-col group hover:shadow-sm transition">
+                              <img src={p.dataUrl} alt={`Laudo ${pIdx + 1}`} className="w-full h-32 object-cover rounded-lg" />
+                              <button
+                                type="button"
+                                onClick={() => setPhotos((prev) => prev.filter((ph) => ph.id !== p.id))}
+                                className="absolute top-3 right-3 bg-rose-600/90 text-white w-6 h-6 rounded-full flex items-center justify-center hover:bg-rose-700 transition"
+                                title="Remover foto"
+                              >
+                                <span className="material-symbols-outlined text-[14px]">close</span>
+                              </button>
+                              <input
+                                type="text"
+                                placeholder="Descreva a foto (opcional)"
+                                value={p.legenda || ""}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setPhotos((prev) => prev.map((ph) => ph.id === p.id ? { ...ph, legenda: val } : ph));
+                                }}
+                                className="mt-2.5 w-full px-2 py-1 text-xs border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-medium"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-12 text-slate-400 bg-white border border-dashed border-slate-200 rounded-xl">
+                          <span className="material-symbols-outlined text-[32px] text-slate-350 mx-auto mb-1.5 block">add_a_photo</span>
+                          <p className="text-xs font-bold">Nenhuma foto adicionada</p>
+                          <p className="text-[10px] text-slate-400 mt-0.5">Use o botão acima para capturar ou selecionar imagens.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
+                  <button
+                    type="button"
+                    onClick={() => setActiveStep(3)}
+                    className="bg-white border border-slate-200 text-slate-700 font-bold text-xs px-4 py-2.5 rounded-xl hover:bg-slate-50 transition cursor-pointer"
+                  >
+                    Voltar
+                  </button>
                   <button
                     type="submit"
                     disabled={loading}

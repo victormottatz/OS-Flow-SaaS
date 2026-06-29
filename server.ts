@@ -105,6 +105,114 @@ async function startServer() {
     console.error("[Database Migration] Error during initialization seeder:", err);
   }
 
+  // ----------------------------------------------------
+  // PORTAL PÚBLICO: CONSULTA DE OS (SEM AUTENTICAÇÃO)
+  // Esta rota DEVE ficar antes do middleware JWT
+  // ----------------------------------------------------
+  app.get("/api/publico/os", async (req, res) => {
+    const { numero, cpfCnpj } = req.query as { numero?: string; cpfCnpj?: string };
+
+    if (!numero || !cpfCnpj) {
+      res.status(400).json({ error: "Os parâmetros 'numero' e 'cpfCnpj' são obrigatórios." });
+      return;
+    }
+
+    // Normalizar CPF/CNPJ removendo formatação
+    const cpfNormalizado = cpfCnpj.replace(/\D/g, "");
+    if (cpfNormalizado.length < 11) {
+      res.status(400).json({ error: "CPF/CNPJ inválido." });
+      return;
+    }
+
+    const db = await readDB();
+
+    // Busca a OS pelo número (case-insensitive)
+    const os = db.ordensServico.find(
+      (o: any) => o.osNumber.toUpperCase() === (numero as string).toUpperCase() && !o.deletedAt
+    );
+
+    // Resposta genérica para evitar enumeração de dados (timing-safe: sempre busca cliente antes de retornar)
+    if (!os) {
+      res.status(404).json({ error: "Nenhuma Ordem de Serviço encontrada para os dados informados." });
+      return;
+    }
+
+    // Validação do CPF/CNPJ do cliente dono da OS (segundo fator de segurança)
+    const client = db.clients.find((c: any) => c.id === os.clientId);
+    if (!client || client.cpfCnpj.replace(/\D/g, "") !== cpfNormalizado) {
+      // Resposta idêntica ao caso "OS não encontrada" para não revelar existência
+      res.status(404).json({ error: "Nenhuma Ordem de Serviço encontrada para os dados informados." });
+      return;
+    }
+
+    const device = db.devices.find((d: any) => d.id === os.deviceId);
+
+    // Mapeamento de status para labels e mensagens amigáveis ao cliente
+    const statusMap: Record<string, { label: string; message: string; color: string; step: number }> = {
+      ORCAMENTO: {
+        label: "Aguardando Orçamento",
+        message: "Estamos avaliando seu equipamento e preparando o orçamento do reparo.",
+        color: "yellow",
+        step: 1
+      },
+      AGUARDANDO_PECA: {
+        label: "Aguardando Peça",
+        message: "O reparo está em andamento, mas aguardamos a chegada de um componente específico.",
+        color: "orange",
+        step: 2
+      },
+      EM_MANUTENCAO: {
+        label: "Em Manutenção",
+        message: "Ótima notícia! Seu equipamento está em processo de reparo pela nossa equipe técnica.",
+        color: "blue",
+        step: 3
+      },
+      PRONTO_RETIRADA: {
+        label: "Pronto para Retirada",
+        message: "Seu equipamento está pronto! Pode vir buscá-lo em nossa loja. Aguardamos sua visita!",
+        color: "green",
+        step: 4
+      },
+      FINALIZADO: {
+        label: "Finalizado",
+        message: "Serviço concluído com sucesso. Obrigado por confiar na MGV Assistência Técnica!",
+        color: "purple",
+        step: 5
+      }
+    };
+
+    const statusInfo = statusMap[os.status] || {
+      label: os.status,
+      message: "Entre em contato conosco para mais informações.",
+      color: "gray",
+      step: 0
+    };
+
+    // Montar payload sanitizado — ZERO dados internos expostos
+    const deviceLabel = device
+      ? `${device.type} ${device.brand} ${device.model}`.trim()
+      : "Equipamento";
+
+    const showCost = os.status === "PRONTO_RETIRADA" || os.status === "FINALIZADO";
+
+    const payload = {
+      osNumber: os.osNumber,
+      status: os.status,
+      statusLabel: statusInfo.label,
+      statusMessage: statusInfo.message,
+      statusColor: statusInfo.color,
+      statusStep: statusInfo.step,
+      deviceLabel,
+      reportedDefect: os.reportedDefect,
+      accessoriesLeft: os.accessoriesLeft || "Nenhum acessório registrado.",
+      createdAt: os.createdAt,
+      clientName: client.name.split(" ")[0], // Apenas primeiro nome
+      totalCost: showCost ? os.totalCost : null
+    };
+
+    res.json(payload);
+  });
+
   // Token authentication middleware with backward-compatible role extraction
   app.use((req, res, next) => {
     console.log("[Auth Middleware] req.path:", req.path);
@@ -546,7 +654,7 @@ async function startServer() {
   });
 
   app.post("/api/ordens-servico", async (req, res) => {
-    const { clientId, deviceId, reportedDefect, accessoriesLeft, physicalState } = req.body;
+    const { clientId, deviceId, reportedDefect, accessoriesLeft, physicalState, checklistEntrada, laudoFotos } = req.body;
     
     // Zod-like validations
     if (!clientId || !deviceId || !reportedDefect) {
@@ -573,6 +681,8 @@ async function startServer() {
       usedParts: [],
       laborCost: 0,
       totalCost: 0,
+      checklistEntrada: checklistEntrada || [],
+      laudoFotos: laudoFotos || [],
       billingStatus: "PENDENTE",
       deletedAt: null,
       createdAt: new Date().toISOString()
@@ -587,7 +697,7 @@ async function startServer() {
   // UPDATE OS Details (diagnóstico, peças, mão de obra, cálculo total)
   app.put("/api/ordens-servico/:id", async (req, res) => {
     const { id } = req.params;
-    const { diagnostic, usedParts, laborCost } = req.body;
+    const { diagnostic, usedParts, laborCost, technicianLaborHours, technicianHourlyRate, checklistEntrada, laudoFotos } = req.body;
 
     const db = await readDB();
     const index = db.ordensServico.findIndex((os: any) => os.id === id);
@@ -597,6 +707,12 @@ async function startServer() {
     }
 
     const currentOS = db.ordensServico[index];
+
+    // Se estiver finalizado, impede alteração de laudo fotográfico/checklist
+    if (currentOS.status === "FINALIZADO" && (checklistEntrada !== undefined || laudoFotos !== undefined)) {
+      res.status(400).json({ error: "Não é permitido alterar o laudo fotográfico ou checklist de uma Ordem de Serviço finalizada." });
+      return;
+    }
 
     // Deduct stock for new used pieces compared to previous list
     if (usedParts && Array.isArray(usedParts)) {
@@ -621,6 +737,11 @@ async function startServer() {
         }
         // Subtract from inventory stock
         db.parts[partIdx].stock -= item.quantity;
+        
+        // Snapshot do custo da peça se ainda não houver
+        if (item.costSnapshot === undefined) {
+          item.costSnapshot = part.cost || 0;
+        }
       }
     }
 
@@ -634,12 +755,46 @@ async function startServer() {
       diagnostic: diagnostic !== undefined ? diagnostic : currentOS.diagnostic,
       usedParts: usedParts !== undefined ? usedParts : currentOS.usedParts,
       laborCost: resolvedLaborCost,
-      totalCost: resolvedTotal
+      technicianLaborHours: technicianLaborHours !== undefined ? Number(technicianLaborHours) : currentOS.technicianLaborHours,
+      technicianHourlyRate: technicianHourlyRate !== undefined ? Number(technicianHourlyRate) : currentOS.technicianHourlyRate,
+      totalCost: resolvedTotal,
+      checklistEntrada: checklistEntrada !== undefined ? checklistEntrada : currentOS.checklistEntrada,
+      laudoFotos: laudoFotos !== undefined ? laudoFotos : currentOS.laudoFotos
     };
 
     await writeDB(db);
     res.json(db.ordensServico[index]);
   });
+
+  // Novo endpoint: UPDATE OS checklistEntrada e laudoFotos especificamente
+  app.put("/api/ordens-servico/:id/laudo-fotos", async (req, res) => {
+    const { id } = req.params;
+    const { checklistEntrada, laudoFotos } = req.body;
+
+    const db = await readDB();
+    const index = db.ordensServico.findIndex((os: any) => os.id === id);
+    if (index === -1) {
+      res.status(404).json({ error: "Ordem de Serviço não encontrada." });
+      return;
+    }
+
+    const currentOS = db.ordensServico[index];
+
+    if (currentOS.status === "FINALIZADO") {
+      res.status(400).json({ error: "Não é permitido alterar o laudo fotográfico ou checklist de uma Ordem de Serviço finalizada." });
+      return;
+    }
+
+    db.ordensServico[index] = {
+      ...currentOS,
+      checklistEntrada: checklistEntrada !== undefined ? checklistEntrada : currentOS.checklistEntrada,
+      laudoFotos: laudoFotos !== undefined ? laudoFotos : currentOS.laudoFotos
+    };
+
+    await writeDB(db);
+    res.json(db.ordensServico[index]);
+  });
+
 
   // UPDATE OS STATUS (Drag and drop Kanban or quick updates)
   app.put("/api/ordens-servico/:id/status", async (req, res) => {

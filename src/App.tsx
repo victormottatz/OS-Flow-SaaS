@@ -13,8 +13,15 @@ import OSManager from "./components/OSManager";
 import KanbanBoard from "./components/KanbanBoard";
 import BlingSandbox from "./components/BlingSandbox";
 import StockManager from "./components/StockManager";
+import PublicPortal from "./components/PublicPortal";
 
 export default function App() {
+  // Roteamento simples para o Portal Público
+  const isPublicPortal = window.location.pathname === "/acompanhar";
+  if (isPublicPortal) {
+    return <PublicPortal />;
+  }
+
   // Authentication State
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
