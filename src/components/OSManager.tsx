@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Client, Device, OrdemServico, ChecklistItem, EntradaFoto } from "../types";
 
 const DEFAULT_CHECKLIST: ChecklistItem[] = [
@@ -19,6 +19,87 @@ const DEFAULT_CHECKLIST: ChecklistItem[] = [
   { id: "garantia", label: "Selo de garantia intacto", status: "NA", observacao: "" }
 ];
 
+const removeAccents = (str: string) => 
+  str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+const HighlightText = ({ text, highlight }: { text: string; highlight: string }) => {
+  if (!highlight.trim()) return <span>{text}</span>;
+  
+  // Normalizar para encontrar as correspondências mesmo com acentos
+  const normalizedText = removeAccents(text);
+  const normalizedHighlight = removeAccents(highlight);
+  
+  const index = normalizedText.indexOf(normalizedHighlight);
+  if (index === -1) return <span>{text}</span>;
+  
+  const before = text.substring(0, index);
+  const match = text.substring(index, index + highlight.length);
+  const after = text.substring(index + highlight.length);
+  
+  return (
+    <span>
+      {before}
+      <mark className="bg-amber-100 text-amber-950 px-0.5 rounded font-semibold">{match}</mark>
+      {after}
+    </span>
+  );
+};
+
+const EQUIPMENT_PRESETS: Record<string, { brands: string[]; models: string[] }> = {
+  "Ultrassom (Fisio/Estética)": {
+    brands: ["IBRAMED", "KLD", "CEC BRA", "HTM"],
+    models: ["Sonopulse III", "Sonopulse Compact", "Heccus Turbo", "Manthus", "Cavicell"]
+  },
+  "Radiofrequência": {
+    brands: ["IBRAMED", "TONEDERM", "HTM", "MEDICAL SAN", "ENDYMED", "BTL"],
+    models: ["Hooke", "Spectra G3", "Tecare", "Ethernia Cold", "Vanquish"]
+  },
+  "Eletroestimulador / Correntes": {
+    brands: ["IBRAMED", "HTM", "CARCI", "KLD"],
+    models: ["Neurodyn Compact", "Tensmed I", "TENS-FES HTM Clínico", "Dual Soon"]
+  },
+  "Laserterapia / LED": {
+    brands: ["KLD", "IBRAMED", "HTM"],
+    models: ["Hygialux", "Antares", "Endophoton"]
+  },
+  "Vapor de Ozônio": {
+    brands: ["IBRAMED", "HTM"],
+    models: ["Dermosteam", "Beautysteam"]
+  },
+  "Alta Frequência": {
+    brands: ["HTM", "IBRAMED", "KLD"],
+    models: ["Beauty Face", "HF", "Beauty Steam"]
+  },
+  "Criolipólise / Estética": {
+    brands: ["IBRAMED", "MEDICAL SAN", "CEC BRA", "SKINTEC"],
+    models: ["Criolipólise", "Hibrid", "CM Slim", "Emtone"]
+  },
+  "Pressoterapia": {
+    brands: ["BTL"],
+    models: ["Lymphastim"]
+  },
+  "Carboxiterapia": {
+    brands: ["TONEDERM", "KLD"],
+    models: ["Carboxiderm 1C"]
+  },
+  "Notebook": {
+    brands: ["Dell", "HP", "Lenovo", "Apple", "Acer", "Asus"],
+    models: ["Inspiron", "Latitude", "ThinkPad", "MacBook Air", "MacBook Pro"]
+  },
+  "Desktop PC": {
+    brands: ["Dell", "HP", "MGV Premium", "Montado"],
+    models: ["OptiPlex", "ProDesk", "i5 Premium", "i7 Premium"]
+  },
+  "Impressora": {
+    brands: ["HP", "Epson", "Canon", "Brother"],
+    models: ["EcoTank L3250", "LaserJet", "InkTank"]
+  },
+  "Smartphone / Tablet": {
+    brands: ["Apple", "Samsung", "Motorola", "Xiaomi"],
+    models: ["iPhone 13", "iPhone 14", "Galaxy S22", "iPad Air", "Redmi Note"]
+  }
+};
+
 interface OSManagerProps {
   clients: (Client & { devices: Device[] })[];
   ordensServico: OrdemServico[];
@@ -33,9 +114,19 @@ export default function OSManager({ clients, ordensServico, isOffline, onRefresh
   const [selectedDeviceId, setSelectedDeviceId] = useState("");
   const [clientSearch, setClientSearch] = useState("");
 
+  const clientSearchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (activeStep === 1 && clientSearchInputRef.current) {
+      setTimeout(() => {
+        clientSearchInputRef.current?.focus();
+      }, 100);
+    }
+  }, [activeStep]);
+
   // New Device / Avulso fields
   const [isCreatingDevice, setIsCreatingDevice] = useState(false);
-  const [devType, setDevType] = useState("Notebook");
+  const [devType, setDevType] = useState("Ultrassom (Fisio/Estética)");
   const [devBrand, setDevBrand] = useState("");
   const [devModel, setDevModel] = useState("");
   const [devSerial, setDevSerial] = useState("");
@@ -512,72 +603,106 @@ export default function OSManager({ clients, ordensServico, isOffline, onRefresh
             )}
 
             {/* STEP 1: CLIENT SELECTION */}
-            {activeStep === 1 && (
-              <div className="space-y-4 anim-slideup">
-                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center space-x-2 border-b border-indigo-50 pb-2">
-                  <span className="bg-indigo-600 text-white rounded-xl w-6 h-6 text-xs flex items-center justify-center font-mono font-bold shrink-0">1</span>
-                  <span>Vincular Proprietário (Cliente)</span>
-                </h3>
+            {activeStep === 1 && (() => {
+              const termClean = removeAccents(clientSearch);
+              const termDigits = clientSearch.replace(/\D/g, "");
+
+              const filtered = clients.filter(c => {
+                if (c.deletedAt) return false;
                 
-                <div className="relative">
-                  <span className="material-symbols-outlined text-[20px] absolute left-3.5 top-3.5 text-slate-400">search</span>
-                  <input
-                    type="text"
-                    placeholder="Pesquisar cliente por nome, CPF/CNPJ ou telefone..."
-                    value={clientSearch}
-                    onChange={(e) => setClientSearch(e.target.value)}
-                    className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition duration-150 font-medium text-slate-800"
-                  />
-                </div>
+                const nameClean = removeAccents(c.name);
+                const docDigits = c.cpfCnpj.replace(/\D/g, "");
+                const phoneDigits = c.phone.replace(/\D/g, "");
 
-                {(() => {
-                  const filtered = clients.filter(c => {
-                    if (c.deletedAt) return false;
-                    const term = clientSearch.toLowerCase();
-                    return (
-                      c.name.toLowerCase().includes(term) ||
-                      c.cpfCnpj.includes(term) ||
-                      c.phone.includes(term)
-                    );
-                  });
+                return (
+                  nameClean.includes(termClean) ||
+                  (termDigits && docDigits.includes(termDigits)) ||
+                  (termDigits && phoneDigits.includes(termDigits))
+                );
+              });
 
-                  return (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-80 overflow-y-auto pr-1">
-                      {filtered.map((c) => (
-                        <button
-                          key={c.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedClientId(c.id);
+              return (
+                <div className="space-y-4 anim-slideup">
+                  <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center space-x-2 border-b border-indigo-50 pb-2">
+                    <span className="bg-indigo-600 text-white rounded-xl w-6 h-6 text-xs flex items-center justify-center font-mono font-bold shrink-0">1</span>
+                    <span>Vincular Proprietário (Cliente)</span>
+                  </h3>
+                  
+                  <div className="relative">
+                    <span className="material-symbols-outlined text-[20px] absolute left-3.5 top-3.5 text-slate-400">search</span>
+                    <input
+                      ref={clientSearchInputRef}
+                      type="text"
+                      placeholder="Pesquisar cliente por nome, CPF/CNPJ ou telefone..."
+                      value={clientSearch}
+                      onChange={(e) => setClientSearch(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          if (filtered.length === 1) {
+                            const singleClient = filtered[0];
+                            setSelectedClientId(singleClient.id);
                             setSelectedDeviceId("");
                             setIsCreatingDevice(false);
                             setActiveStep(2);
-                          }}
-                          className="text-left p-4 bg-white border border-slate-200 hover:border-indigo-600 rounded-xl transition duration-150 hover:shadow-premium hover-premium active-premium flex flex-col justify-between cursor-pointer"
-                        >
-                          <div>
-                            <h4 className="font-bold text-slate-900 text-sm tracking-tight">{c.name}</h4>
-                            <div className="text-[11px] text-slate-500 mt-2 flex flex-wrap gap-2 items-center font-mono">
-                              <span className="bg-slate-100 px-2 py-0.5 rounded font-semibold text-slate-700">{c.cpfCnpj}</span>
-                              <span>{c.phone}</span>
-                            </div>
-                          </div>
-                          <p className="text-[10px] text-slate-400 mt-3 truncate font-medium border-t border-slate-100 pt-2">{c.address}</p>
-                        </button>
-                      ))}
+                          }
+                        }
+                      }}
+                      className="w-full pl-11 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition duration-150 font-medium text-slate-800"
+                    />
+                    {clientSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setClientSearch("")}
+                        className="absolute right-3 top-3.5 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                        title="Limpar busca"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">close</span>
+                      </button>
+                    )}
+                  </div>
 
-                      {filtered.length === 0 && (
-                        <div className="col-span-2 text-center py-8 text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                          <span className="material-symbols-outlined text-[32px] text-slate-300 mx-auto mb-2 block text-center">how_to_reg</span>
-                          <p className="text-sm font-semibold">Nenhum cliente ativo encontrado</p>
-                          <p className="text-xs mt-1 text-slate-400">Verifique os dados ou cadastre o cliente no painel ao lado.</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-80 overflow-y-auto pr-1">
+                    {filtered.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedClientId(c.id);
+                          setSelectedDeviceId("");
+                          setIsCreatingDevice(false);
+                          setActiveStep(2);
+                        }}
+                        className="text-left p-4 bg-white border border-slate-200 hover:border-indigo-600 rounded-xl transition duration-150 hover:shadow-premium hover-premium active-premium flex flex-col justify-between cursor-pointer"
+                      >
+                        <div>
+                          <h4 className="font-bold text-slate-900 text-sm tracking-tight">
+                            <HighlightText text={c.name} highlight={clientSearch} />
+                          </h4>
+                          <div className="text-[11px] text-slate-500 mt-2 flex flex-wrap gap-2 items-center font-mono">
+                            <span className="bg-slate-100 px-2 py-0.5 rounded font-semibold text-slate-700">
+                              <HighlightText text={c.cpfCnpj} highlight={clientSearch} />
+                            </span>
+                            <span>
+                              <HighlightText text={c.phone} highlight={clientSearch} />
+                            </span>
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  );
-                })()}
-              </div>
-            )}
+                        <p className="text-[10px] text-slate-400 mt-3 truncate font-medium border-t border-slate-100 pt-2">{c.address}</p>
+                      </button>
+                    ))}
+
+                    {filtered.length === 0 && (
+                      <div className="col-span-2 text-center py-8 text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                        <span className="material-symbols-outlined text-[32px] text-slate-300 mx-auto mb-2 block text-center">how_to_reg</span>
+                        <p className="text-sm font-semibold">Nenhum cliente ativo encontrado</p>
+                        <p className="text-xs mt-1 text-slate-400">Verifique os dados ou cadastre o cliente no painel ao lado.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* STEP 2: DEVICE SELECTION */}
             {activeStep === 2 && !isCreatingDevice && (
@@ -686,34 +811,77 @@ export default function OSManager({ clients, ordensServico, isOffline, onRefresh
                 </div>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                   <div>
+                    <div>
                       <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Tipo</label>
-                      <select value={devType} onChange={(e) => setDevType(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none">
+                      <select value={devType} onChange={(e) => setDevType(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none bg-white">
+                        <option value="Ultrassom (Fisio/Estética)">Ultrassom (Fisio/Estética)</option>
+                        <option value="Radiofrequência">Radiofrequência</option>
+                        <option value="Eletroestimulador / Correntes">Eletroestimulador / Correntes</option>
+                        <option value="Laserterapia / LED">Laserterapia / LED</option>
+                        <option value="Vapor de Ozônio">Vapor de Ozônio</option>
+                        <option value="Alta Frequência">Alta Frequência</option>
+                        <option value="Criolipólise / Estética">Criolipólise / Estética</option>
+                        <option value="Pressoterapia">Pressoterapia</option>
+                        <option value="Carboxiterapia">Carboxiterapia</option>
                         <option value="Notebook">Notebook</option>
-                        <option value="Desktop">Desktop PC</option>
-                        <option value="Monitor">Monitor</option>
+                        <option value="Desktop PC">Desktop PC</option>
                         <option value="Impressora">Impressora</option>
-                        <option value="Smartphone">Smartphone</option>
-                        <option value="Tablet">Tablet</option>
-                        <option value="Nobreak">Nobreak</option>
+                        <option value="Smartphone / Tablet">Smartphone / Tablet</option>
                         <option value="Outro">Outro</option>
                       </select>
                     </div>
                     <div>
                       <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Marca</label>
-                      <input type="text" placeholder="Ex: Dell" value={devBrand} onChange={(e) => setDevBrand(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none" />
+                      <input type="text" placeholder="Ex: IBRAMED" value={devBrand} onChange={(e) => setDevBrand(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none bg-white font-semibold" />
+                      {EQUIPMENT_PRESETS[devType]?.brands && (
+                        <div className="mt-1.5 flex flex-wrap gap-1.5 select-none">
+                          {EQUIPMENT_PRESETS[devType].brands.map((b) => (
+                            <button
+                              key={b}
+                              type="button"
+                              onClick={() => setDevBrand(b)}
+                              className="text-[9px] bg-white hover:bg-indigo-50 hover:text-indigo-650 border border-slate-200 hover:border-indigo-300 text-slate-600 px-2.5 py-0.8 rounded-md transition cursor-pointer font-bold uppercase shadow-sm"
+                            >
+                              {b}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div>
                       <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Modelo</label>
-                      <input type="text" placeholder="Ex: Inspiron 15" value={devModel} onChange={(e) => setDevModel(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none" />
+                      <input type="text" placeholder="Ex: Sonopulse III" value={devModel} onChange={(e) => setDevModel(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none bg-white font-semibold" />
+                      {EQUIPMENT_PRESETS[devType]?.models && (
+                        <div className="mt-1.5 flex flex-wrap gap-1.5 select-none">
+                          {EQUIPMENT_PRESETS[devType].models.map((m) => (
+                            <button
+                              key={m}
+                              type="button"
+                              onClick={() => setDevModel(m)}
+                              className="text-[9px] bg-white hover:bg-indigo-50 hover:text-indigo-650 border border-slate-200 hover:border-indigo-300 text-slate-600 px-2.5 py-0.8 rounded-md transition cursor-pointer font-bold shadow-sm"
+                            >
+                              {m}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div>
                       <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Nº de Série</label>
-                      <input type="text" placeholder="Deixe em branco se não houver" value={devSerial} onChange={(e) => setDevSerial(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none" />
+                      <div className="flex gap-2">
+                        <input type="text" placeholder="Deixe em branco se não houver" value={devSerial} onChange={(e) => setDevSerial(e.target.value)} className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none bg-white font-mono" />
+                        <button
+                          type="button"
+                          onClick={() => setDevSerial("Sem Série")}
+                          className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 text-xs rounded-lg border border-slate-200 hover:border-slate-300 transition cursor-pointer shrink-0 font-bold shadow-sm"
+                        >
+                          Sem Série
+                        </button>
+                      </div>
                     </div>
                     <div className="sm:col-span-2">
                       <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Características Físicas / Estética</label>
-                      <input type="text" placeholder="Ex: Riscos na tampa, sem carregador" value={devDesc} onChange={(e) => setDevDesc(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none" />
+                      <input type="text" placeholder="Ex: Riscos na tampa, sem carregador" value={devDesc} onChange={(e) => setDevDesc(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none bg-white" />
                     </div>
                 </div>
 
