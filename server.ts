@@ -659,6 +659,32 @@ async function startServer() {
     }
 
     const previousStatus = db.ordensServico[index].status;
+
+    // ────────────────────────────────────────────────────────────
+    // TRAVA DE SERIALIZAÇÃO: Bloqueia avanço para FINALIZADO ou
+    // PRONTO_RETIRADA se houver peça com requiresSerial sem nº série
+    // ────────────────────────────────────────────────────────────
+    if (status === "FINALIZADO" || status === "PRONTO_RETIRADA") {
+      const osUsedParts = db.ordensServico[index].usedParts || [];
+      const missingSerials: string[] = [];
+
+      for (const usedPart of osUsedParts) {
+        const partDef = (db.parts || []).find((p: any) => p.id === usedPart.partId);
+        if (partDef && partDef.requiresSerial && (!usedPart.serialNumber || usedPart.serialNumber.trim() === "")) {
+          missingSerials.push(partDef.name || partDef.code);
+        }
+      }
+
+      if (missingSerials.length > 0) {
+        res.status(422).json({
+          error: `Bloqueio de Serialização: As seguintes peças exigem Número de Série antes de avançar: ${missingSerials.join(", ")}. Edite a OS e preencha o nº de série de cada peça obrigatória.`,
+          code: "SERIAL_REQUIRED",
+          missingParts: missingSerials
+        });
+        return;
+      }
+    }
+
     db.ordensServico[index].status = status as OSStatus;
 
     // Trigger Fiscal sync in background if entering FINALIZADO
@@ -729,33 +755,105 @@ async function startServer() {
   });
 
   // ----------------------------------------------------
-  // SPRINT 3: PARTS & INVENTORY
+  // SPRINT 3: PARTS & INVENTORY (Enterprise Module)
   // ----------------------------------------------------
   app.get("/api/parts", async (req, res) => {
     const db = await readDB();
-    res.json(db.parts);
+    const activeParts = (db.parts || []).filter((p: any) => !p.deletedAt);
+    res.json(activeParts);
   });
 
   app.post("/api/parts", async (req, res) => {
-    const { name, code, stock, cost, price } = req.body;
+    const { name, code, sku, barcode, stock, stockMin, cost, price, requiresSerial, supplier, location } = req.body;
     if (!name || !code || stock === undefined || cost === undefined || price === undefined) {
-      res.status(400).json({ error: "Todos os parâmetros de peças são obrigatórios." });
+      res.status(400).json({ error: "Os campos Nome, Código, Estoque, Custo e Preço são obrigatórios." });
       return;
     }
 
     const db = await readDB();
+
+    // Validate unique code
+    const codeExists = (db.parts || []).some((p: any) => p.code === code && !p.deletedAt);
+    if (codeExists) {
+      res.status(409).json({ error: `Já existe uma peça ativa com o código '${code}'.` });
+      return;
+    }
+
     const newPart = {
       id: `part-${Date.now()}`,
       name,
       code,
+      sku: sku || null,
+      barcode: barcode || null,
       stock: Number(stock) || 0,
+      stockMin: Number(stockMin) || 0,
       cost: Number(cost) || 0,
-      price: Number(price) || 0
+      price: Number(price) || 0,
+      requiresSerial: Boolean(requiresSerial) || false,
+      supplier: supplier || null,
+      location: location || null,
+      notaFiscalEntradaId: null,
+      deletedAt: null,
+      createdAt: new Date().toISOString()
     };
 
+    if (!db.parts) db.parts = [];
     db.parts.push(newPart);
     await writeDB(db);
     res.status(201).json(newPart);
+  });
+
+  app.put("/api/parts/:id", async (req, res) => {
+    const { id } = req.params;
+    const { name, code, sku, barcode, stock, stockMin, cost, price, requiresSerial, supplier, location } = req.body;
+
+    const db = await readDB();
+    const index = (db.parts || []).findIndex((p: any) => p.id === id);
+    if (index === -1) {
+      res.status(404).json({ error: "Peça não encontrada." });
+      return;
+    }
+
+    // Validate unique code excluding self
+    if (code) {
+      const codeExists = db.parts.some((p: any) => p.id !== id && p.code === code && !p.deletedAt);
+      if (codeExists) {
+        res.status(409).json({ error: `Já existe outra peça ativa com o código '${code}'.` });
+        return;
+      }
+    }
+
+    db.parts[index] = {
+      ...db.parts[index],
+      name: name !== undefined ? name : db.parts[index].name,
+      code: code !== undefined ? code : db.parts[index].code,
+      sku: sku !== undefined ? sku : db.parts[index].sku,
+      barcode: barcode !== undefined ? barcode : db.parts[index].barcode,
+      stock: stock !== undefined ? Number(stock) : db.parts[index].stock,
+      stockMin: stockMin !== undefined ? Number(stockMin) : db.parts[index].stockMin,
+      cost: cost !== undefined ? Number(cost) : db.parts[index].cost,
+      price: price !== undefined ? Number(price) : db.parts[index].price,
+      requiresSerial: requiresSerial !== undefined ? Boolean(requiresSerial) : db.parts[index].requiresSerial,
+      supplier: supplier !== undefined ? supplier : db.parts[index].supplier,
+      location: location !== undefined ? location : db.parts[index].location,
+    };
+
+    await writeDB(db);
+    res.json(db.parts[index]);
+  });
+
+  app.delete("/api/parts/:id", checkRole(UserRole.OWNER), async (req, res) => {
+    const { id } = req.params;
+    const db = await readDB();
+    const index = (db.parts || []).findIndex((p: any) => p.id === id);
+    if (index === -1) {
+      res.status(404).json({ error: "Peça não encontrada." });
+      return;
+    }
+
+    db.parts[index].deletedAt = new Date().toISOString();
+    await writeDB(db);
+    res.json({ message: "Peça excluída (soft delete) com sucesso!" });
   });
 
   // ----------------------------------------------------

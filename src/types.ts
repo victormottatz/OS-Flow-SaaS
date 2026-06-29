@@ -43,9 +43,18 @@ export interface Part {
   id: string;
   name: string;
   code: string;
+  sku?: string;
+  barcode?: string;
   stock: number;
+  stockMin?: number;
   cost: number;
   price: number;
+  requiresSerial?: boolean; // Flag: peças de alto valor exigem nº de série na OS
+  supplier?: string;
+  location?: string; // Localização física (ex: Prateleira A3)
+  notaFiscalEntradaId?: string | null; // Preparado para fase 2 (importação via XML NF-e)
+  deletedAt?: string | null;
+  createdAt?: string;
 }
 
 export interface UsedPart {
@@ -53,6 +62,8 @@ export interface UsedPart {
   name: string;
   quantity: number;
   price: number;
+  costSnapshot?: number; // Snapshot do custo no momento da alocação (proteção contra inflação)
+  serialNumber?: string; // Nº de série da peça instalada (obrigatório se Part.requiresSerial = true)
 }
 
 export interface OrdemServico {

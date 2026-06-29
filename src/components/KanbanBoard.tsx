@@ -115,24 +115,36 @@ export default function KanbanBoard({
     e.preventDefault();
     if (!draggingId || isOffline) return;
     try {
+      const token = localStorage.getItem("mgv_token") || "";
       const response = await fetch(`/api/ordens-servico/${draggingId}/status`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
         body: JSON.stringify({ status: targetStatus })
       });
-      if (response.ok) onRefresh();
+      if (!response.ok) {
+        const errData = await response.json();
+        alert(errData.error || "Erro ao mover a OS.");
+      } else {
+        onRefresh();
+      }
     } catch (err: any) { alert(err.message); } finally { setDraggingId(null); }
   };
 
   const handleStatusChangeBtn = async (id: string, newStatus: OSStatus) => {
     if (isOffline) return;
     try {
+      const token = localStorage.getItem("mgv_token") || "";
       const response = await fetch(`/api/ordens-servico/${id}/status`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
         body: JSON.stringify({ status: newStatus })
       });
-      if (response.ok) onRefresh();
+      if (!response.ok) {
+        const errData = await response.json();
+        alert(errData.error || "Erro ao alterar status.");
+      } else {
+        onRefresh();
+      }
     } catch (err: any) { alert(err.message); }
   };
 
@@ -146,7 +158,14 @@ export default function KanbanBoard({
       updated[existsIdx].quantity += Number(tempPartQty);
       setSelectedParts(updated);
     } else {
-      setSelectedParts([...selectedParts, { partId: part.id, name: part.name, quantity: Number(tempPartQty), price: part.price }]);
+      setSelectedParts([...selectedParts, {
+        partId: part.id,
+        name: part.name,
+        quantity: Number(tempPartQty),
+        price: part.price,
+        costSnapshot: part.cost,
+        serialNumber: ""
+      }]);
     }
     setTempPartId("");
     setTempPartQty(1);
@@ -380,28 +399,60 @@ export default function KanbanBoard({
                       <p className="text-xs text-slate-400 italic font-mono p-4 text-center">Nenhuma peça cadastrada para reposição nesta OS.</p>
                     ) : (
                       <div className="space-y-2">
-                        {selectedParts.map((p) => (
-                          <div key={p.partId} className="flex items-center justify-between text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-200 hover:border-slate-350 transition duration-150">
-                            <div>
-                              <span className="font-bold text-slate-850">{p.name}</span>
-                              <span className="text-slate-400 mx-2">|</span>
-                              <span className="text-slate-500 font-mono font-semibold">{p.quantity} x R$ {p.price.toFixed(2)}</span>
+                        {selectedParts.map((p) => {
+                          const partDef = parts.find(pd => pd.id === p.partId);
+                          const needsSerial = partDef?.requiresSerial;
+                          return (
+                            <div key={p.partId} className={`text-xs bg-slate-50 p-2.5 rounded-lg border transition duration-150 ${needsSerial && (!p.serialNumber || p.serialNumber.trim() === "") ? "border-violet-400 bg-violet-50/30" : "border-slate-200 hover:border-slate-350"}`}>
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <span className="font-bold text-slate-850">{p.name}</span>
+                                  <span className="text-slate-400 mx-2">|</span>
+                                  <span className="text-slate-500 font-mono font-semibold">{p.quantity} x R$ {p.price.toFixed(2)}</span>
+                                </div>
+                                <div className="flex items-center space-x-3">
+                                  <span className="font-bold text-slate-900 font-mono">
+                                    R$ {(p.price * p.quantity).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemovePartFromOS(p.partId)}
+                                    className="text-red-500 hover:text-red-700 transition"
+                                    title="Remover peça da OS"
+                                  >
+                                    <span className="material-symbols-outlined text-[16px]">delete</span>
+                                  </button>
+                                </div>
+                              </div>
+                              {needsSerial && (
+                                <div className="mt-2 flex items-center gap-2">
+                                  <span className="material-symbols-outlined text-violet-600 text-[14px]">qr_code_2</span>
+                                  <input
+                                    type="text"
+                                    placeholder="Nº de Série obrigatório para esta peça"
+                                    value={p.serialNumber || ""}
+                                    onChange={(e) => {
+                                      const updated = selectedParts.map(sp =>
+                                        sp.partId === p.partId ? { ...sp, serialNumber: e.target.value } : sp
+                                      );
+                                      setSelectedParts(updated);
+                                    }}
+                                    className={`flex-1 px-2.5 py-1.5 text-[11px] rounded-lg border focus:outline-none focus:ring-2 transition ${
+                                      p.serialNumber && p.serialNumber.trim() !== ""
+                                        ? "border-emerald-300 bg-emerald-50/50 focus:ring-emerald-500/30"
+                                        : "border-violet-300 bg-violet-50 focus:ring-violet-500/30"
+                                    }`}
+                                  />
+                                  {p.serialNumber && p.serialNumber.trim() !== "" ? (
+                                    <span className="material-symbols-outlined text-emerald-600 text-[14px]">check_circle</span>
+                                  ) : (
+                                    <span className="text-[9px] text-violet-600 font-bold uppercase">Obrigatório</span>
+                                  )}
+                                </div>
+                              )}
                             </div>
-                            <div className="flex items-center space-x-3">
-                              <span className="font-bold text-slate-900 font-mono">
-                                R$ {(p.price * p.quantity).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => handleRemovePartFromOS(p.partId)}
-                                className="text-red-500 hover:text-red-700 transition"
-                                title="Remover peça da OS"
-                              >
-                                <span className="material-symbols-outlined text-[16px]">delete</span>
-                              </button>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>

@@ -12,6 +12,7 @@ import ClientManager from "./components/ClientManager";
 import OSManager from "./components/OSManager";
 import KanbanBoard from "./components/KanbanBoard";
 import BlingSandbox from "./components/BlingSandbox";
+import StockManager from "./components/StockManager";
 
 export default function App() {
   // Authentication State
@@ -168,6 +169,15 @@ export default function App() {
             isOffline={isOffline}
             onRefresh={loadDatabase}
             onNavigateToBlingPanel={() => setCurrentTab("bling")}
+          />
+        )}
+
+        {currentTab === "estoque" && (
+          <StockManager
+            parts={parts}
+            userRole={user.role}
+            isOffline={isOffline}
+            onRefresh={loadDatabase}
           />
         )}
 

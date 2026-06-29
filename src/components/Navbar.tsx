@@ -36,6 +36,8 @@ export default function Navbar({
         return "Nova Ordem de Serviço";
       case "kanban":
         return "Quadro Técnico (Kanban)";
+      case "estoque":
+        return "Gestão de Estoque";
       case "bling":
         return "Integração Fiscal & Bling";
       default:
@@ -67,6 +69,7 @@ export default function Navbar({
             { id: "clients", label: "Clientes", icon: "group" },
             { id: "os", label: "Ordens de Serviço", icon: "assignment" },
             { id: "kanban", label: "Quadro Técnico", icon: "splitscreen" },
+            { id: "estoque", label: "Estoque", icon: "inventory_2" },
             { id: "bling", label: "Integração Fiscal", icon: "sync_alt" }
           ].map((item) => {
             const active = currentTab === item.id;
@@ -179,6 +182,7 @@ export default function Navbar({
           { id: "clients", label: "Clientes", icon: "group" },
           { id: "os", label: "Nova OS", icon: "assignment" },
           { id: "kanban", label: "Quadro", icon: "splitscreen" },
+          { id: "estoque", label: "Estoque", icon: "inventory_2" },
           { id: "bling", label: "Fiscal", icon: "sync_alt" }
         ].map((tab) => {
           const active = currentTab === tab.id;
