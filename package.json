@@ -9,7 +9,8 @@
     "start": "node dist/server.cjs",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "import:legacy": "tsx scripts/import_legacy.ts"
+    "import:legacy": "tsx scripts/import_legacy.ts",
+    "sync:from-supabase": "tsx scripts/sync_from_supabase.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
