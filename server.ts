@@ -457,6 +457,31 @@ async function startServer() {
     }
   });
 
+  app.get("/api/debug-db", async (req, res) => {
+    try {
+      const data = await fs.readFile(DB_FILE, "utf-8");
+      const db = JSON.parse(data);
+      res.json({
+        dbPath: DB_FILE,
+        exists: true,
+        sizeBytes: data.length,
+        counts: {
+          users: db.users?.length || 0,
+          clients: db.clients?.length || 0,
+          devices: db.devices?.length || 0,
+          parts: db.parts?.length || 0,
+          ordensServico: db.ordensServico?.length || 0
+        }
+      });
+    } catch (err: any) {
+      res.json({
+        dbPath: DB_FILE,
+        exists: false,
+        error: err.message
+      });
+    }
+  });
+
   // ----------------------------------------------------
   // SPRINT 2: BASE REGISTERS (CLIENTS AND DEVICES)
   // ----------------------------------------------------
