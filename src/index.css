@@ -158,3 +158,18 @@
   text-rendering: optimizeLegibility;
   font-feature-settings: 'liga';
 }
+
+/* Custom Thin Scrollbar for Kanban */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: var(--color-slate-250);
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-indigo-600);
+}

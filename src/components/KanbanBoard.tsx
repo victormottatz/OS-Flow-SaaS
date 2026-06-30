@@ -356,16 +356,16 @@ export default function KanbanBoard({
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5 h-[calc(100vh-140px)] min-h-[500px]">
         {COLUMNS.map((column) => {
           const colOS = ordensServico.filter(os => os.status === column.id);
           return (
-            <div key={column.id} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, column.id)} className={`rounded-2xl border border-slate-200/85 border-t-4 p-4 flex flex-col min-h-[550px] gap-4 ${column.color}`}>
-              <div className="flex items-center justify-between border-b border-slate-200/60 pb-3">
+            <div key={column.id} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, column.id)} className={`rounded-2xl border border-slate-200/85 border-t-4 p-4 flex flex-col h-full max-h-full gap-4 overflow-hidden ${column.color}`}>
+              <div className="flex items-center justify-between border-b border-slate-200/60 pb-3 shrink-0">
                 <h3 className="font-bold text-sm text-slate-900">{column.name}</h3>
                 <span className="bg-slate-900 text-white font-mono text-[10px] px-2 py-0.5 rounded-full">{colOS.length}</span>
               </div>
-              <div className="flex-1 space-y-3 overflow-y-auto pr-1">
+              <div className="flex-1 space-y-3 overflow-y-auto pr-1 pb-2 custom-scrollbar">
                 {colOS.map((os) => {
                   // Motor de Recorrência
                   const ninetyDaysAgo = new Date(os.createdAt);
