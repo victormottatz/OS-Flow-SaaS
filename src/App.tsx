@@ -14,6 +14,7 @@ import KanbanBoard from "./components/KanbanBoard";
 import BlingSandbox from "./components/BlingSandbox";
 import StockManager from "./components/StockManager";
 import PublicPortal from "./components/PublicPortal";
+import UserManagement from "./components/UserManagement";
 
 export default function App() {
   // Roteamento simples para o Portal Público
@@ -96,20 +97,7 @@ export default function App() {
     localStorage.removeItem("mgv_token");
   };
 
-  // Quick Role Switching to test RLS (Soft Delete privileges OWNER vs EDITOR)
-  const handleQuickRoleSwitch = () => {
-    if (!user) return;
-    const nextRole = user.role === UserRole.OWNER ? UserRole.EDITOR : UserRole.OWNER;
-    const updatedUser = { ...user, role: nextRole };
-    setUser(updatedUser);
-    localStorage.setItem("mgv_user", JSON.stringify(updatedUser));
-    alert(`Perfil temporário alterado para: ${nextRole}\n` + 
-      (nextRole === UserRole.EDITOR 
-        ? "Exclusões lógicas de Clientes ou OSs retornarão NEGADO (Permissão do Editor)." 
-        : "Acesso total de exclusão habilitado (Permissão de Dono/Owner)."
-      )
-    );
-  };
+
 
   if (!isInitialized) {
     return (
@@ -134,7 +122,6 @@ export default function App() {
         isOffline={isOffline}
         setIsOffline={setIsOffline}
         onLogout={handleLogout}
-        onQuickRoleSwitch={handleQuickRoleSwitch}
       />
 
       <main className="flex-1 md:ml-[260px] p-4 sm:p-6 lg:p-8 pb-28 transition-all">
@@ -165,6 +152,7 @@ export default function App() {
             ordensServico={ordensServico}
             isOffline={isOffline}
             onRefresh={loadDatabase}
+            userRole={user.role}
           />
         )}
 
@@ -193,6 +181,14 @@ export default function App() {
             ordensServico={ordensServico}
             isOffline={isOffline}
             onRefresh={loadDatabase}
+            userRole={user.role}
+          />
+        )}
+
+        {currentTab === "users" && (
+          <UserManagement
+            userRole={user.role}
+            isOffline={isOffline}
           />
         )}
       </main>

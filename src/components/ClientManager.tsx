@@ -316,13 +316,15 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh 
           <p className="text-slate-500 text-sm font-semibold">Controle de fichas cadastrais e histórico de dispositivos de entrada</p>
         </div>
         
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs uppercase tracking-wider px-4.5 py-2.5 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 hover-premium active-premium flex items-center space-x-2 shrink-0 cursor-pointer"
-        >
-          <span className="material-symbols-outlined text-[16px]">person_add</span>
-          <span>Cadastrar Cliente</span>
-        </button>
+        {(userRole === UserRole.OWNER || userRole === UserRole.ATTENDANT) && (
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs uppercase tracking-wider px-4.5 py-2.5 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 hover-premium active-premium flex items-center space-x-2 shrink-0 cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[16px]">person_add</span>
+            <span>Cadastrar Cliente</span>
+          </button>
+        )}
       </div>
 
       {/* Search Header */}
@@ -368,16 +370,18 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh 
                       <span>Aparelhos vinculados ({client.devices?.length || 0}):</span>
                     </span>
                     
-                    <button
-                      onClick={() => {
-                        setActiveClientForDevice(client.id);
-                        setShowDeviceModal(true);
-                      }}
-                      className="text-[10px] uppercase tracking-wider font-extrabold text-blue-600 hover:text-blue-700 flex items-center space-x-1 transition active:scale-95 cursor-pointer"
-                    >
-                      <span className="material-symbols-outlined text-[14px]">add</span>
-                      <span>Vincular Outro</span>
-                    </button>
+                    {(userRole === UserRole.OWNER || userRole === UserRole.ATTENDANT) && (
+                      <button
+                        onClick={() => {
+                          setActiveClientForDevice(client.id);
+                          setShowDeviceModal(true);
+                        }}
+                        className="text-[10px] uppercase tracking-wider font-extrabold text-blue-600 hover:text-blue-700 flex items-center space-x-1 transition active:scale-95 cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">add</span>
+                        <span>Vincular Outro</span>
+                      </button>
+                    )}
                   </div>
 
                   {client.devices?.length === 0 ? (

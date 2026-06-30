@@ -4,8 +4,10 @@
  */
 
 export enum UserRole {
-  OWNER = 'OWNER',
-  EDITOR = 'EDITOR'
+  OWNER = 'OWNER',         // Dono/Administrador (Acesso Total)
+  ATTENDANT = 'ATTENDANT', // Recepção/Atendimento
+  TECHNICIAN = 'TECHNICIAN',// Laboratório/Técnico
+  FINANCIAL = 'FINANCIAL'  // Financeiro/Faturamento
 }
 
 export interface User {

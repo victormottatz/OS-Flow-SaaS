@@ -104,10 +104,11 @@ interface OSManagerProps {
   clients: (Client & { devices: Device[] })[];
   ordensServico: OrdemServico[];
   isOffline: boolean;
+  userRole: UserRole;
   onRefresh: () => void;
 }
 
-export default function OSManager({ clients, ordensServico, isOffline, onRefresh }: OSManagerProps) {
+export default function OSManager({ clients, ordensServico, isOffline, userRole, onRefresh }: OSManagerProps) {
   // Wizard steps
   const [activeStep, setActiveStep] = useState(1);
   const [selectedClientId, setSelectedClientId] = useState("");

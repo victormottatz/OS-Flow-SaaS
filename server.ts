@@ -236,11 +236,7 @@ async function startServer() {
       }
     }
 
-    // Fallback sandbox support if no token sent: verify x-user-role is present
-    const userRole = req.headers["x-user-role"] as string;
-    if (userRole) {
-      return next();
-    }
+
 
     // Allow static UI content and other non-API files to pass through
     if (!req.path.startsWith("/api/")) {
@@ -323,6 +319,27 @@ async function startServer() {
     }
 
     const db = await readDB();
+
+    if (db.users.length > 0) {
+      // Must be authenticated as OWNER
+      const authHeader = req.headers["authorization"];
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        res.status(401).json({ error: "Acesso negado. Apenas o Dono pode cadastrar novos usuários." });
+        return;
+      }
+      const token = authHeader.split(" ")[1];
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET) as any;
+        if (decoded.role !== UserRole.OWNER) {
+          res.status(403).json({ error: "Acesso negado. Apenas o Dono pode cadastrar novos usuários." });
+          return;
+        }
+      } catch (err) {
+        res.status(401).json({ error: "Sessão inválida." });
+        return;
+      }
+    }
+
     const exists = db.users.some((u: any) => u.email.toLowerCase() === email.toLowerCase());
     if (exists) {
       res.status(409).json({ error: "Este e-mail já possui uma conta cadastrada." });
@@ -353,6 +370,44 @@ async function startServer() {
         createdAt: newUser.createdAt
       }
     });
+  });
+
+  // GET users (Only OWNER)
+  app.get("/api/users", checkRole(UserRole.OWNER), async (req, res) => {
+    const db = await readDB();
+    // Return users without password hash
+    const safeUsers = db.users.map((u: any) => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      createdAt: u.createdAt
+    }));
+    res.json(safeUsers);
+  });
+
+  // DELETE user (Only OWNER)
+  app.delete("/api/users/:id", checkRole(UserRole.OWNER), async (req, res) => {
+    const { id } = req.params;
+    const db = await readDB();
+    const index = db.users.findIndex((u: any) => u.id === id);
+    if (index === -1) {
+      res.status(404).json({ error: "Usuário não encontrado." });
+      return;
+    }
+    
+    // Check if the user is the last owner
+    if (db.users[index].role === UserRole.OWNER) {
+      const ownerCount = db.users.filter((u: any) => u.role === UserRole.OWNER).length;
+      if (ownerCount <= 1) {
+        res.status(400).json({ error: "Não é possível remover o único dono do sistema." });
+        return;
+      }
+    }
+
+    db.users.splice(index, 1);
+    await writeDB(db);
+    res.json({ message: "Usuário removido com sucesso." });
   });
 
   // ----------------------------------------------------

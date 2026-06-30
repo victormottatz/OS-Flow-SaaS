@@ -13,7 +13,6 @@ interface NavbarProps {
   isOffline: boolean;
   setIsOffline: (state: boolean) => void;
   onLogout: () => void;
-  onQuickRoleSwitch: () => void;
 }
 
 export default function Navbar({
@@ -22,8 +21,7 @@ export default function Navbar({
   setCurrentTab,
   isOffline,
   setIsOffline,
-  onLogout,
-  onQuickRoleSwitch
+  onLogout
 }: NavbarProps) {
   // Translate current tab ID to title string
   const getTabTitle = () => {
@@ -40,6 +38,8 @@ export default function Navbar({
         return "Gestão de Estoque";
       case "bling":
         return "Integração Fiscal & Bling";
+      case "users":
+        return "Gestão de Usuários";
       default:
         return "MGV Assistência";
     }
@@ -67,10 +67,11 @@ export default function Navbar({
           {[
             { id: "dashboard", label: "Dashboard", icon: "dashboard" },
             { id: "clients", label: "Clientes", icon: "group" },
-            { id: "os", label: "Ordens de Serviço", icon: "assignment" },
+            ...((user.role === UserRole.OWNER || user.role === UserRole.ATTENDANT) ? [{ id: "os", label: "Ordens de Serviço", icon: "assignment" }] : []),
             { id: "kanban", label: "Quadro Técnico", icon: "splitscreen" },
             { id: "estoque", label: "Estoque", icon: "inventory_2" },
-            { id: "bling", label: "Integração Fiscal", icon: "sync_alt" }
+            ...((user.role === UserRole.OWNER || user.role === UserRole.FINANCIAL) ? [{ id: "bling", label: "Integração Fiscal", icon: "sync_alt" }] : []),
+            ...(user.role === UserRole.OWNER ? [{ id: "users", label: "Equipe", icon: "manage_accounts" }] : [])
           ].map((item) => {
             const active = currentTab === item.id;
             return (
@@ -92,13 +93,15 @@ export default function Navbar({
 
         {/* Sidebar Bottom Controls */}
         <div className="px-4 mt-auto space-y-4">
-          <button
-            onClick={() => setCurrentTab("os")}
-            className="w-full bg-secondary-container hover:bg-secondary-container-hover text-primary-container py-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer shadow-sm"
-          >
-            <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>add</span>
-            <span>Nova Ordem</span>
-          </button>
+          {(user.role === UserRole.OWNER || user.role === UserRole.ATTENDANT) && (
+            <button
+              onClick={() => setCurrentTab("os")}
+              className="w-full bg-secondary-container hover:bg-secondary-container-hover text-primary-container py-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer shadow-sm"
+            >
+              <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>add</span>
+              <span>Nova Ordem</span>
+            </button>
+          )}
           
           <div className="pt-4 border-t border-slate-800 space-y-1">
             <button
@@ -145,24 +148,15 @@ export default function Navbar({
 
         {/* Top bar controls */}
         <div className="flex items-center gap-4">
-          {/* Quick Switch Role (Owner vs Editor) */}
-          <button
-            onClick={onQuickRoleSwitch}
-            className="flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 transition font-bold cursor-pointer"
-            title="Alternar perfil OWNER/EDITOR"
-          >
-            <span className="material-symbols-outlined text-[14px]">refresh</span>
-            <span className="hidden sm:inline">Alternar Perfil</span>
-          </button>
-
-          {/* User profile details matching Stitch design */}
           <div className="h-8 w-[1px] bg-slate-200 hidden sm:block"></div>
           
           <div className="flex items-center gap-2.5">
             <div className="text-right hidden sm:block">
               <p className="font-bold text-xs text-slate-800 leading-none">{user.name}</p>
               <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
-                {user.role === UserRole.OWNER ? "Supervisor Geral" : "Operador Técnico"}
+                {user.role === UserRole.OWNER ? "Administrador" : 
+                 user.role === UserRole.ATTENDANT ? "Atendimento" : 
+                 user.role === UserRole.TECHNICIAN ? "Laboratório" : "Financeiro"}
               </p>
             </div>
             
@@ -180,10 +174,11 @@ export default function Navbar({
         {[
           { id: "dashboard", label: "Painel", icon: "dashboard" },
           { id: "clients", label: "Clientes", icon: "group" },
-          { id: "os", label: "Nova OS", icon: "assignment" },
+          ...((user.role === UserRole.OWNER || user.role === UserRole.ATTENDANT) ? [{ id: "os", label: "Nova OS", icon: "assignment" }] : []),
           { id: "kanban", label: "Quadro", icon: "splitscreen" },
           { id: "estoque", label: "Estoque", icon: "inventory_2" },
-          { id: "bling", label: "Fiscal", icon: "sync_alt" }
+          ...((user.role === UserRole.OWNER || user.role === UserRole.FINANCIAL) ? [{ id: "bling", label: "Fiscal", icon: "sync_alt" }] : []),
+          ...(user.role === UserRole.OWNER ? [{ id: "users", label: "Equipe", icon: "manage_accounts" }] : [])
         ].map((tab) => {
           const active = currentTab === tab.id;
           return (

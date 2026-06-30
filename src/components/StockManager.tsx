@@ -273,14 +273,16 @@ export default function StockManager({ parts, userRole, isOffline, onRefresh }: 
           </div>
 
           {/* Add Button */}
-          <button
-            onClick={openCreateModal}
-            disabled={isOffline}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-secondary-container hover:bg-secondary-container-hover text-primary-container text-xs font-bold rounded-xl transition cursor-pointer hover:scale-[1.02] active:scale-[0.98] shadow-sm disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-          >
-            <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>add</span>
-            <span>Nova Peça</span>
-          </button>
+          {userRole !== UserRole.TECHNICIAN && (
+            <button
+              onClick={openCreateModal}
+              disabled={isOffline}
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-secondary-container hover:bg-secondary-container-hover text-primary-container text-xs font-bold rounded-xl transition cursor-pointer hover:scale-[1.02] active:scale-[0.98] shadow-sm disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+            >
+              <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>add</span>
+              <span>Nova Peça</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -350,13 +352,15 @@ export default function StockManager({ parts, userRole, isOffline, onRefresh }: 
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-1">
-                        <button
-                          onClick={() => openEditModal(part)}
-                          className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-indigo-600 transition cursor-pointer"
-                          title="Editar"
-                        >
-                          <span className="material-symbols-outlined text-[16px]">edit</span>
-                        </button>
+                        {userRole !== UserRole.TECHNICIAN && (
+                          <button
+                            onClick={() => openEditModal(part)}
+                            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-indigo-600 transition cursor-pointer"
+                            title="Editar"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">edit</span>
+                          </button>
+                        )}
                         {userRole === UserRole.OWNER && (
                           <>
                             {deleteConfirmId === part.id ? (
