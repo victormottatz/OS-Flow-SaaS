@@ -508,7 +508,11 @@ async function startServer() {
       return;
     }
     const state = Math.random().toString(36).substring(7);
-    const authUrl = `https://www.bling.com.br/Api/v3/oauth/authorize?response_type=code&client_id=${clientId}&state=${state}`;
+    
+    // Configura a URL de retorno fixa para o servidor de produção no Render
+    const redirectUri = "https://mgv-sistema-integrado.onrender.com/api/integration/bling/callback";
+    
+    const authUrl = `https://www.bling.com.br/Api/v3/oauth/authorize?response_type=code&client_id=${clientId}&state=${state}&redirect_uri=${encodeURIComponent(redirectUri)}`;
     res.redirect(authUrl);
   });
 
@@ -1574,7 +1578,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  app.listen(PORT, () => {
     console.log(`[MGV Server] Servidor executando em http://localhost:${PORT}`);
   });
 }
