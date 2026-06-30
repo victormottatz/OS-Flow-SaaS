@@ -248,24 +248,7 @@ export default function LoginForm({ onLoginSuccess, isOffline }: LoginFormProps)
             </button>
           </form>
 
-          {/* Seed credentials assistance panel */}
-          {isLoginMode && (
-            <div className="mt-8 border-t border-slate-800/80 pt-5 text-xs">
-              <h4 className="font-bold text-slate-400 uppercase tracking-widest text-[9px] mb-3">Contas de Teste (Seeding Ativo):</h4>
-              <div className="grid grid-cols-2 gap-3 text-slate-300 font-mono">
-                <div className="p-2.5 bg-indigo-950/30 rounded-lg border border-indigo-900/30">
-                  <p className="font-bold text-indigo-400 text-[9px] uppercase tracking-wider">Dono (OWNER)</p>
-                  <p className="mt-1 text-[11px] truncate" title="gerente@mgv.com">gerente@mgv.com</p>
-                  <p className="text-[10px] text-slate-500">Senha: mgv123</p>
-                </div>
-                <div className="p-2.5 bg-amber-950/30 rounded-lg border border-amber-900/30">
-                  <p className="font-bold text-amber-400 text-[9px] uppercase tracking-wider">Técnico (EDITOR)</p>
-                  <p className="mt-1 text-[11px] truncate" title="tecnico@mgv.com">tecnico@mgv.com</p>
-                  <p className="text-[10px] text-slate-500">Senha: tecnico123</p>
-                </div>
-              </div>
-            </div>
-          )}
+
         </div>
       </div>
     </div>
