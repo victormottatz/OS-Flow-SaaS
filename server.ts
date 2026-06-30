@@ -106,6 +106,18 @@ async function startServer() {
   }
 
   // ----------------------------------------------------
+  // DEBUG DB: Endpoint de diagnóstico (leitura pura)
+  // ----------------------------------------------------
+  app.get("/api/debug-db", async (req, res) => {
+    try {
+      const db = await readDB();
+      res.json(db);
+    } catch (err) {
+      res.status(500).json({ error: "Erro ao ler banco de dados" });
+    }
+  });
+
+  // ----------------------------------------------------
   // PORTAL PÚBLICO: CONSULTA DE OS (SEM AUTENTICAÇÃO)
   // Esta rota DEVE ficar antes do middleware JWT
   // ----------------------------------------------------
