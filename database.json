@@ -14463,6 +14463,33 @@
       "email": "beatrizdance13@hotmail.com",
       "address": "RUA SANTA TEREZINHA, 210, Bairro Residencial Quinta das Flores, Cajuru/SP (CEP: 14.246-202)",
       "deletedAt": null
+    },
+    {
+      "id": "client-1782928785433",
+      "name": "João da Silva Teste",
+      "cpfCnpj": "123.456.789-00",
+      "phone": "11999999999",
+      "email": "joao@teste.com",
+      "address": "Rua Teste, 123",
+      "deletedAt": null
+    },
+    {
+      "id": "client-1782928849068",
+      "name": "João da Silva Teste",
+      "cpfCnpj": "34044195188",
+      "phone": "11999999999",
+      "email": "joao@teste.com",
+      "address": "Rua Teste, 123",
+      "deletedAt": null
+    },
+    {
+      "id": "client-1782930024940",
+      "name": "João da Silva Teste",
+      "cpfCnpj": "12485372656",
+      "phone": "11999999999",
+      "email": "joao@teste.com",
+      "address": "Rua Teste, 123",
+      "deletedAt": null
     }
   ],
   "devices": [
@@ -49954,6 +49981,36 @@
       "model": "MICRODERMOABRASAO",
       "serialNumber": "64009",
       "description": "Sem observações.",
+      "deletedAt": null
+    },
+    {
+      "id": "device-1782928785486",
+      "clientId": "client-1782928785433",
+      "type": "Smartphone",
+      "brand": "Apple",
+      "model": "iPhone 13 Pro",
+      "serialNumber": "SN123456789",
+      "description": "Nenhuma característica estética informada.",
+      "deletedAt": null
+    },
+    {
+      "id": "device-1782928849119",
+      "clientId": "client-1782928849068",
+      "type": "Smartphone",
+      "brand": "Apple",
+      "model": "iPhone 13 Pro",
+      "serialNumber": "SN123456789",
+      "description": "Nenhuma característica estética informada.",
+      "deletedAt": null
+    },
+    {
+      "id": "device-1782930025002",
+      "clientId": "client-1782930024940",
+      "type": "Smartphone",
+      "brand": "Apple",
+      "model": "iPhone 13 Pro",
+      "serialNumber": "SN123456789",
+      "description": "Nenhuma característica estética informada.",
       "deletedAt": null
     }
   ],
@@ -104029,6 +104086,58 @@
       "billingLogs": [],
       "createdAt": "2026-06-22T19:29:15.000Z",
       "deletedAt": null
+    },
+    {
+      "id": "os-1782928849169",
+      "osNumber": "OS-2278",
+      "clientId": "client-1782928849068",
+      "deviceId": "device-1782928849119",
+      "reportedDefect": "Tela quebrada",
+      "accessoriesLeft": "Capa preta",
+      "physicalState": "Arranhões nas bordas",
+      "status": "FINALIZADO",
+      "diagnostic": "Substituição do display frontal realizada com sucesso.",
+      "usedParts": [],
+      "laborCost": 150,
+      "totalCost": 150,
+      "checklistEntrada": [],
+      "laudoFotos": [],
+      "billingStatus": "REJEITADO",
+      "deletedAt": null,
+      "createdAt": "2026-07-01T18:00:49.169Z",
+      "technicianLaborHours": 1,
+      "technicianHourlyRate": 150,
+      "billingLogs": [
+        "Status alterado para FINALIZADO.",
+        "Iniciando integração de faturamento no Bling síncrono..."
+      ],
+      "sefazErrorMessage": "Não foi possível salvar o contato"
+    },
+    {
+      "id": "os-1782930025054",
+      "osNumber": "OS-2279",
+      "clientId": "client-1782930024940",
+      "deviceId": "device-1782930025002",
+      "reportedDefect": "Tela quebrada",
+      "accessoriesLeft": "Capa preta",
+      "physicalState": "Arranhões nas bordas",
+      "status": "FINALIZADO",
+      "diagnostic": "Substituição do display frontal realizada com sucesso.",
+      "usedParts": [],
+      "laborCost": 150,
+      "totalCost": 150,
+      "checklistEntrada": [],
+      "laudoFotos": [],
+      "billingStatus": "REJEITADO",
+      "deletedAt": null,
+      "createdAt": "2026-07-01T18:20:25.054Z",
+      "technicianLaborHours": 1,
+      "technicianHourlyRate": 150,
+      "billingLogs": [
+        "Status alterado para FINALIZADO.",
+        "Iniciando integração de faturamento no Bling síncrono..."
+      ],
+      "sefazErrorMessage": "Não foi possível salvar o contato"
     }
   ]
 }

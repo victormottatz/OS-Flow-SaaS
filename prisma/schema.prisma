@@ -33,6 +33,7 @@ model User {
 
 model Client {
   id        String         @id @default(uuid())
+  legacyId  String?        @unique
   name      String
   cpfCnpj   String
   phone     String
@@ -47,6 +48,7 @@ model Client {
 
 model Device {
   id           String         @id @default(uuid())
+  legacyId     String?        @unique
   clientId     String
   client       Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
   type         String
@@ -92,6 +94,8 @@ model OrdemServico {
   sefazErrorMessage String?
   pdfUrl            String?
   billingLogs       Json      @default("[]") // Stores string array of logs
+  originalEntryDate DateTime?
+  originalExitDate  DateTime?
   createdAt         DateTime  @default(now())
   deletedAt         DateTime?
 
