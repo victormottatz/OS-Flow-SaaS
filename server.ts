@@ -934,6 +934,28 @@ async function startServer() {
         });
         return;
       }
+
+      // ────────────────────────────────────────────────────────────
+      // TRAVA DE PREENCHIMENTO OBRIGATÓRIO (Laudo e Custos)
+      // ────────────────────────────────────────────────────────────
+      const osToUpdate = db.ordensServico[index];
+      
+      if (!osToUpdate.diagnostic || osToUpdate.diagnostic.trim() === "") {
+        res.status(422).json({
+          error: "Bloqueio: É obrigatório preencher o Laudo Técnico antes de finalizar ou disponibilizar a OS.",
+          code: "DIAGNOSTIC_REQUIRED"
+        });
+        return;
+      }
+      
+      const labor = osToUpdate.laborCost || 0;
+      if (labor === 0 && osUsedParts.length === 0) {
+        res.status(422).json({
+          error: "Bloqueio: A Ordem de Serviço está sem Custo de Mão de Obra e sem Peças. Preencha os valores no laudo antes de avançar.",
+          code: "COST_REQUIRED"
+        });
+        return;
+      }
     }
 
     db.ordensServico[index].status = status as OSStatus;
