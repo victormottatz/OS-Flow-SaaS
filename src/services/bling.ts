@@ -27,6 +27,22 @@ function maskToken(token: string): string {
 }
 
 /**
+ * Executes a request with exponential backoff on 429 Too Many Requests.
+ */
+async function requestWithRetry<T>(fn: () => Promise<T>, retries = 3, delay = 2000): Promise<T> {
+  try {
+    return await fn();
+  } catch (err: any) {
+    if (err.response?.status === 429 && retries > 0) {
+      console.warn(`[Bling Rate Limit] Código 429 (Too Many Requests). Aguardando ${delay}ms para tentar novamente... (${retries} tentativas restantes)`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return requestWithRetry(fn, retries - 1, delay * 1.5);
+    }
+    throw err;
+  }
+}
+
+/**
  * Exchange Authorization Code for Access & Refresh Tokens.
  * Securely saves them in the BlingConfig Supabase database table.
  */
@@ -188,97 +204,126 @@ export async function syncClientToBling(client: {
 
   // 1. Search for existing contact by document
   let contactId: number | null = null;
-  try {
-    const searchResponse = await axios.get(
-      "https://api.bling.com.br/Api/v3/contatos",
-      {
-        params: { numeroDocumento: documentSanitized, limite: 1 },
-        headers: { Authorization: `Bearer ${token}` }
+  if (documentSanitized.length > 0) {
+    try {
+      const searchResponse = await requestWithRetry(() => axios.get(
+        "https://api.bling.com.br/Api/v3/contatos",
+        {
+          params: { cnpj: documentSanitized, limite: 1 },
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      ));
+      const existing = searchResponse.data?.data || [];
+      if (existing.length > 0) {
+        contactId = existing[0].id;
       }
-    );
-    const existing = searchResponse.data?.data || [];
-    if (existing.length > 0) {
-      contactId = existing[0].id;
+    } catch (err: any) {
+      const errorMsg = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+      console.error(`[Bling Sync] Erro ao buscar contato por documento ${documentSanitized}:`, errorMsg);
     }
-  } catch (err: any) {
-    console.error(`[Bling Sync] Erro ao buscar contato por documento ${documentSanitized}:`, err.message);
   }
 
   // Parse Address string
-  // Formato esperado: "Rua, Numero - Bairro - Cidade / UF" ou similar.
-  let logradouro = client.address;
-  let numero = "";
-  let bairro = "";
-  let cep = "01000000"; // default
-  let municipio = "Cidade";
+  let logradouro = "Não informado";
+  let numero = "S/N";
+  let bairro = "Centro";
+  let cep = "01000000";
+  let municipio = "Ribeirão Preto";
   let uf = "SP";
 
   try {
-    const parts = client.address.split(" - ");
-    if (parts.length >= 1) {
-      const streetAndNum = parts[0].split(",");
-      logradouro = streetAndNum[0].trim();
-      if (streetAndNum.length > 1) {
-        numero = streetAndNum[1].trim();
+    // 1. Extract UF and Municipio using regex
+    const cityMatch = client.address.match(/([^,\-]+)\/([A-Za-z]{2})/);
+    if (cityMatch) {
+      municipio = cityMatch[1].trim();
+      uf = cityMatch[2].trim().toUpperCase().substring(0, 2);
+    }
+
+    // 2. Extract CEP
+    const cepMatch = client.address.match(/\b\d{2}\.?\d{3}-?\d{3}\b/);
+    if (cepMatch) {
+      cep = cepMatch[0].replace(/\D/g, "");
+    }
+
+    // 3. Extract Logradouro and Numero
+    const commaParts = client.address.split(",");
+    if (commaParts.length > 0) {
+      logradouro = commaParts[0].trim();
+      if (commaParts.length > 1) {
+        const potentialNum = commaParts[1].trim().split(" ")[0].replace(/\D/g, "");
+        if (potentialNum && potentialNum.length > 0) {
+          numero = potentialNum;
+        }
       }
     }
-    if (parts.length >= 2) {
-      bairro = parts[1].trim();
-    }
-    if (parts.length >= 3) {
-      const cityAndUf = parts[2].split("/");
-      municipio = cityAndUf[0].trim();
-      if (cityAndUf.length > 1) {
-        uf = cityAndUf[1].trim().toUpperCase().substring(0, 2);
-      }
+
+    // 4. Extract Bairro
+    const bairroMatch = client.address.match(/Bairro\s+([^,\-]+)/i);
+    if (bairroMatch) {
+      bairro = bairroMatch[1].trim();
     }
   } catch (e) {
     // fallback
   }
 
+  // Sanitization: Remove non-digits from phone (fix double backslash regex escape)
+  const phoneSanitized = client.phone.replace(/\D/g, "").substring(0, 11);
+  const nameSanitized = client.name.trim().replace(/\s{2,}/g, " ");
+
   const payload = {
-    nome: client.name,
-    tipo: "C", // Cliente
-    tipoPessoa: documentSanitized.length > 11 ? "J" : "F",
-    numeroDocumento: documentSanitized,
-    email: client.email,
-    telefone: client.phone.replace(/\D/g, ""),
+    nome: nameSanitized,
+    // Bling V3 expects "Física" or "Juridica" literally as the 'tipo' field
+    tipo: documentSanitized.length > 11 ? "Juridica" : "Física",
+    cnpj: documentSanitized,
+    email: client.email || "",
+    telefone: phoneSanitized,
     situacao: "A",
     contribuinte: "9", // Não contribuinte
     endereco: {
       geral: {
-        endereco: logradouro,
+        endereco: logradouro || "Não informado",
         numero: numero || "S/N",
         bairro: bairro || "Centro",
-        cep: cep,
-        municipio: municipio,
-        uf: uf
+        cep: cep.replace(/\D/g, "") || "01000000",
+        municipio: municipio || "Nao informado",
+        uf: uf || "SP"
       }
     }
   };
 
   if (contactId) {
     console.log(`[Bling Sync] Atualizando contato existente ID: ${contactId}`);
-    await axios.put(`https://api.bling.com.br/Api/v3/contatos/${contactId}`, payload, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json"
-      }
-    });
-    return contactId;
+    try {
+      await requestWithRetry(() => axios.put(`https://api.bling.com.br/Api/v3/contatos/${contactId}`, payload, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      }));
+      return contactId;
+    } catch (err: any) {
+      const errorMsg = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+      console.warn(`[Bling Sync] Falha ao atualizar dados do contato ID ${contactId}: ${errorMsg}. Prosseguindo com o ID existente.`);
+      return contactId; // Fallback to avoid blocking sales order generation
+    }
   } else {
     console.log(`[Bling Sync] Criando novo contato: ${client.name}`);
-    const response = await axios.post("https://api.bling.com.br/Api/v3/contatos", payload, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json"
+    try {
+      const response = await requestWithRetry(() => axios.post("https://api.bling.com.br/Api/v3/contatos", payload, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      }));
+      const newId = response.data?.data?.id;
+      if (!newId) {
+        throw new Error("Resposta do Bling não retornou o ID do contato criado.");
       }
-    });
-    const newId = response.data?.data?.id;
-    if (!newId) {
-      throw new Error("Resposta do Bling não retornou o ID do contato criado.");
+      return newId;
+    } catch (err: any) {
+      const errorMsg = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+      throw new Error(errorMsg);
     }
-    return newId;
   }
 }
 
@@ -299,13 +344,13 @@ export async function syncPartToBling(part: {
   // 1. Search for existing product by code
   let productId: number | null = null;
   try {
-    const searchResponse = await axios.get(
+    const searchResponse = await requestWithRetry(() => axios.get(
       "https://api.bling.com.br/Api/v3/produtos",
       {
         params: { codigo: part.code, limite: 1 },
         headers: { Authorization: `Bearer ${token}` }
       }
-    );
+    ));
     const existing = searchResponse.data?.data || [];
     if (existing.length > 0) {
       productId = existing[0].id;
@@ -325,26 +370,36 @@ export async function syncPartToBling(part: {
 
   if (productId) {
     console.log(`[Bling Sync] Atualizando produto existente ID: ${productId}`);
-    await axios.put(`https://api.bling.com.br/Api/v3/produtos/${productId}`, payload, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json"
-      }
-    });
-    return productId;
+    try {
+      await requestWithRetry(() => axios.put(`https://api.bling.com.br/Api/v3/produtos/${productId}`, payload, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      }));
+      return productId;
+    } catch (err: any) {
+      const errorMsg = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+      throw new Error(errorMsg);
+    }
   } else {
     console.log(`[Bling Sync] Criando novo produto: ${part.name}`);
-    const response = await axios.post("https://api.bling.com.br/Api/v3/produtos", payload, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json"
+    try {
+      const response = await requestWithRetry(() => axios.post("https://api.bling.com.br/Api/v3/produtos", payload, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      }));
+      const newId = response.data?.data?.id;
+      if (!newId) {
+        throw new Error("Resposta do Bling não retornou o ID do produto criado.");
       }
-    });
-    const newId = response.data?.data?.id;
-    if (!newId) {
-      throw new Error("Resposta do Bling não retornou o ID do produto criado.");
+      return newId;
+    } catch (err: any) {
+      const errorMsg = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+      throw new Error(errorMsg);
     }
-    return newId;
   }
 }
 

@@ -1162,7 +1162,9 @@ async function startServer() {
       const { syncClientToBling, syncPartToBling } = await import("./src/services/bling");
 
       // 1. Sync clients
+      // 1. Sync clients
       catalogSyncProgress.currentType = "clients";
+      let clientCount = 0;
       for (const client of activeClients) {
         if (catalogSyncProgress.shouldStop) {
           catalogSyncProgress.logs.push("[Sincronização] Interrompida pelo operador.");
@@ -1170,7 +1172,6 @@ async function startServer() {
         }
 
         try {
-          catalogSyncProgress.logs.push(`Sincronizando cliente: ${client.name}...`);
           await syncClientToBling(client);
           catalogSyncProgress.successCount++;
         } catch (err: any) {
@@ -1178,6 +1179,10 @@ async function startServer() {
           catalogSyncProgress.logs.push(`[ERRO] Cliente ${client.name}: ${err.message}`);
         } finally {
           catalogSyncProgress.processed++;
+          clientCount++;
+          if (clientCount % 50 === 0 || clientCount === activeClients.length) {
+            catalogSyncProgress.logs.push(`[Progresso] Lote ${clientCount}/${activeClients.length} de clientes concluído.`);
+          }
         }
 
         // Throttling delay (350ms to satisfy max 3 req/sec limit)
@@ -1187,6 +1192,7 @@ async function startServer() {
       // 2. Sync parts
       if (!catalogSyncProgress.shouldStop) {
         catalogSyncProgress.currentType = "parts";
+        let partCount = 0;
         for (const part of activeParts) {
           if (catalogSyncProgress.shouldStop) {
             catalogSyncProgress.logs.push("[Sincronização] Interrompida pelo operador.");
@@ -1194,7 +1200,6 @@ async function startServer() {
           }
 
           try {
-            catalogSyncProgress.logs.push(`Sincronizando peça: ${part.name} [${part.code}]...`);
             await syncPartToBling(part);
             catalogSyncProgress.successCount++;
           } catch (err: any) {
@@ -1202,6 +1207,10 @@ async function startServer() {
             catalogSyncProgress.logs.push(`[ERRO] Peça ${part.name}: ${err.message}`);
           } finally {
             catalogSyncProgress.processed++;
+            partCount++;
+            if (partCount % 50 === 0 || partCount === activeParts.length) {
+              catalogSyncProgress.logs.push(`[Progresso] Lote ${partCount}/${activeParts.length} de peças concluído.`);
+            }
           }
 
           // Throttling delay (350ms to satisfy max 3 req/sec limit)
@@ -1212,7 +1221,13 @@ async function startServer() {
       if (catalogSyncProgress.shouldStop) {
         catalogSyncProgress.logs.push("Processo finalizado com cancelamento.");
       } else {
-        catalogSyncProgress.logs.push(`Sincronização concluída! Sucessos: ${catalogSyncProgress.successCount}, Erros: ${catalogSyncProgress.errorCount}`);
+        catalogSyncProgress.logs.push("========================================");
+        catalogSyncProgress.logs.push("🎉 SUMÁRIO FINAL - RELATÓRIO DE GO-LIVE 🎉");
+        catalogSyncProgress.logs.push(`Total de Itens Processados: ${catalogSyncProgress.processed}`);
+        catalogSyncProgress.logs.push(`Clientes Sincronizados com Sucesso: ${clientCount - (catalogSyncProgress.errorCount <= clientCount ? catalogSyncProgress.errorCount : 0)}`);
+        catalogSyncProgress.logs.push(`Peças Sincronizadas com Sucesso: ${partCount - (catalogSyncProgress.errorCount - clientCount > 0 ? (catalogSyncProgress.errorCount - clientCount) : 0)}`);
+        catalogSyncProgress.logs.push(`Total de Erros/Rejeições: ${catalogSyncProgress.errorCount}`);
+        catalogSyncProgress.logs.push("========================================");
       }
 
     } catch (err: any) {

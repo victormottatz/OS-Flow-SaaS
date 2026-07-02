@@ -57,9 +57,6 @@ export default function BlingSandbox({ ordensServico, isOffline, onRefresh }: Bl
   };
 
   const startCatalogSync = async () => {
-    if (!window.confirm("Isso iniciará uma sincronização em segundo plano de todos os clientes e estoque. Pode levar alguns minutos. Deseja prosseguir?")) {
-      return;
-    }
     const token = localStorage.getItem("mgv_token") || "";
     const headers = token ? { "Authorization": `Bearer ${token}` } : {};
     try {
@@ -71,11 +68,17 @@ export default function BlingSandbox({ ordensServico, isOffline, onRefresh }: Bl
         fetchCatalogSyncProgress();
       } else {
         const d = await res.json();
-        alert(d.error || "Erro ao iniciar sincronização.");
+        setCatalogSync(prev => ({
+          ...prev,
+          logs: [...prev.logs, `[ERRO] Não foi possível iniciar a sincronização: ${d.error || "Erro desconhecido"}`]
+        }));
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("Erro ao iniciar sincronização.");
+      setCatalogSync(prev => ({
+        ...prev,
+        logs: [...prev.logs, `[ERRO CONEXÃO] ${err.message || "Falha na requisição"}`]
+      }));
     }
   };
 
