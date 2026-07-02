@@ -1,7 +1,11 @@
-﻿node_modules/
+node_modules/
 .env
 dist/
 build/
 backups/
 .DS_Store
 *.log
+database.json
+/data/
+/EXPOTAÇÃO-SH OFICINA/
+/bling/

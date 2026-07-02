@@ -1161,10 +1161,11 @@ async function startServer() {
 
       const { syncClientToBling, syncPartToBling } = await import("./src/services/bling");
 
-      // 1. Sync clients
+      let clientCount = 0;
+      let partCount = 0;
+
       // 1. Sync clients
       catalogSyncProgress.currentType = "clients";
-      let clientCount = 0;
       for (const client of activeClients) {
         if (catalogSyncProgress.shouldStop) {
           catalogSyncProgress.logs.push("[Sincronização] Interrompida pelo operador.");
@@ -1192,7 +1193,6 @@ async function startServer() {
       // 2. Sync parts
       if (!catalogSyncProgress.shouldStop) {
         catalogSyncProgress.currentType = "parts";
-        let partCount = 0;
         for (const part of activeParts) {
           if (catalogSyncProgress.shouldStop) {
             catalogSyncProgress.logs.push("[Sincronização] Interrompida pelo operador.");

@@ -34,7 +34,7 @@ async function requestWithRetry<T>(fn: () => Promise<T>, retries = 3, delay = 20
     return await fn();
   } catch (err: any) {
     if (err.response?.status === 429 && retries > 0) {
-      console.warn(`[Bling Rate Limit] Código 429 (Too Many Requests). Aguardando ${delay}ms para tentar novamente... (${retries} tentativas restantes)`);
+      console.warn(`[Bling Rate Limit] CÃ³digo 429 (Too Many Requests). Aguardando ${delay}ms para tentar novamente... (${retries} tentativas restantes)`);
       await new Promise(resolve => setTimeout(resolve, delay));
       return requestWithRetry(fn, retries - 1, delay * 1.5);
     }
@@ -51,7 +51,7 @@ export async function exchangeCode(code: string): Promise<string> {
   const clientSecret = process.env.BLING_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
-    throw new Error("[Bling OAuth] BLING_CLIENT_ID ou BLING_CLIENT_SECRET não configurados no ambiente.");
+    throw new Error("[Bling OAuth] BLING_CLIENT_ID ou BLING_CLIENT_SECRET nÃ£o configurados no ambiente.");
   }
 
   // Basic Auth header value: base64(client_id:client_secret)
@@ -101,7 +101,7 @@ export async function exchangeCode(code: string): Promise<string> {
     const data = err.response?.data;
     const msg = `HTTP ${status || "Desconhecido"}: ${JSON.stringify(data || err.message)}`;
     console.error("[Bling OAuth Error] Erro ao trocar authorization code:", msg);
-    throw new Error(`Erro na troca de código com o Bling: ${msg}`);
+    throw new Error(`Erro na troca de cÃ³digo com o Bling: ${msg}`);
   }
 }
 
@@ -114,7 +114,7 @@ export async function getAccessToken(): Promise<string | null> {
   const clientSecret = process.env.BLING_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
-    console.error("[Bling OAuth] BLING_CLIENT_ID ou BLING_CLIENT_SECRET não configurados no ambiente.");
+    console.error("[Bling OAuth] BLING_CLIENT_ID ou BLING_CLIENT_SECRET nÃ£o configurados no ambiente.");
     return null;
   }
 
@@ -124,7 +124,7 @@ export async function getAccessToken(): Promise<string | null> {
   });
 
   if (!config) {
-    console.warn("[Bling OAuth] Integração Bling pendente: nenhuma credencial cadastrada na tabela bling_configs.");
+    console.warn("[Bling OAuth] IntegraÃ§Ã£o Bling pendente: nenhuma credencial cadastrada na tabela bling_configs.");
     return null;
   }
 
@@ -138,7 +138,7 @@ export async function getAccessToken(): Promise<string | null> {
   }
 
   // 3. Token is expired or expiring soon, perform refresh
-  console.log(`[Bling OAuth] Access token expirado ou prestes a expirar. Iniciando renovação automática...`);
+  console.log(`[Bling OAuth] Access token expirado ou prestes a expirar. Iniciando renovaÃ§Ã£o automÃ¡tica...`);
   console.log(`[Bling OAuth] Refresh token atual: ${maskToken(config.refreshToken)}`);
 
   const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
@@ -197,7 +197,7 @@ export async function syncClientToBling(client: {
 }): Promise<number> {
   const token = await getAccessToken();
   if (!token) {
-    throw new Error("Não foi possível obter um token válido para o Bling.");
+    throw new Error("NÃ£o foi possÃ­vel obter um token vÃ¡lido para o Bling.");
   }
 
   const documentSanitized = client.cpfCnpj.replace(/\D/g, "");
@@ -224,11 +224,11 @@ export async function syncClientToBling(client: {
   }
 
   // Parse Address string
-  let logradouro = "Não informado";
+  let logradouro = "NÃ£o informado";
   let numero = "S/N";
   let bairro = "Centro";
   let cep = "01000000";
-  let municipio = "Ribeirão Preto";
+  let municipio = "RibeirÃ£o Preto";
   let uf = "SP";
 
   try {
@@ -267,7 +267,7 @@ export async function syncClientToBling(client: {
   }
 
   // Sanitization: Remove non-digits from phone (fix double backslash regex escape)
-  const phoneSanitized = client.phone.replace(/\D/g, "").substring(0, 11);
+    const phoneSanitized = client.phone.replace(/\D/g, "").substring(0, 11);
   const nameSanitized = client.name.trim().replace(/\s{2,}/g, " ");
 
   const payload = {
@@ -278,10 +278,10 @@ export async function syncClientToBling(client: {
     email: client.email || "",
     telefone: phoneSanitized,
     situacao: "A",
-    contribuinte: "9", // Não contribuinte
+    contribuinte: "9", // NÃ£o contribuinte
     endereco: {
       geral: {
-        endereco: logradouro || "Não informado",
+        endereco: logradouro || "NÃ£o informado",
         numero: numero || "S/N",
         bairro: bairro || "Centro",
         cep: cep.replace(/\D/g, "") || "01000000",
@@ -317,7 +317,7 @@ export async function syncClientToBling(client: {
       }));
       const newId = response.data?.data?.id;
       if (!newId) {
-        throw new Error("Resposta do Bling não retornou o ID do contato criado.");
+        throw new Error("Resposta do Bling nÃ£o retornou o ID do contato criado.");
       }
       return newId;
     } catch (err: any) {
@@ -328,7 +328,7 @@ export async function syncClientToBling(client: {
 }
 
 /**
- * Sincroniza uma peça (produto) local com o Bling V3.
+ * Sincroniza uma peÃ§a (produto) local com o Bling V3.
  * Retorna o ID do produto no Bling.
  */
 export async function syncPartToBling(part: {
@@ -338,7 +338,7 @@ export async function syncPartToBling(part: {
 }): Promise<number> {
   const token = await getAccessToken();
   if (!token) {
-    throw new Error("Não foi possível obter um token válido para o Bling.");
+    throw new Error("NÃ£o foi possÃ­vel obter um token vÃ¡lido para o Bling.");
   }
 
   // 1. Search for existing product by code
@@ -356,7 +356,7 @@ export async function syncPartToBling(part: {
       productId = existing[0].id;
     }
   } catch (err: any) {
-    console.error(`[Bling Sync] Erro ao buscar produto por código ${part.code}:`, err.message);
+    console.error(`[Bling Sync] Erro ao buscar produto por cÃ³digo ${part.code}:`, err.message);
   }
 
   const payload = {
@@ -393,7 +393,7 @@ export async function syncPartToBling(part: {
       }));
       const newId = response.data?.data?.id;
       if (!newId) {
-        throw new Error("Resposta do Bling não retornou o ID do produto criado.");
+        throw new Error("Resposta do Bling nÃ£o retornou o ID do produto criado.");
       }
       return newId;
     } catch (err: any) {

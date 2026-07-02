@@ -590,6 +590,9 @@ async function executeMigration() {
       continue;
     }
 
+    const saidaStr = row[osHeaderMap["saida"] || 0];
+    const exitDate = parseLegacyDate(saidaStr);
+
     const newClientId = clientMap.get(oldClientId);
     if (!newClientId) {
       stats.os.clientOrphans++;
@@ -623,7 +626,9 @@ async function executeMigration() {
               status,
               diagnostic,
               laborCost,
-              totalCost
+              totalCost,
+              originalEntryDate: entryDate,
+              originalExitDate: exitDate
             }
           });
           stats.os.updated++;
@@ -642,6 +647,8 @@ async function executeMigration() {
               laborCost,
               totalCost,
               billingStatus: "PENDENTE",
+              originalEntryDate: entryDate,
+              originalExitDate: exitDate,
               createdAt: entryDate,
               deletedAt: null
             }

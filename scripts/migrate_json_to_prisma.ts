@@ -113,6 +113,8 @@ async function run() {
           sefazErrorMessage: os.sefazErrorMessage || null,
           pdfUrl: os.pdfUrl || null,
           billingLogs: os.billingLogs || [],
+          originalEntryDate: os.originalEntryDate ? new Date(os.originalEntryDate) : null,
+          originalExitDate: os.originalExitDate ? new Date(os.originalExitDate) : null,
           createdAt: os.createdAt ? new Date(os.createdAt) : new Date(),
           deletedAt: os.deletedAt ? new Date(os.deletedAt) : null
         })),
