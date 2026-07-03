@@ -11,7 +11,9 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { createServer as createViteServer } from "vite";
 import { UserRole, OSStatus } from "./src/types";
+import { PrismaClient } from "@prisma/client";
 
+const prisma = new PrismaClient();
 const DB_FILE = path.join(process.cwd(), "database.json");
 const JWT_SECRET = process.env.JWT_SECRET || "mgv_tecnologia_super_secure_jwt_secret_key_123!";
 
@@ -85,21 +87,19 @@ async function startServer() {
   // Inicia a rotina de backup em background
   startWeeklyBackupRoutine();
 
-  // Database Migration seeder on boot: Hash any plain text passwords to bcrypt
+  // Database Migration seeder on boot: Hash any plain text passwords to bcrypt in Supabase
   try {
-    const db = await readDB();
-    let dbUpdated = false;
-    for (const u of db.users) {
+    const users = await prisma.user.findMany();
+    for (const u of users) {
       const hasBcrypt = typeof u.passwordHash === "string" && (u.passwordHash.startsWith("$2a$") || u.passwordHash.startsWith("$2b$"));
       if (!hasBcrypt) {
         console.log(`[Database Migration] Hashing password for user ${u.email}...`);
-        u.passwordHash = await bcrypt.hash(u.passwordHash, 10);
-        dbUpdated = true;
+        const hashed = await bcrypt.hash(u.passwordHash, 10);
+        await prisma.user.update({
+          where: { id: u.id },
+          data: { passwordHash: hashed }
+        });
       }
-    }
-    if (dbUpdated) {
-      await writeDB(db);
-      console.log(`[Database Migration] Passwords migrated successfully to bcrypt.`);
     }
   } catch (err) {
     console.error("[Database Migration] Error during initialization seeder:", err);
@@ -136,93 +136,95 @@ async function startServer() {
       return;
     }
 
-    const db = await readDB();
+    try {
+      // Busca a OS pelo número (case-insensitive)
+      const os = await prisma.ordemServico.findFirst({
+        where: {
+          osNumber: {
+            equals: numero as string,
+            mode: "insensitive"
+          },
+          deletedAt: null
+        },
+        include: {
+          client: true,
+          device: true
+        }
+      });
 
-    // Busca a OS pelo número (case-insensitive)
-    const os = db.ordensServico.find(
-      (o: any) => o.osNumber.toUpperCase() === (numero as string).toUpperCase() && !o.deletedAt
-    );
-
-    // Resposta genérica para evitar enumeração de dados (timing-safe: sempre busca cliente antes de retornar)
-    if (!os) {
-      res.status(404).json({ error: "Nenhuma Ordem de Serviço encontrada para os dados informados." });
-      return;
-    }
-
-    // Validação do CPF/CNPJ do cliente dono da OS (segundo fator de segurança)
-    const client = db.clients.find((c: any) => c.id === os.clientId);
-    if (!client || client.cpfCnpj.replace(/\D/g, "") !== cpfNormalizado) {
-      // Resposta idêntica ao caso "OS não encontrada" para não revelar existência
-      res.status(404).json({ error: "Nenhuma Ordem de Serviço encontrada para os dados informados." });
-      return;
-    }
-
-    const device = db.devices.find((d: any) => d.id === os.deviceId);
-
-    // Mapeamento de status para labels e mensagens amigáveis ao cliente
-    const statusMap: Record<string, { label: string; message: string; color: string; step: number }> = {
-      ORCAMENTO: {
-        label: "Aguardando Orçamento",
-        message: "Estamos avaliando seu equipamento e preparando o orçamento do reparo.",
-        color: "yellow",
-        step: 1
-      },
-      AGUARDANDO_PECA: {
-        label: "Aguardando Peça",
-        message: "O reparo está em andamento, mas aguardamos a chegada de um componente específico.",
-        color: "orange",
-        step: 2
-      },
-      EM_MANUTENCAO: {
-        label: "Em Manutenção",
-        message: "Ótima notícia! Seu equipamento está em processo de reparo pela nossa equipe técnica.",
-        color: "blue",
-        step: 3
-      },
-      PRONTO_RETIRADA: {
-        label: "Pronto para Retirada",
-        message: "Seu equipamento está pronto! Pode vir buscá-lo em nossa loja. Aguardamos sua visita!",
-        color: "green",
-        step: 4
-      },
-      FINALIZADO: {
-        label: "Finalizado",
-        message: "Serviço concluído com sucesso. Obrigado por confiar na MGV Assistência Técnica!",
-        color: "purple",
-        step: 5
+      // Resposta genérica para evitar enumeração de dados (timing-safe: sempre busca cliente antes de retornar)
+      if (!os || !os.client || os.client.cpfCnpj.replace(/\D/g, "") !== cpfNormalizado) {
+        res.status(404).json({ error: "Nenhuma Ordem de Serviço encontrada para os dados informados." });
+        return;
       }
-    };
 
-    const statusInfo = statusMap[os.status] || {
-      label: os.status,
-      message: "Entre em contato conosco para mais informações.",
-      color: "gray",
-      step: 0
-    };
+      // Mapeamento de status para labels e mensagens amigáveis ao cliente
+      const statusMap: Record<string, { label: string; message: string; color: string; step: number }> = {
+        ORCAMENTO: {
+          label: "Aguardando Orçamento",
+          message: "Estamos avaliando seu equipamento e preparando o orçamento do reparo.",
+          color: "yellow",
+          step: 1
+        },
+        AGUARDANDO_PECA: {
+          label: "Aguardando Peça",
+          message: "O reparo está em andamento, mas aguardamos a chegada de um componente específico.",
+          color: "orange",
+          step: 2
+        },
+        EM_MANUTENCAO: {
+          label: "Em Manutenção",
+          message: "Ótima notícia! Seu equipamento está em processo de reparo pela nossa equipe técnica.",
+          color: "blue",
+          step: 3
+        },
+        PRONTO_RETIRADA: {
+          label: "Pronto para Retirada",
+          message: "Seu equipamento está pronto! Pode vir buscá-lo em nossa loja. Aguardamos sua visita!",
+          color: "green",
+          step: 4
+        },
+        FINALIZADO: {
+          label: "Finalizado",
+          message: "Serviço concluído com sucesso. Obrigado por confiar na MGV Assistência Técnica!",
+          color: "purple",
+          step: 5
+        }
+      };
 
-    // Montar payload sanitizado — ZERO dados internos expostos
-    const deviceLabel = device
-      ? `${device.type} ${device.brand} ${device.model}`.trim()
-      : "Equipamento";
+      const statusInfo = statusMap[os.status] || {
+        label: os.status,
+        message: "Entre em contato conosco para mais informações.",
+        color: "gray",
+        step: 0
+      };
 
-    const showCost = os.status === "PRONTO_RETIRADA" || os.status === "FINALIZADO";
+      // Montar payload sanitizado — ZERO dados internos expostos
+      const deviceLabel = os.device
+        ? `${os.device.type} ${os.device.brand} ${os.device.model}`.trim()
+        : "Equipamento";
 
-    const payload = {
-      osNumber: os.osNumber,
-      status: os.status,
-      statusLabel: statusInfo.label,
-      statusMessage: statusInfo.message,
-      statusColor: statusInfo.color,
-      statusStep: statusInfo.step,
-      deviceLabel,
-      reportedDefect: os.reportedDefect,
-      accessoriesLeft: os.accessoriesLeft || "Nenhum acessório registrado.",
-      createdAt: os.createdAt,
-      clientName: client.name.split(" ")[0], // Apenas primeiro nome
-      totalCost: showCost ? os.totalCost : null
-    };
+      const showCost = os.status === "PRONTO_RETIRADA" || os.status === "FINALIZADO";
 
-    res.json(payload);
+      const payload = {
+        osNumber: os.osNumber,
+        status: os.status,
+        statusLabel: statusInfo.label,
+        statusMessage: statusInfo.message,
+        statusColor: statusInfo.color,
+        statusStep: statusInfo.step,
+        deviceLabel,
+        reportedDefect: os.reportedDefect,
+        accessoriesLeft: os.accessoriesLeft || "Nenhum acessório registrado.",
+        createdAt: os.createdAt.toISOString(),
+        clientName: os.client.name.split(" ")[0], // Apenas primeiro nome
+        totalCost: showCost ? os.totalCost : null
+      };
+
+      res.json(payload);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
   // Token authentication middleware with backward-compatible role extraction
@@ -290,8 +292,9 @@ async function startServer() {
       res.status(400).json({ error: "E-mail e senha são obrigatórios." });
       return;
     }
-    const db = await readDB();
-    const user = db.users.find((u: any) => u.email.toLowerCase() === email.toLowerCase());
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() }
+    });
     
     if (!user) {
       res.status(401).json({ error: "Credenciais inválidas. Verifique seu e-mail e senha." });
@@ -318,7 +321,7 @@ async function startServer() {
         name: user.name,
         email: user.email,
         role: user.role,
-        createdAt: user.createdAt
+        createdAt: user.createdAt.toISOString()
       }
     });
   });
@@ -330,9 +333,9 @@ async function startServer() {
       return;
     }
 
-    const db = await readDB();
+    const userCount = await prisma.user.count();
 
-    if (db.users.length > 0) {
+    if (userCount > 0) {
       // Must be authenticated as OWNER
       const authHeader = req.headers["authorization"];
       if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -352,7 +355,9 @@ async function startServer() {
       }
     }
 
-    const exists = db.users.some((u: any) => u.email.toLowerCase() === email.toLowerCase());
+    const exists = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() }
+    });
     if (exists) {
       res.status(409).json({ error: "Este e-mail já possui uma conta cadastrada." });
       return;
@@ -360,17 +365,14 @@ async function startServer() {
 
     const passwordHash = await bcrypt.hash(password, 10);
 
-    const newUser = {
-      id: `user-${Date.now()}`,
-      name,
-      email,
-      passwordHash,
-      role: role as UserRole,
-      createdAt: new Date().toISOString()
-    };
-
-    db.users.push(newUser);
-    await writeDB(db);
+    const newUser = await prisma.user.create({
+      data: {
+        name,
+        email: email.toLowerCase(),
+        passwordHash,
+        role: role as any,
+      }
+    });
 
     res.status(201).json({
       message: "Colaborador cadastrado com sucesso!",
@@ -379,46 +381,49 @@ async function startServer() {
         name: newUser.name,
         email: newUser.email,
         role: newUser.role,
-        createdAt: newUser.createdAt
+        createdAt: newUser.createdAt.toISOString()
       }
     });
   });
 
   // GET users (Only OWNER)
   app.get("/api/users", checkRole(UserRole.OWNER), async (req, res) => {
-    const db = await readDB();
-    // Return users without password hash
-    const safeUsers = db.users.map((u: any) => ({
-      id: u.id,
-      name: u.name,
-      email: u.email,
-      role: u.role,
-      createdAt: u.createdAt
-    }));
-    res.json(safeUsers);
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        createdAt: true
+      }
+    });
+    res.json(users.map(u => ({
+      ...u,
+      createdAt: u.createdAt.toISOString()
+    })));
   });
 
   // DELETE user (Only OWNER)
   app.delete("/api/users/:id", checkRole(UserRole.OWNER), async (req, res) => {
     const { id } = req.params;
-    const db = await readDB();
-    const index = db.users.findIndex((u: any) => u.id === id);
-    if (index === -1) {
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user) {
       res.status(404).json({ error: "Usuário não encontrado." });
       return;
     }
     
     // Check if the user is the last owner
-    if (db.users[index].role === UserRole.OWNER) {
-      const ownerCount = db.users.filter((u: any) => u.role === UserRole.OWNER).length;
+    if (user.role === UserRole.OWNER) {
+      const ownerCount = await prisma.user.count({
+        where: { role: UserRole.OWNER }
+      });
       if (ownerCount <= 1) {
         res.status(400).json({ error: "Não é possível remover o único dono do sistema." });
         return;
       }
     }
 
-    db.users.splice(index, 1);
-    await writeDB(db);
+    await prisma.user.delete({ where: { id } });
     res.json({ message: "Usuário removido com sucesso." });
   });
 
@@ -558,16 +563,38 @@ async function startServer() {
   // ----------------------------------------------------
   
   app.get("/api/clients", async (req, res) => {
-    const db = await readDB();
-    const activeClients = db.clients.filter((c: any) => !c.deletedAt);
-    
-    // Attach devices to clients for easy frontend manipulation
-    const enriched = activeClients.map((client: any) => {
-      const clientDevices = db.devices.filter((d: any) => d.clientId === client.id && !d.deletedAt);
-      return { ...client, devices: clientDevices };
-    });
-    
-    res.json(enriched);
+    try {
+      const activeClients = await prisma.client.findMany({
+        where: { deletedAt: null },
+        include: {
+          devices: {
+            where: { deletedAt: null }
+          }
+        }
+      });
+
+      res.json(activeClients.map(c => ({
+        id: c.id,
+        name: c.name,
+        cpfCnpj: c.cpfCnpj,
+        phone: c.phone,
+        email: c.email,
+        address: c.address,
+        deletedAt: null,
+        devices: c.devices.map(d => ({
+          id: d.id,
+          clientId: d.clientId,
+          type: d.type,
+          brand: d.brand,
+          model: d.model,
+          serialNumber: d.serialNumber,
+          description: d.description,
+          deletedAt: null
+        }))
+      })));
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
   app.post("/api/clients", async (req, res) => {
@@ -578,124 +605,154 @@ async function startServer() {
       return;
     }
 
-    const db = await readDB();
-    // Validate CPF/CNPJ uniqueness in active clients
-    const isDuplicate = db.clients.some((c: any) => c.cpfCnpj.replace(/\D/g, '') === cpfCnpj.replace(/\D/g, '') && !c.deletedAt);
-    if (isDuplicate) {
-      res.status(409).json({ error: "CPF/CNPJ duplicado. Já existe um cliente ativo cadastrado com este documento." });
-      return;
-    }
-
-    const clientId = `client-${Date.now()}`;
-    const newClient = {
-      id: clientId,
-      name,
-      cpfCnpj,
-      phone,
-      email,
-      address,
-      deletedAt: null
-    };
-
-    db.clients.push(newClient);
-
-    // Save linked devices if provided
-    const insertedDevices: any[] = [];
-    if (devices && Array.isArray(devices)) {
-      devices.forEach((dev: any, idx: number) => {
-        const serialNo = dev.serialNumber?.trim() ? dev.serialNumber.trim() : "Sem Série";
-        
-        // Exige descrição detalhada caso sem série
-        if (serialNo === "Sem Série" && (!dev.description || dev.description.trim().length < 5)) {
-          // Skip or handle
-        }
-
-        const newDev = {
-          id: `device-${Date.now()}-${idx}`,
-          clientId,
-          type: dev.type || "Outro",
-          brand: dev.brand || "Generico",
-          model: dev.model || "N/A",
-          serialNumber: serialNo,
-          description: dev.description || "Nenhuma especificação gravada.",
-          deletedAt: null
-        };
-        db.devices.push(newDev);
-        insertedDevices.push(newDev);
+    try {
+      const activeClients = await prisma.client.findMany({
+        where: { deletedAt: null }
       });
-    }
+      const isDuplicate = activeClients.some(c => c.cpfCnpj.replace(/\D/g, '') === cpfCnpj.replace(/\D/g, ''));
+      if (isDuplicate) {
+        res.status(409).json({ error: "CPF/CNPJ duplicado. Já existe um cliente ativo cadastrado com este documento." });
+        return;
+      }
 
-    await writeDB(db);
-    res.status(201).json({ client: newClient, devices: insertedDevices });
+      const client = await prisma.client.create({
+        data: {
+          name,
+          cpfCnpj,
+          phone,
+          email,
+          address,
+        }
+      });
+
+      const insertedDevices: any[] = [];
+      if (devices && Array.isArray(devices)) {
+        for (const dev of devices) {
+          const serialNo = dev.serialNumber?.trim() ? dev.serialNumber.trim() : "Sem Série";
+          
+          const newDev = await prisma.device.create({
+            data: {
+              clientId: client.id,
+              type: dev.type || "Outro",
+              brand: dev.brand || "Generico",
+              model: dev.model || "N/A",
+              serialNumber: serialNo,
+              description: dev.description || "Nenhuma especificação gravada.",
+            }
+          });
+          insertedDevices.push({
+            id: newDev.id,
+            clientId: newDev.clientId,
+            type: newDev.type,
+            brand: newDev.brand,
+            model: newDev.model,
+            serialNumber: newDev.serialNumber,
+            description: newDev.description,
+            deletedAt: null
+          });
+        }
+      }
+
+      res.status(201).json({
+        client: {
+          id: client.id,
+          name: client.name,
+          cpfCnpj: client.cpfCnpj,
+          phone: client.phone,
+          email: client.email,
+          address: client.address,
+          deletedAt: null
+        },
+        devices: insertedDevices
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
   app.put("/api/clients/:id", async (req, res) => {
     const { id } = req.params;
     const { name, cpfCnpj, phone, email, address } = req.body;
 
-    const db = await readDB();
-    const index = db.clients.findIndex((c: any) => c.id === id);
-    if (index === -1) {
-      res.status(404).json({ error: "Cliente não encontrado." });
-      return;
+    try {
+      const client = await prisma.client.findUnique({
+        where: { id }
+      });
+      if (!client || client.deletedAt) {
+        res.status(404).json({ error: "Cliente não encontrado." });
+        return;
+      }
+
+      const activeClients = await prisma.client.findMany({
+        where: { deletedAt: null }
+      });
+      const isDuplicate = activeClients.some(
+        c => c.id !== id && c.cpfCnpj.replace(/\D/g, '') === cpfCnpj.replace(/\D/g, '')
+      );
+      if (isDuplicate) {
+        res.status(409).json({ error: "CPF/CNPJ duplicado. Já existe outro cliente cadastrado com este documento." });
+        return;
+      }
+
+      const updated = await prisma.client.update({
+        where: { id },
+        data: {
+          name,
+          cpfCnpj,
+          phone,
+          email,
+          address
+        }
+      });
+
+      res.json({
+        id: updated.id,
+        name: updated.name,
+        cpfCnpj: updated.cpfCnpj,
+        phone: updated.phone,
+        email: updated.email,
+        address: updated.address,
+        deletedAt: null
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
     }
-
-    // Verify duplicate document excluding oneself
-    const isDuplicate = db.clients.some(
-      (c: any) => c.id !== id && c.cpfCnpj.replace(/\D/g, '') === cpfCnpj.replace(/\D/g, '') && !c.deletedAt
-    );
-    if (isDuplicate) {
-      res.status(409).json({ error: "CPF/CNPJ duplicado. Já existe outro cliente cadastrado com este documento." });
-      return;
-    }
-
-    db.clients[index] = {
-      ...db.clients[index],
-      name,
-      cpfCnpj,
-      phone,
-      email,
-      address
-    };
-
-    await writeDB(db);
-    res.json(db.clients[index]);
   });
 
-  // Custom DELETE client with OWNER enforcement
   app.delete("/api/clients/:id", checkRole(UserRole.OWNER), async (req, res) => {
     const { id } = req.params;
-    const db = await readDB();
-    const index = db.clients.findIndex((c: any) => c.id === id);
-    if (index === -1) {
-      res.status(404).json({ error: "Cliente não encontrado." });
-      return;
+    try {
+      const client = await prisma.client.findUnique({
+        where: { id }
+      });
+      if (!client || client.deletedAt) {
+        res.status(404).json({ error: "Cliente não encontrado." });
+        return;
+      }
+
+      const deletedTime = new Date();
+
+      await prisma.$transaction([
+        prisma.client.update({
+          where: { id },
+          data: { deletedAt: deletedTime }
+        }),
+        prisma.device.updateMany({
+          where: { clientId: id },
+          data: { deletedAt: deletedTime }
+        }),
+        prisma.ordemServico.updateMany({
+          where: { clientId: id },
+          data: { deletedAt: deletedTime }
+        })
+      ]);
+
+      res.json({ message: "Cliente e vínculos excluídos (soft delete) com sucesso!" });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
     }
-
-    // Apply Logical soft delete
-    db.clients[index].deletedAt = new Date().toISOString();
-    
-    // Also soft-delete linked devices
-    db.devices.forEach((d: any) => {
-      if (d.clientId === id) {
-        d.deletedAt = new Date().toISOString();
-      }
-    });
-
-    // Also soft-delete linked OS
-    db.ordensServico.forEach((os: any) => {
-      if (os.clientId === id) {
-        os.deletedAt = new Date().toISOString();
-      }
-    });
-
-    await writeDB(db);
-    res.json({ message: "Cliente e vínculos excluídos (soft delete) com sucesso!" });
   });
 
-  // ----------------------------------------------------
-  // SPRINT 2: Base Devices Routes
-  // ----------------------------------------------------
   app.post("/api/devices", async (req, res) => {
     const { clientId, type, brand, model, serialNumber, description } = req.body;
     if (!clientId || !type || !brand || !model) {
@@ -709,22 +766,31 @@ async function startServer() {
       return;
     }
 
-    const db = await readDB();
-    const newDev = {
-      id: `device-${Date.now()}`,
-      clientId,
-      type,
-      brand,
-      model,
-      serialNumber: serialStr,
-      description: description || "Nenhuma característica estética informada.",
-      deletedAt: null
-    };
+    try {
+      const newDev = await prisma.device.create({
+        data: {
+          clientId,
+          type,
+          brand,
+          model,
+          serialNumber: serialStr,
+          description: description || "Nenhuma característica estética informada."
+        }
+      });
 
-    db.devices.push(newDev);
-    await writeDB(db);
-
-    res.status(201).json(newDev);
+      res.status(201).json({
+        id: newDev.id,
+        clientId: newDev.clientId,
+        type: newDev.type,
+        brand: newDev.brand,
+        model: newDev.model,
+        serialNumber: newDev.serialNumber,
+        description: newDev.description,
+        deletedAt: null
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
   // ----------------------------------------------------
@@ -732,167 +798,213 @@ async function startServer() {
   // ----------------------------------------------------
   
   app.get("/api/ordens-servico", async (req, res) => {
-    const db = await readDB();
-    const activeOS = db.ordensServico.filter((os: any) => !os.deletedAt);
+    try {
+      const activeOS = await prisma.ordemServico.findMany({
+        where: { deletedAt: null },
+        include: {
+          client: true,
+          device: true
+        }
+      });
 
-    // Enrich OS with client and device objects for UI rendering
-    const enriched = activeOS.map((os: any) => {
-      const client = db.clients.find((c: any) => c.id === os.clientId);
-      const device = db.devices.find((d: any) => d.id === os.deviceId);
-      return {
-        ...os,
-        client: client ? { id: client.id, name: client.name, cpfCnpj: client.cpfCnpj, phone: client.phone, email: client.email, address: client.address } : null,
-        device: device ? { id: device.id, type: device.type, brand: device.brand, model: device.model, serialNumber: device.serialNumber, description: device.description } : null
-      };
-    });
-
-    res.json(enriched);
+      res.json(activeOS.map(os => ({
+        id: os.id,
+        osNumber: os.osNumber,
+        clientId: os.clientId,
+        deviceId: os.deviceId,
+        reportedDefect: os.reportedDefect,
+        accessoriesLeft: os.accessoriesLeft,
+        physicalState: os.physicalState,
+        status: os.status,
+        diagnostic: os.diagnostic,
+        usedParts: typeof os.usedParts === "string" ? JSON.parse(os.usedParts) : os.usedParts,
+        laborCost: os.laborCost,
+        totalCost: os.totalCost,
+        billingStatus: os.billingStatus,
+        blingId: os.blingId,
+        blingKey: os.blingKey,
+        sefazErrorMessage: os.sefazErrorMessage,
+        pdfUrl: os.pdfUrl,
+        billingLogs: typeof os.billingLogs === "string" ? JSON.parse(os.billingLogs) : os.billingLogs,
+        checklistEntrada: typeof os.checklistEntrada === "string" ? JSON.parse(os.checklistEntrada || "[]") : os.checklistEntrada || [],
+        laudoFotos: typeof os.laudoFotos === "string" ? JSON.parse(os.laudoFotos || "[]") : os.laudoFotos || [],
+        createdAt: os.createdAt.toISOString(),
+        deletedAt: null,
+        client: os.client ? { id: os.client.id, name: os.client.name, cpfCnpj: os.client.cpfCnpj, phone: os.client.phone, email: os.client.email, address: os.client.address } : null,
+        device: os.device ? { id: os.device.id, type: os.device.type, brand: os.device.brand, model: os.device.model, serialNumber: os.device.serialNumber, description: os.device.description } : null
+      })));
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
   app.post("/api/ordens-servico", async (req, res) => {
     const { clientId, deviceId, reportedDefect, accessoriesLeft, physicalState, checklistEntrada, laudoFotos } = req.body;
     
-    // Zod-like validations
     if (!clientId || !deviceId || !reportedDefect) {
       res.status(422).json({ error: "O preenchimento do Cliente, Dispositivo e Defeito Relatado é estritamente obrigatório." });
       return;
     }
 
-    const db = await readDB();
-    
-    // Auto incremental OS counter sequence
-    const nextSeq = db.ordensServico.length + 1;
-    const osNumber = `OS-${String(nextSeq).padStart(4, "0")}`;
+    try {
+      const osCount = await prisma.ordemServico.count();
+      const nextSeq = osCount + 1;
+      const osNumber = `OS-${String(nextSeq).padStart(4, "0")}`;
 
-    const newOS = {
-      id: `os-${Date.now()}`,
-      osNumber,
-      clientId,
-      deviceId,
-      reportedDefect,
-      accessoriesLeft: accessoriesLeft || "Nenhum acessório deixado.",
-      physicalState: physicalState || "Sem avarias aparentes.",
-      status: "ORCAMENTO" as OSStatus,
-      diagnostic: "",
-      usedParts: [],
-      laborCost: 0,
-      totalCost: 0,
-      checklistEntrada: checklistEntrada || [],
-      laudoFotos: laudoFotos || [],
-      billingStatus: "PENDENTE",
-      deletedAt: null,
-      createdAt: new Date().toISOString()
-    };
+      const newOS = await prisma.ordemServico.create({
+        data: {
+          osNumber,
+          clientId,
+          deviceId,
+          reportedDefect,
+          accessoriesLeft: accessoriesLeft || "Nenhum acessório deixado.",
+          physicalState: physicalState || "Sem avarias aparentes.",
+          status: "ORCAMENTO",
+          diagnostic: "",
+          usedParts: [],
+          laborCost: 0,
+          totalCost: 0,
+          checklistEntrada: checklistEntrada || [],
+          laudoFotos: laudoFotos || [],
+          billingStatus: "PENDENTE",
+          billingLogs: []
+        }
+      });
 
-    db.ordensServico.push(newOS);
-    await writeDB(db);
-
-    res.status(201).json(newOS);
+      res.status(201).json({
+        ...newOS,
+        usedParts: [],
+        billingLogs: [],
+        checklistEntrada: newOS.checklistEntrada || [],
+        laudoFotos: newOS.laudoFotos || [],
+        createdAt: newOS.createdAt.toISOString()
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
-  // UPDATE OS Details (diagnóstico, peças, mão de obra, cálculo total)
   app.put("/api/ordens-servico/:id", async (req, res) => {
     const { id } = req.params;
     const { diagnostic, usedParts, laborCost, technicianLaborHours, technicianHourlyRate, checklistEntrada, laudoFotos } = req.body;
 
-    const db = await readDB();
-    const index = db.ordensServico.findIndex((os: any) => os.id === id);
-    if (index === -1) {
-      res.status(404).json({ error: "Ordem de Serviço não encontrada." });
-      return;
-    }
+    try {
+      const currentOS = await prisma.ordemServico.findUnique({
+        where: { id }
+      });
+      if (!currentOS || currentOS.deletedAt) {
+        res.status(404).json({ error: "Ordem de Serviço não encontrada." });
+        return;
+      }
 
-    const currentOS = db.ordensServico[index];
+      if (currentOS.status === "FINALIZADO" && (checklistEntrada !== undefined || laudoFotos !== undefined)) {
+        res.status(400).json({ error: "Não é permitido alterar o laudo fotográfico ou checklist de uma Ordem de Serviço finalizada." });
+        return;
+      }
 
-    // Se estiver finalizado, impede alteração de laudo fotográfico/checklist
-    if (currentOS.status === "FINALIZADO" && (checklistEntrada !== undefined || laudoFotos !== undefined)) {
-      res.status(400).json({ error: "Não é permitido alterar o laudo fotográfico ou checklist de uma Ordem de Serviço finalizada." });
-      return;
-    }
+      if (usedParts && Array.isArray(usedParts)) {
+        const parts = await prisma.part.findMany();
+        
+        const prevParts: any[] = typeof currentOS.usedParts === "string" ? JSON.parse(currentOS.usedParts) : currentOS.usedParts || [];
+        for (const prevItem of prevParts) {
+          const part = parts.find(p => p.id === prevItem.partId);
+          if (part) {
+            await prisma.part.update({
+              where: { id: part.id },
+              data: { stock: { increment: prevItem.quantity } }
+            });
+          }
+        }
 
-    // Deduct stock for new used pieces compared to previous list
-    if (usedParts && Array.isArray(usedParts)) {
-      // Restore previous items quantity back to inventory first
-      const prevParts = currentOS.usedParts || [];
-      prevParts.forEach((prevItem: any) => {
-        const partIdx = db.parts.findIndex((p: any) => p.id === prevItem.partId);
-        if (partIdx !== -1) {
-          db.parts[partIdx].stock += prevItem.quantity;
+        for (const item of usedParts) {
+          const freshPart = await prisma.part.findUnique({ where: { id: item.partId } });
+          if (!freshPart) continue;
+
+          if (freshPart.stock < item.quantity) {
+            res.status(400).json({ error: `Estoque insuficiente para a peça '${freshPart.name}'. Estoque disponível: ${freshPart.stock}` });
+            return;
+          }
+          await prisma.part.update({
+            where: { id: freshPart.id },
+            data: { stock: { decrement: item.quantity } }
+          });
+          
+          if (item.costSnapshot === undefined) {
+            item.costSnapshot = freshPart.cost || 0;
+          }
+        }
+      }
+
+      const partsTotal = (usedParts || []).reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
+      const resolvedLaborCost = Number(laborCost) || 0;
+      const resolvedTotal = partsTotal + resolvedLaborCost;
+
+      const updated = await prisma.ordemServico.update({
+        where: { id },
+        data: {
+          diagnostic: diagnostic !== undefined ? diagnostic : currentOS.diagnostic,
+          usedParts: usedParts !== undefined ? usedParts : currentOS.usedParts,
+          laborCost: resolvedLaborCost,
+          technicianLaborHours: technicianLaborHours !== undefined ? Number(technicianLaborHours) : currentOS.technicianLaborHours,
+          technicianHourlyRate: technicianHourlyRate !== undefined ? Number(technicianHourlyRate) : currentOS.technicianHourlyRate,
+          totalCost: resolvedTotal,
+          checklistEntrada: checklistEntrada !== undefined ? checklistEntrada : currentOS.checklistEntrada,
+          laudoFotos: laudoFotos !== undefined ? laudoFotos : currentOS.laudoFotos
         }
       });
 
-      // Simple inventory stock verify and subtraction
-      for (const item of usedParts) {
-        const partIdx = db.parts.findIndex((p: any) => p.id === item.partId);
-        if (partIdx === -1) continue;
-
-        const part = db.parts[partIdx];
-        if (part.stock < item.quantity) {
-          res.status(400).json({ error: `Estoque insuficiente para a peça '${part.name}'. Estoque disponível: ${part.stock}` });
-          return;
-        }
-        // Subtract from inventory stock
-        db.parts[partIdx].stock -= item.quantity;
-        
-        // Snapshot do custo da peça se ainda não houver
-        if (item.costSnapshot === undefined) {
-          item.costSnapshot = part.cost || 0;
-        }
-      }
+      res.json({
+        ...updated,
+        usedParts: typeof updated.usedParts === "string" ? JSON.parse(updated.usedParts) : updated.usedParts,
+        billingLogs: typeof updated.billingLogs === "string" ? JSON.parse(updated.billingLogs) : updated.billingLogs,
+        checklistEntrada: typeof updated.checklistEntrada === "string" ? JSON.parse(updated.checklistEntrada || "[]") : updated.checklistEntrada || [],
+        laudoFotos: typeof updated.laudoFotos === "string" ? JSON.parse(updated.laudoFotos || "[]") : updated.laudoFotos || [],
+        createdAt: updated.createdAt.toISOString()
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
     }
-
-    // Compute total cost dynamically
-    const partsTotal = (usedParts || []).reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
-    const resolvedLaborCost = Number(laborCost) || 0;
-    const resolvedTotal = partsTotal + resolvedLaborCost;
-
-    db.ordensServico[index] = {
-      ...currentOS,
-      diagnostic: diagnostic !== undefined ? diagnostic : currentOS.diagnostic,
-      usedParts: usedParts !== undefined ? usedParts : currentOS.usedParts,
-      laborCost: resolvedLaborCost,
-      technicianLaborHours: technicianLaborHours !== undefined ? Number(technicianLaborHours) : currentOS.technicianLaborHours,
-      technicianHourlyRate: technicianHourlyRate !== undefined ? Number(technicianHourlyRate) : currentOS.technicianHourlyRate,
-      totalCost: resolvedTotal,
-      checklistEntrada: checklistEntrada !== undefined ? checklistEntrada : currentOS.checklistEntrada,
-      laudoFotos: laudoFotos !== undefined ? laudoFotos : currentOS.laudoFotos
-    };
-
-    await writeDB(db);
-    res.json(db.ordensServico[index]);
   });
 
-  // Novo endpoint: UPDATE OS checklistEntrada e laudoFotos especificamente
   app.put("/api/ordens-servico/:id/laudo-fotos", async (req, res) => {
     const { id } = req.params;
     const { checklistEntrada, laudoFotos } = req.body;
 
-    const db = await readDB();
-    const index = db.ordensServico.findIndex((os: any) => os.id === id);
-    if (index === -1) {
-      res.status(404).json({ error: "Ordem de Serviço não encontrada." });
-      return;
+    try {
+      const currentOS = await prisma.ordemServico.findUnique({
+        where: { id }
+      });
+      if (!currentOS || currentOS.deletedAt) {
+        res.status(404).json({ error: "Ordem de Serviço não encontrada." });
+        return;
+      }
+
+      if (currentOS.status === "FINALIZADO") {
+        res.status(400).json({ error: "Não é permitido alterar o laudo fotográfico ou checklist de uma Ordem de Serviço finalizada." });
+        return;
+      }
+
+      const updated = await prisma.ordemServico.update({
+        where: { id },
+        data: {
+          checklistEntrada: checklistEntrada !== undefined ? checklistEntrada : currentOS.checklistEntrada,
+          laudoFotos: laudoFotos !== undefined ? laudoFotos : currentOS.laudoFotos
+        }
+      });
+
+      res.json({
+        ...updated,
+        usedParts: typeof updated.usedParts === "string" ? JSON.parse(updated.usedParts) : updated.usedParts,
+        billingLogs: typeof updated.billingLogs === "string" ? JSON.parse(updated.billingLogs) : updated.billingLogs,
+        checklistEntrada: typeof updated.checklistEntrada === "string" ? JSON.parse(updated.checklistEntrada || "[]") : updated.checklistEntrada || [],
+        laudoFotos: typeof updated.laudoFotos === "string" ? JSON.parse(updated.laudoFotos || "[]") : updated.laudoFotos || [],
+        createdAt: updated.createdAt.toISOString()
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
     }
-
-    const currentOS = db.ordensServico[index];
-
-    if (currentOS.status === "FINALIZADO") {
-      res.status(400).json({ error: "Não é permitido alterar o laudo fotográfico ou checklist de uma Ordem de Serviço finalizada." });
-      return;
-    }
-
-    db.ordensServico[index] = {
-      ...currentOS,
-      checklistEntrada: checklistEntrada !== undefined ? checklistEntrada : currentOS.checklistEntrada,
-      laudoFotos: laudoFotos !== undefined ? laudoFotos : currentOS.laudoFotos
-    };
-
-    await writeDB(db);
-    res.json(db.ordensServico[index]);
   });
 
-
-  // UPDATE OS STATUS (Drag and drop Kanban or quick updates)
   app.put("/api/ordens-servico/:id/status", async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
@@ -902,138 +1014,175 @@ async function startServer() {
       return;
     }
 
-    const db = await readDB();
-    const index = db.ordensServico.findIndex((os: any) => os.id === id);
-    if (index === -1) {
-      res.status(404).json({ error: "Ordem de Serviço não encontrada." });
-      return;
-    }
+    try {
+      const currentOS = await prisma.ordemServico.findUnique({
+        where: { id }
+      });
+      if (!currentOS || currentOS.deletedAt) {
+        res.status(404).json({ error: "Ordem de Serviço não encontrada." });
+        return;
+      }
 
-    const previousStatus = db.ordensServico[index].status;
+      const previousStatus = currentOS.status;
+      const osUsedParts = typeof currentOS.usedParts === "string" ? JSON.parse(currentOS.usedParts) : currentOS.usedParts || [];
 
-    // ────────────────────────────────────────────────────────────
-    // TRAVA DE SERIALIZAÇÃO: Bloqueia avanço para FINALIZADO ou
-    // PRONTO_RETIRADA se houver peça com requiresSerial sem nº série
-    // ────────────────────────────────────────────────────────────
-    if (status === "FINALIZADO" || status === "PRONTO_RETIRADA") {
-      const osUsedParts = db.ordensServico[index].usedParts || [];
-      const missingSerials: string[] = [];
+      if (status === "FINALIZADO" || status === "PRONTO_RETIRADA") {
+        const parts = await prisma.part.findMany();
+        const missingSerials: string[] = [];
 
-      for (const usedPart of osUsedParts) {
-        const partDef = (db.parts || []).find((p: any) => p.id === usedPart.partId);
-        if (partDef && partDef.requiresSerial && (!usedPart.serialNumber || usedPart.serialNumber.trim() === "")) {
-          missingSerials.push(partDef.name || partDef.code);
+        for (const usedPart of osUsedParts) {
+          const partDef = parts.find((p: any) => p.id === usedPart.partId);
+          if (partDef && partDef.requiresSerial && (!usedPart.serialNumber || usedPart.serialNumber.trim() === "")) {
+            missingSerials.push(partDef.name || partDef.code);
+          }
+        }
+
+        if (missingSerials.length > 0) {
+          res.status(422).json({
+            error: `Bloqueio de Serialização: As seguintes peças exigem Número de Série antes de avançar: ${missingSerials.join(", ")}. Edite a OS e preencha o nº de série de cada peça obrigatória.`,
+            code: "SERIAL_REQUIRED",
+            missingParts: missingSerials
+          });
+          return;
+        }
+
+        if (!currentOS.diagnostic || currentOS.diagnostic.trim() === "") {
+          res.status(422).json({
+            error: "Bloqueio: É obrigatório preencher o Laudo Técnico antes de finalizar ou disponibilizar a OS.",
+            code: "DIAGNOSTIC_REQUIRED"
+          });
+          return;
+        }
+        
+        const labor = currentOS.laborCost || 0;
+        if (labor === 0 && osUsedParts.length === 0) {
+          res.status(422).json({
+            error: "Bloqueio: A Ordem de Serviço está sem Custo de Mão de Obra e sem Peças. Preencha os valores no laudo antes de avançar.",
+            code: "COST_REQUIRED"
+          });
+          return;
         }
       }
 
-      if (missingSerials.length > 0) {
-        res.status(422).json({
-          error: `Bloqueio de Serialização: As seguintes peças exigem Número de Série antes de avançar: ${missingSerials.join(", ")}. Edite a OS e preencha o nº de série de cada peça obrigatória.`,
-          code: "SERIAL_REQUIRED",
-          missingParts: missingSerials
-        });
-        return;
-      }
-
-      // ────────────────────────────────────────────────────────────
-      // TRAVA DE PREENCHIMENTO OBRIGATÓRIO (Laudo e Custos)
-      // ────────────────────────────────────────────────────────────
-      const osToUpdate = db.ordensServico[index];
-      
-      if (!osToUpdate.diagnostic || osToUpdate.diagnostic.trim() === "") {
-        res.status(422).json({
-          error: "Bloqueio: É obrigatório preencher o Laudo Técnico antes de finalizar ou disponibilizar a OS.",
-          code: "DIAGNOSTIC_REQUIRED"
-        });
-        return;
-      }
-      
-      const labor = osToUpdate.laborCost || 0;
-      if (labor === 0 && osUsedParts.length === 0) {
-        res.status(422).json({
-          error: "Bloqueio: A Ordem de Serviço está sem Custo de Mão de Obra e sem Peças. Preencha os valores no laudo antes de avançar.",
-          code: "COST_REQUIRED"
-        });
-        return;
-      }
-    }
-
-    db.ordensServico[index].status = status as OSStatus;
-
-    // Trigger Fiscal sync in background if entering FINALIZADO
-    if (status === "FINALIZADO" && previousStatus !== "FINALIZADO") {
-      db.ordensServico[index].billingStatus = "PROCESSANDO";
-      db.ordensServico[index].billingLogs = [
-        "Status alterado para FINALIZADO.",
-        "Iniciando integração de faturamento no Bling síncrono..."
-      ];
-      
-      const osSnapshot = { ...db.ordensServico[index] };
-      const clientSnapshot = db.clients.find((c: any) => c.id === osSnapshot.clientId);
-      const partsDbSnapshot = [...db.parts];
-
-      // Fire and forget
-      import("./src/services/osToBling").then(async ({ sendOsToBling }) => {
-        try {
-          const result = await sendOsToBling(osSnapshot, clientSnapshot, partsDbSnapshot);
-          const freshDb = await readDB();
-          const osIndex = freshDb.ordensServico.findIndex((o: any) => o.id === osSnapshot.id);
-          if (osIndex !== -1) {
-            if (result.success) {
-              freshDb.ordensServico[osIndex].billingStatus = "FATURADO";
-              freshDb.ordensServico[osIndex].blingId = result.blingId;
-              if (result.error) {
-                 freshDb.ordensServico[osIndex].sefazErrorMessage = result.error;
-              } else {
-                 freshDb.ordensServico[osIndex].sefazErrorMessage = result.notaFiscalId ? `NF-e gerada com sucesso (ID: ${result.notaFiscalId})` : "Pedido faturado com sucesso no Bling.";
-              }
-            } else {
-              freshDb.ordensServico[osIndex].billingStatus = "REJEITADO";
-              freshDb.ordensServico[osIndex].sefazErrorMessage = result.error;
-            }
-            await writeDB(freshDb);
-          }
-        } catch (e: any) {
-          console.error("[Bling Worker Error]", e);
-          const freshDb = await readDB();
-          const osIndex = freshDb.ordensServico.findIndex((o: any) => o.id === osSnapshot.id);
-          if (osIndex !== -1) {
-            freshDb.ordensServico[osIndex].billingStatus = "REJEITADO";
-            freshDb.ordensServico[osIndex].sefazErrorMessage = e.message;
-            await writeDB(freshDb);
-          }
+      const updated = await prisma.ordemServico.update({
+        where: { id },
+        data: {
+          status: status as any
         }
       });
+
+      if (status === "FINALIZADO" && previousStatus !== "FINALIZADO") {
+        const initialLogs = [
+          "Status alterado para FINALIZADO.",
+          "Iniciando integração de faturamento no Bling síncrono..."
+        ];
+        
+        await prisma.ordemServico.update({
+          where: { id },
+          data: {
+            billingStatus: "PROCESSANDO",
+            billingLogs: initialLogs
+          }
+        });
+        
+        const clientSnapshot = await prisma.client.findUnique({
+          where: { id: updated.clientId }
+        });
+        const partsDbSnapshot = await prisma.part.findMany();
+
+        import("./src/services/osToBling").then(async ({ sendOsToBling }) => {
+          try {
+            const osSnapshot = {
+              ...updated,
+              status,
+              billingStatus: "PROCESSANDO",
+              billingLogs: initialLogs,
+              usedParts: osUsedParts
+            };
+
+            const result = await sendOsToBling(osSnapshot, clientSnapshot, partsDbSnapshot);
+            if (result.success) {
+              await prisma.ordemServico.update({
+                where: { id: updated.id },
+                data: {
+                  billingStatus: "FATURADO",
+                  blingId: result.blingId,
+                  sefazErrorMessage: result.error ? result.error : (result.notaFiscalId ? `NF-e gerada com sucesso (ID: ${result.notaFiscalId})` : "Pedido faturado com sucesso no Bling.")
+                }
+              });
+            } else {
+              await prisma.ordemServico.update({
+                where: { id: updated.id },
+                data: {
+                  billingStatus: "REJEITADO",
+                  sefazErrorMessage: result.error
+                }
+              });
+            }
+          } catch (e: any) {
+            console.error("[Bling Worker Error]", e);
+            await prisma.ordemServico.update({
+              where: { id: updated.id },
+              data: {
+                billingStatus: "REJEITADO",
+                sefazErrorMessage: e.message
+              }
+            });
+          }
+        });
+      }
+
+      res.json({
+        ...updated,
+        usedParts: typeof updated.usedParts === "string" ? JSON.parse(updated.usedParts) : updated.usedParts,
+        billingLogs: typeof updated.billingLogs === "string" ? JSON.parse(updated.billingLogs) : updated.billingLogs,
+        checklistEntrada: typeof updated.checklistEntrada === "string" ? JSON.parse(updated.checklistEntrada || "[]") : updated.checklistEntrada || [],
+        laudoFotos: typeof updated.laudoFotos === "string" ? JSON.parse(updated.laudoFotos || "[]") : updated.laudoFotos || [],
+        createdAt: updated.createdAt.toISOString()
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
     }
-
-    await writeDB(db);
-
-    res.json(db.ordensServico[index]);
   });
 
-  // soft delete work order
   app.delete("/api/ordens-servico/:id", checkRole(UserRole.OWNER), async (req, res) => {
     const { id } = req.params;
-    const db = await readDB();
-    const index = db.ordensServico.findIndex((os: any) => os.id === id);
-    if (index === -1) {
-      res.status(404).json({ error: "Ordem de Serviço não encontrada." });
-      return;
+    try {
+      const os = await prisma.ordemServico.findUnique({
+        where: { id }
+      });
+      if (!os || os.deletedAt) {
+        res.status(404).json({ error: "Ordem de Serviço não encontrada." });
+        return;
+      }
+
+      await prisma.ordemServico.update({
+        where: { id },
+        data: { deletedAt: new Date() }
+      });
+
+      res.json({ message: "Ordem de Serviço excluída (soft delete) com sucesso!" });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
     }
-
-    db.ordensServico[index].deletedAt = new Date().toISOString();
-    await writeDB(db);
-
-    res.json({ message: "Ordem de Serviço excluída (soft delete) com sucesso!" });
   });
 
   // ----------------------------------------------------
   // SPRINT 3: PARTS & INVENTORY (Enterprise Module)
   // ----------------------------------------------------
   app.get("/api/parts", async (req, res) => {
-    const db = await readDB();
-    const activeParts = (db.parts || []).filter((p: any) => !p.deletedAt);
-    res.json(activeParts);
+    try {
+      const activeParts = await prisma.part.findMany({
+        where: { deletedAt: null }
+      });
+      res.json(activeParts.map(p => ({
+        ...p,
+        createdAt: p.createdAt?.toISOString() || undefined,
+        deletedAt: null
+      })));
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
   app.post("/api/parts", async (req, res) => {
@@ -1043,90 +1192,107 @@ async function startServer() {
       return;
     }
 
-    const db = await readDB();
+    try {
+      const codeExists = await prisma.part.findFirst({
+        where: { code, deletedAt: null }
+      });
+      if (codeExists) {
+        res.status(409).json({ error: `Já existe uma peça ativa com o código '${code}'.` });
+        return;
+      }
 
-    // Validate unique code
-    const codeExists = (db.parts || []).some((p: any) => p.code === code && !p.deletedAt);
-    if (codeExists) {
-      res.status(409).json({ error: `Já existe uma peça ativa com o código '${code}'.` });
-      return;
+      const newPart = await prisma.part.create({
+        data: {
+          name,
+          code,
+          sku: sku || null,
+          barcode: barcode || null,
+          stock: Number(stock) || 0,
+          stockMin: Number(stockMin) || 0,
+          cost: Number(cost) || 0,
+          price: Number(price) || 0,
+          requiresSerial: Boolean(requiresSerial) || false,
+          supplier: supplier || null,
+          location: location || null,
+        }
+      });
+
+      res.status(201).json({
+        ...newPart,
+        createdAt: newPart.createdAt.toISOString(),
+        deletedAt: null
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
     }
-
-    const newPart = {
-      id: `part-${Date.now()}`,
-      name,
-      code,
-      sku: sku || null,
-      barcode: barcode || null,
-      stock: Number(stock) || 0,
-      stockMin: Number(stockMin) || 0,
-      cost: Number(cost) || 0,
-      price: Number(price) || 0,
-      requiresSerial: Boolean(requiresSerial) || false,
-      supplier: supplier || null,
-      location: location || null,
-      notaFiscalEntradaId: null,
-      deletedAt: null,
-      createdAt: new Date().toISOString()
-    };
-
-    if (!db.parts) db.parts = [];
-    db.parts.push(newPart);
-    await writeDB(db);
-    res.status(201).json(newPart);
   });
 
   app.put("/api/parts/:id", async (req, res) => {
     const { id } = req.params;
     const { name, code, sku, barcode, stock, stockMin, cost, price, requiresSerial, supplier, location } = req.body;
 
-    const db = await readDB();
-    const index = (db.parts || []).findIndex((p: any) => p.id === id);
-    if (index === -1) {
-      res.status(404).json({ error: "Peça não encontrada." });
-      return;
-    }
-
-    // Validate unique code excluding self
-    if (code) {
-      const codeExists = db.parts.some((p: any) => p.id !== id && p.code === code && !p.deletedAt);
-      if (codeExists) {
-        res.status(409).json({ error: `Já existe outra peça ativa com o código '${code}'.` });
+    try {
+      const part = await prisma.part.findUnique({ where: { id } });
+      if (!part || part.deletedAt) {
+        res.status(404).json({ error: "Peça não encontrada." });
         return;
       }
+
+      if (code) {
+        const codeExists = await prisma.part.findFirst({
+          where: { id: { not: id }, code, deletedAt: null }
+        });
+        if (codeExists) {
+          res.status(409).json({ error: `Já existe outra peça ativa com o código '${code}'.` });
+          return;
+        }
+      }
+
+      const updated = await prisma.part.update({
+        where: { id },
+        data: {
+          name: name !== undefined ? name : part.name,
+          code: code !== undefined ? code : part.code,
+          sku: sku !== undefined ? sku : part.sku,
+          barcode: barcode !== undefined ? barcode : part.barcode,
+          stock: stock !== undefined ? Number(stock) : part.stock,
+          stockMin: stockMin !== undefined ? Number(stockMin) : part.stockMin,
+          cost: cost !== undefined ? Number(cost) : part.cost,
+          price: price !== undefined ? Number(price) : part.price,
+          requiresSerial: requiresSerial !== undefined ? Boolean(requiresSerial) : part.requiresSerial,
+          supplier: supplier !== undefined ? supplier : part.supplier,
+          location: location !== undefined ? location : part.location,
+        }
+      });
+
+      res.json({
+        ...updated,
+        createdAt: updated.createdAt.toISOString(),
+        deletedAt: null
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
     }
-
-    db.parts[index] = {
-      ...db.parts[index],
-      name: name !== undefined ? name : db.parts[index].name,
-      code: code !== undefined ? code : db.parts[index].code,
-      sku: sku !== undefined ? sku : db.parts[index].sku,
-      barcode: barcode !== undefined ? barcode : db.parts[index].barcode,
-      stock: stock !== undefined ? Number(stock) : db.parts[index].stock,
-      stockMin: stockMin !== undefined ? Number(stockMin) : db.parts[index].stockMin,
-      cost: cost !== undefined ? Number(cost) : db.parts[index].cost,
-      price: price !== undefined ? Number(price) : db.parts[index].price,
-      requiresSerial: requiresSerial !== undefined ? Boolean(requiresSerial) : db.parts[index].requiresSerial,
-      supplier: supplier !== undefined ? supplier : db.parts[index].supplier,
-      location: location !== undefined ? location : db.parts[index].location,
-    };
-
-    await writeDB(db);
-    res.json(db.parts[index]);
   });
 
   app.delete("/api/parts/:id", checkRole(UserRole.OWNER), async (req, res) => {
     const { id } = req.params;
-    const db = await readDB();
-    const index = (db.parts || []).findIndex((p: any) => p.id === id);
-    if (index === -1) {
-      res.status(404).json({ error: "Peça não encontrada." });
-      return;
-    }
+    try {
+      const part = await prisma.part.findUnique({ where: { id } });
+      if (!part || part.deletedAt) {
+        res.status(404).json({ error: "Peça não encontrada." });
+        return;
+      }
 
-    db.parts[index].deletedAt = new Date().toISOString();
-    await writeDB(db);
-    res.json({ message: "Peça excluída (soft delete) com sucesso!" });
+      await prisma.part.update({
+        where: { id },
+        data: { deletedAt: new Date() }
+      });
+
+      res.json({ message: "Peça excluída (soft delete) com sucesso!" });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
   // ----------------------------------------------------

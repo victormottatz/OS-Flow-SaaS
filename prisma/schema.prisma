@@ -10,6 +10,9 @@ generator client {
 enum UserRole {
   OWNER
   EDITOR
+  ATTENDANT
+  TECHNICIAN
+  FINANCIAL
 }
 
 enum OSStatus {
@@ -63,12 +66,21 @@ model Device {
 }
 
 model Part {
-  id    String @id @default(uuid())
-  name  String
-  code  String @unique
-  stock Int    @default(0)
-  cost  Float  @default(0.0)
-  price Float  @default(0.0)
+  id                  String    @id @default(uuid())
+  name                String
+  code                String    @unique
+  sku                 String?
+  barcode             String?
+  stock               Int       @default(0)
+  stockMin            Int       @default(0)
+  cost                Float     @default(0.0)
+  price               Float     @default(0.0)
+  requiresSerial      Boolean   @default(false)
+  supplier            String?
+  location            String?
+  notaFiscalEntradaId String?
+  deletedAt           DateTime?
+  createdAt           DateTime  @default(now())
 
   @@map("parts")
 }
@@ -86,14 +98,18 @@ model OrdemServico {
   status            OSStatus  @default(ORCAMENTO)
   diagnostic        String?
   usedParts         Json      @default("[]") // Stores array of UsedPart { partId, name, quantity, price }
-  laborCost         Float     @default(0.0)
-  totalCost         Float     @default(0.0)
-  billingStatus     String    @default("PENDENTE") // PENDENTE, PROCESSANDO, FATURADO, REJEITADO, TIMEOUT
+  laborCost            Float     @default(0.0)
+  technicianLaborHours Float?
+  technicianHourlyRate Float?
+  totalCost            Float     @default(0.0)
+  billingStatus        String    @default("PENDENTE") // PENDENTE, PROCESSANDO, FATURADO, REJEITADO, TIMEOUT
   blingId           String?
   blingKey          String?
   sefazErrorMessage String?
   pdfUrl            String?
   billingLogs       Json      @default("[]") // Stores string array of logs
+  checklistEntrada  Json?     @default("[]") // Stores checklist details
+  laudoFotos        Json?     @default("[]") // Stores base64 images and captions
   originalEntryDate DateTime?
   originalExitDate  DateTime?
   createdAt         DateTime  @default(now())
