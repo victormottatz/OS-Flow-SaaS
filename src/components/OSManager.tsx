@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Client, Device, OrdemServico, ChecklistItem, EntradaFoto } from "../types";
+import { UserRole, Client, Device, OrdemServico, ChecklistItem, EntradaFoto } from "../types";
 
 const DEFAULT_CHECKLIST: ChecklistItem[] = [
   { id: "tela", label: "Tela / Display", status: "NA", observacao: "" },
@@ -8,13 +8,11 @@ const DEFAULT_CHECKLIST: ChecklistItem[] = [
   { id: "botoes", label: "Botões físicos (ligar, volume)", status: "NA", observacao: "" },
   { id: "porta_carga", label: "Porta de carregamento", status: "NA", observacao: "" },
   { id: "carcaca", label: "Carcaça / Tampa traseira", status: "NA", observacao: "" },
-  { id: "dobradicas", label: "Dobradiças (notebooks)", status: "NA", observacao: "" },
   { id: "bateria", label: "Bateria / Nível de carga", status: "NA", observacao: "" },
   { id: "carregador", label: "Adaptador / Carregador entregue", status: "NA", observacao: "" },
   { id: "umidade", label: "Alta umidade / Corrosão", status: "NA", observacao: "" },
   { id: "queda", label: "Sinais de queda ou impacto", status: "NA", observacao: "" },
   { id: "temperatura", label: "Temperatura anormal", status: "NA", observacao: "" },
-  { id: "memoria", label: "SIM / Memória externa", status: "NA", observacao: "" },
   { id: "acessorios_extra", label: "Acessórios entregues junto", status: "NA", observacao: "" },
   { id: "garantia", label: "Selo de garantia intacto", status: "NA", observacao: "" }
 ];
@@ -81,22 +79,6 @@ const EQUIPMENT_PRESETS: Record<string, { brands: string[]; models: string[] }> 
   "Carboxiterapia": {
     brands: ["TONEDERM", "KLD"],
     models: ["Carboxiderm 1C"]
-  },
-  "Notebook": {
-    brands: ["Dell", "HP", "Lenovo", "Apple", "Acer", "Asus"],
-    models: ["Inspiron", "Latitude", "ThinkPad", "MacBook Air", "MacBook Pro"]
-  },
-  "Desktop PC": {
-    brands: ["Dell", "HP", "MGV Premium", "Montado"],
-    models: ["OptiPlex", "ProDesk", "i5 Premium", "i7 Premium"]
-  },
-  "Impressora": {
-    brands: ["HP", "Epson", "Canon", "Brother"],
-    models: ["EcoTank L3250", "LaserJet", "InkTank"]
-  },
-  "Smartphone / Tablet": {
-    brands: ["Apple", "Samsung", "Motorola", "Xiaomi"],
-    models: ["iPhone 13", "iPhone 14", "Galaxy S22", "iPad Air", "Redmi Note"]
   }
 };
 
@@ -757,9 +739,6 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {availableDevices.map((d) => {
-                      const isNotebook = d.type.toLowerCase().includes("note") || d.type.toLowerCase().includes("comp") || d.type.toLowerCase().includes("pc");
-                      const isPrinter = d.type.toLowerCase().includes("imp") || d.type.toLowerCase().includes("print");
-                      
                       return (
                         <button
                           key={d.id}
@@ -772,7 +751,7 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
                           className="text-left p-4 bg-white border border-slate-200 hover:border-indigo-600 rounded-xl transition duration-150 hover:shadow-premium hover-premium active-premium flex items-start space-x-3.5 cursor-pointer"
                         >
                           <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-600 shrink-0">
-                            {isNotebook ? <span className="material-symbols-outlined text-[20px]">laptop</span> : isPrinter ? <span className="material-symbols-outlined text-[20px]">print</span> : <span className="material-symbols-outlined text-[20px]">smartphone</span>}
+                            <span className="material-symbols-outlined text-[20px]">medical_services</span>
                           </div>
                           <div className="min-w-0 flex-1">
                             <span className="text-[9px] uppercase font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">{d.type}</span>
@@ -824,10 +803,6 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
                         <option value="Criolipólise / Estética">Criolipólise / Estética</option>
                         <option value="Pressoterapia">Pressoterapia</option>
                         <option value="Carboxiterapia">Carboxiterapia</option>
-                        <option value="Notebook">Notebook</option>
-                        <option value="Desktop PC">Desktop PC</option>
-                        <option value="Impressora">Impressora</option>
-                        <option value="Smartphone / Tablet">Smartphone / Tablet</option>
                         <option value="Outro">Outro</option>
                       </select>
                     </div>

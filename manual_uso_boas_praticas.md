@@ -25,6 +25,12 @@ Sempre que o modelo no `prisma/schema.prisma` for alterado, siga o fluxo:
 2. `npx prisma migrate dev --name <nome_da_mudanca>` (para aplicar na base de desenvolvimento e gerar os arquivos SQL de tracking).
 3. `npx prisma generate` (para atualizar os tipos Typescript).
 
+### 4. Migração de Dados Legados (database.json para Nuvem)
+Para importar os dados do sistema local antigo (JSON) para o banco Postgres/Supabase em nuvem:
+1. Certifique-se de que o arquivo `database.json` de backup está na raiz da pasta do projeto.
+2. Execute o comando `npx tsx scripts/migrate_json_to_prisma.ts`.
+3. **CUIDADO:** Este script apaga as tabelas atuais antes de migrá-las (sobrescrevendo os dados de nuvem). Utilize apenas em cenários de inicialização de homologação.
+
 ---
 
 ## 👨‍🔧 Para Gestores e Técnicos (Usuários Finais)
@@ -44,11 +50,14 @@ Sempre que o modelo no `prisma/schema.prisma` for alterado, siga o fluxo:
 - **Pronto:** Consertado, avisar o cliente para buscar.
 - **Entregue / Cancelado:** O processo chegou ao fim.
 
-### 3. Conexão com o ERP Bling
-A integração do Bling automatiza a exportação dos cadastros para não haver retrabalho financeiro.
+### 3. Conexão com o ERP Bling e Emissão de NFe
+A integração do Bling automatiza a exportação dos cadastros para não haver retrabalho financeiro, bem como a emissão da NF.
 - **Autorização:** Apenas uma vez por mês (ou quando necessário), o Gerente deve ir na aba "Sincronização" e clicar em **Conectar com o Bling**. 
 - Uma vez autorizado, o MGV manterá a sessão aberta em nuvem se atualizando sozinho de forma contínua.
-- **Sincronização de Peças e Clientes:** Ao adicionar um novo Cliente ou Peça no MGV, clique no botão de "Sincronizar" ao lado da peça/cliente. O MGV irá verificar se existe no Bling e injetar lá automaticamente.
+- **Sincronização de Peças e Clientes (Webhooks):** Clientes e produtos cadastrados ou atualizados diretamente no painel do Bling ERP V3 são espelhados em tempo real para o banco de dados do MGV de forma totalmente automática, eliminando cadastros duplicados.
+- **Faturamento e DANFE:** Ao finalizar uma OS, ela aparece no *Painel de Integração Fiscal (Sandbox)*. Lá, o Gerente pode comandar a "Emissão de Nota", consultar a situação da SEFAZ e, se aprovado, imprimir o Documento Auxiliar (DANFE) e visualizar a chave de acesso.
+- **Importação de XML de Compra:** No painel de Estoque, o gerente pode clicar em **Importar XML NFe** para fazer upload do XML de compra do fornecedor. O sistema dará entrada automática nas peças no estoque e recalculará o **Custo Médio Ponderado** de forma automática.
+- **Reserva Lógica de Estoque:** Peças adicionadas a ordens de serviço em orçamento ou manutenção são reservadas logicamente, reduzindo o saldo disponível para outras ordens sem mexer no estoque físico real da oficina. A baixa física e contábil final ocorre apenas ao faturar a OS (mudar status para "Finalizado"). Caso a OS seja cancelada ou reaberta, o sistema cancela a reserva automaticamente.
 
 ### 4. Portal Público (Consulta do Cliente)
 Para desafogar os canais de atendimento (WhatsApp/Telefone):

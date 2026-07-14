@@ -403,3 +403,33 @@ export async function syncPartToBling(part: {
   }
 }
 
+/**
+ * Busca os detalhes de um contato no Bling V3 pelo ID.
+ */
+export async function fetchContactFromBling(contactId: number): Promise<any> {
+  const token = await getAccessToken();
+  if (!token) throw new Error("Não foi possível obter um token válido para o Bling.");
+
+  const response = await requestWithRetry(() => axios.get(
+    `https://api.bling.com.br/Api/v3/contatos/${contactId}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  ));
+
+  return response.data?.data;
+}
+
+/**
+ * Busca os detalhes de um produto no Bling V3 pelo ID.
+ */
+export async function fetchProductFromBling(productId: number): Promise<any> {
+  const token = await getAccessToken();
+  if (!token) throw new Error("Não foi possível obter um token válido para o Bling.");
+
+  const response = await requestWithRetry(() => axios.get(
+    `https://api.bling.com.br/Api/v3/produtos/${productId}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  ));
+
+  return response.data?.data;
+}
+

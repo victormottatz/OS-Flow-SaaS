@@ -1,6 +1,7 @@
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 generator client {
@@ -9,6 +10,8 @@ generator client {
 
 enum UserRole {
   OWNER
+  ADMIN
+  SUPERVISOR
   EDITOR
   ATTENDANT
   TECHNICIAN
@@ -29,6 +32,7 @@ model User {
   email        String   @unique
   passwordHash String
   role         UserRole @default(EDITOR)
+  permissions  String[] @default([])
   createdAt    DateTime @default(now())
 
   @@map("users")
@@ -50,17 +54,21 @@ model Client {
 }
 
 model Device {
-  id           String         @id @default(uuid())
-  legacyId     String?        @unique
-  clientId     String
-  client       Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  type         String
-  brand        String
-  model        String
-  serialNumber String         @default("Sem Série")
-  description  String         @default("Sem observações.")
-  deletedAt    DateTime?
-  orders       OrdemServico[]
+  id                String         @id @default(uuid())
+  legacyId          String?        @unique
+  clientId          String
+  client            Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  type              String
+  brand             String
+  model             String
+  serialNumber      String         @default("Sem Série")
+  description       String         @default("Sem observações.")
+  deletedAt         DateTime?
+  orders            OrdemServico[]
+  notes             DeviceNote[]
+  warrantyExpiresAt DateTime?
+  lastMaintenanceAt DateTime?
+  acquisitionDate   DateTime?
 
   @@map("devices")
 }
@@ -73,6 +81,7 @@ model Part {
   barcode             String?
   stock               Int       @default(0)
   stockMin            Int       @default(0)
+  reserved            Int       @default(0)
   cost                Float     @default(0.0)
   price               Float     @default(0.0)
   requiresSerial      Boolean   @default(false)
@@ -86,34 +95,38 @@ model Part {
 }
 
 model OrdemServico {
-  id                String    @id @default(uuid())
-  osNumber          String    @unique
-  clientId          String
-  client            Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  deviceId          String
-  device            Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-  reportedDefect    String
-  accessoriesLeft   String    @default("Nenhum")
-  physicalState     String    @default("Não especificado")
-  status            OSStatus  @default(ORCAMENTO)
-  diagnostic        String?
-  usedParts         Json      @default("[]") // Stores array of UsedPart { partId, name, quantity, price }
-  laborCost            Float     @default(0.0)
+  id                   String           @id @default(uuid())
+  osNumber             String           @unique
+  clientId             String
+  client               Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  deviceId             String
+  device               Device           @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  reportedDefect       String
+  accessoriesLeft      String           @default("Nenhum")
+  physicalState        String           @default("Não especificado")
+  status               OSStatus         @default(ORCAMENTO)
+  diagnostic           String?
+  usedParts            Json             @default("[]") // Stores array of UsedPart { partId, name, quantity, price }
+  laborCost            Float            @default(0.0)
   technicianLaborHours Float?
   technicianHourlyRate Float?
-  totalCost            Float     @default(0.0)
-  billingStatus        String    @default("PENDENTE") // PENDENTE, PROCESSANDO, FATURADO, REJEITADO, TIMEOUT
-  blingId           String?
-  blingKey          String?
-  sefazErrorMessage String?
-  pdfUrl            String?
-  billingLogs       Json      @default("[]") // Stores string array of logs
-  checklistEntrada  Json?     @default("[]") // Stores checklist details
-  laudoFotos        Json?     @default("[]") // Stores base64 images and captions
-  originalEntryDate DateTime?
-  originalExitDate  DateTime?
-  createdAt         DateTime  @default(now())
-  deletedAt         DateTime?
+  totalCost            Float            @default(0.0)
+  billingStatus        String           @default("PENDENTE") // PENDENTE, PROCESSANDO, FATURADO, REJEITADO, TIMEOUT
+  blingId              String?
+  blingKey             String?
+  sefazErrorMessage    String?
+  pdfUrl               String?
+  billingLogs          Json             @default("[]") // Stores string array of logs
+  checklistEntrada     Json?            @default("[]") // Stores checklist details
+  checklistSaida       Json?            @default("[]") // Stores exit checklist details
+  laudoFotos           Json?            @default("[]") // Stores base64 images and captions
+  originalEntryDate    DateTime?
+  originalExitDate     DateTime?
+  stressTestStartedAt  DateTime?
+  stressTestStartedBy  String?
+  createdAt            DateTime         @default(now())
+  deletedAt            DateTime?
+  messageHistories     MessageHistory[]
 
   @@map("ordem_servicos")
 }
@@ -128,3 +141,82 @@ model BlingConfig {
   @@map("bling_configs")
 }
 
+model FeatureFlag {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       Boolean  @default(false)
+  description String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("feature_flags")
+}
+
+model MessageHistory {
+  id          String       @id @default(uuid())
+  orderId     String       @map("order_id")
+  order       OrdemServico @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  phoneNumber String       @map("phone_number")
+  messageText String       @map("message_text")
+  status      String // PENDENTE, ENVIADO, ENTREGUE, LIDO, FALHOU
+  errorDetail String?      @map("error_detail")
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  @@map("message_history")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  entityName  String   // "OrdemServico", "Part", "Device", "Client"
+  entityId    String
+  action      String   // "UPDATE", "CREATE", "DELETE"
+  oldValue    Json?
+  newValue    Json?
+  userId      String   // ID or email/name
+  ipAddress   String?
+  source      String?  // ex: "WEB", "API", "SYSTEM"
+  reason      String?
+  createdAt   DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+model DeviceNote {
+  id        String   @id @default(uuid())
+  deviceId  String
+  device    Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  content   String
+  createdBy String
+  createdAt DateTime @default(now())
+
+  @@map("device_notes")
+}
+
+model DeviceCategory {
+  id               String   @id @default(uuid())
+  name             String   @unique // ex: "Autoclave", "Compressor"
+  defaultChecklist Json     @default("[]")
+
+  @@map("device_categories")
+}
+
+model OfficeSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String   // Stringified JSON or plain text
+  type        String   @default("string") // boolean, number, string, json
+  category    String   @default("GERAL")  // GERAL, FINANCEIRO, KANBAN, GARANTIAS, WHATSAPP, CENTRAL_CLIENTE, ESTOQUE, ISAIAS
+  description String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("office_settings")
+}
+
+model RolePermission {
+  id         String   @id @default(uuid())
+  role       UserRole
+  permission String
+  createdAt  DateTime @default(now())
+
+  @@unique([role, permission])
+  @@map("role_permissions")
+}

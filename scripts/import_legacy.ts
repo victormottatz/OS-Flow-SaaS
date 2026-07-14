@@ -406,6 +406,24 @@ async function executeMigration() {
     clientMap.set(oldId, newId);
   }
 
+  const FALLBACK_CLIENT_ID = "fallback-sh-oficina-client";
+  const FALLBACK_DEVICE_ID = "fallback-sh-oficina-device";
+
+  if (!DRY_RUN) {
+    await prisma.client.upsert({
+      where: { id: FALLBACK_CLIENT_ID },
+      update: {},
+      create: {
+        id: FALLBACK_CLIENT_ID,
+        name: "CLIENTE SH OFICINA EXCLUIDO",
+        cpfCnpj: "00000000000",
+        phone: "0000000000",
+        email: "nao_informado@mgv.com",
+        address: "Não Informado"
+      }
+    });
+  }
+
   // 2. PROCESS DEVICES
   console.log("-> Processando Equipamentos...");
   let parsedDevices: string[][] = [];
@@ -436,10 +454,10 @@ async function executeMigration() {
     const serialNumber = row[deviceHeaderMap["serie"] || 0] || "Sem Série";
     const description = row[deviceHeaderMap["observacoes"] || 0] || "Sem observações.";
 
-    const newClientId = clientMap.get(oldClientId);
+    let newClientId = clientMap.get(oldClientId);
     if (!newClientId) {
       stats.devices.orphans++;
-      continue;
+      newClientId = FALLBACK_CLIENT_ID;
     }
 
     let newDevId = `device-imported-${oldDevId}`;
@@ -486,6 +504,22 @@ async function executeMigration() {
       }
     }
     deviceMap.set(oldDevId, newDevId);
+  }
+
+  if (!DRY_RUN) {
+    await prisma.device.upsert({
+      where: { id: FALLBACK_DEVICE_ID },
+      update: {},
+      create: {
+        id: FALLBACK_DEVICE_ID,
+        clientId: FALLBACK_CLIENT_ID,
+        type: "Equipamento Desconhecido",
+        brand: "Desconhecida",
+        model: "Desconhecido",
+        serialNumber: "Sem Série",
+        description: "Equipamento associado a OS sem equipamento original encontrado no SH Oficina."
+      }
+    });
   }
 
   // 3. PROCESS PARTS INVENTORY
@@ -559,10 +593,6 @@ async function executeMigration() {
     return;
   }
 
-  const runDate = new Date();
-  const cutoffDate = new Date();
-  cutoffDate.setMonth(runDate.getMonth() - 15);
-
   for (let i = 1; i < parsedOS.length; i++) {
     const row = parsedOS[i];
     if (row.length < osHeaders.length) continue;
@@ -584,25 +614,21 @@ async function executeMigration() {
     const outros = parseCurrency(row[osHeaderMap["v_outros"]]);
     const totalCost = laborCost + partsCost + desloca + terceiro + outros;
 
-    const entryDate = parseLegacyDate(entradaStr);
-    if (!entryDate || entryDate < cutoffDate) {
-      stats.os.skippedTime++;
-      continue;
-    }
+    const entryDate = parseLegacyDate(entradaStr) || new Date();
 
     const saidaStr = row[osHeaderMap["saida"] || 0];
     const exitDate = parseLegacyDate(saidaStr);
 
-    const newClientId = clientMap.get(oldClientId);
+    let newClientId = clientMap.get(oldClientId);
     if (!newClientId) {
       stats.os.clientOrphans++;
-      continue;
+      newClientId = FALLBACK_CLIENT_ID;
     }
 
-    const newDevId = deviceMap.get(oldDevId);
+    let newDevId = deviceMap.get(oldDevId);
     if (!newDevId) {
       stats.os.deviceOrphans++;
-      continue;
+      newDevId = FALLBACK_DEVICE_ID;
     }
 
     const status = determineOSStatus(row, osHeaderMap);

@@ -22,6 +22,12 @@ interface OSPublicData {
   createdAt: string;
   clientName: string;
   totalCost: number | null;
+  laborCost: number | null;
+  usedParts: any[];
+  diagnostic: string;
+  laudoFotos: any[];
+  warrantyExpiresAt: string | null;
+  timeline: Array<{ date: string; title: string; description: string }>;
 }
 
 // ─── Configurações dos steps do stepper ──────────────────────────────────────
@@ -80,6 +86,110 @@ export default function PublicPortal() {
   const [result, setResult] = useState<OSPublicData | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
 
+  const [activeTab, setActiveTab] = useState<"STATUS" | "FOTOS" | "DETALHES" | "ORCAMENTO">("STATUS");
+  const [isApproving, setIsApproving] = useState(false);
+  const canvasRef = React.useRef<HTMLCanvasElement>(null);
+
+  // ── Setup Canvas
+  useEffect(() => {
+    if (!canvasRef.current || activeTab !== "ORCAMENTO") return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    
+    // Config inicial
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "#fdc003";
+
+    let isDrawing = false;
+    
+    const getPos = (e: MouseEvent | TouchEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+      const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+      return { x: clientX - rect.left, y: clientY - rect.top };
+    };
+
+    const start = (e: MouseEvent | TouchEvent) => {
+      isDrawing = true;
+      const { x, y } = getPos(e);
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      if(e.cancelable) e.preventDefault();
+    };
+
+    const draw = (e: MouseEvent | TouchEvent) => {
+      if (!isDrawing) return;
+      const { x, y } = getPos(e);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      if(e.cancelable) e.preventDefault();
+    };
+
+    const end = () => { isDrawing = false; };
+
+    canvas.addEventListener("mousedown", start);
+    canvas.addEventListener("mousemove", draw);
+    canvas.addEventListener("mouseup", end);
+    canvas.addEventListener("mouseout", end);
+    
+    canvas.addEventListener("touchstart", start, { passive: false });
+    canvas.addEventListener("touchmove", draw, { passive: false });
+    canvas.addEventListener("touchend", end);
+
+    return () => {
+      canvas.removeEventListener("mousedown", start);
+      canvas.removeEventListener("mousemove", draw);
+      canvas.removeEventListener("mouseup", end);
+      canvas.removeEventListener("mouseout", end);
+      canvas.removeEventListener("touchstart", start);
+      canvas.removeEventListener("touchmove", draw);
+      canvas.removeEventListener("touchend", end);
+    };
+  }, [activeTab]);
+
+  const handleClearCanvas = () => {
+    if (!canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+  };
+
+  const handleApprove = async () => {
+    if (!canvasRef.current || !result) return;
+    
+    // Checar se o canvas está vazio (simplificado, vamos apenas checar se gerou dataUrl grande)
+    const signature = canvasRef.current.toDataURL("image/png");
+    if (signature.length < 5000) {
+      alert("Por favor, assine no quadro para aprovar.");
+      return;
+    }
+
+    setIsApproving(true);
+    try {
+      const res = await fetch("/api/portal/os/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ numero: result.osNumber, cpfCnpj, signature })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert("Orçamento aprovado com sucesso! A equipe iniciará o reparo.");
+        handleConsultar(); // Recarrega a OS para atualizar o status e ocultar aba de aprovação
+        setActiveTab("STATUS");
+      } else {
+        alert(data.error || "Falha ao aprovar.");
+      }
+    } catch (e) {
+      alert("Falha de comunicação.");
+    } finally {
+      setIsApproving(false);
+    }
+  };
+
   // ── Detectar deep-link: /acompanhar?os=OS-0042
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -103,7 +213,7 @@ export default function PublicPortal() {
 
     try {
       const res = await fetch(
-        `/api/publico/os?numero=${encodeURIComponent(osNumber.trim())}&cpfCnpj=${encodeURIComponent(cpfCnpj.replace(/\D/g, ""))}`
+        `/api/portal/os?numero=${encodeURIComponent(osNumber.trim())}&cpfCnpj=${encodeURIComponent(cpfCnpj.replace(/\D/g, ""))}`
       );
       const data = await res.json();
 
@@ -112,6 +222,7 @@ export default function PublicPortal() {
         return;
       }
       setResult(data);
+      setActiveTab("STATUS");
     } catch {
       setError("Falha de conexão com o servidor. Tente novamente em alguns instantes.");
     } finally {
@@ -487,57 +598,240 @@ export default function PublicPortal() {
               </div>
             </div>
 
-            {/* ── CARDS DE INFO ── */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
-              {/* Card Equipamento */}
-              <div style={{
-                background: "rgba(255,255,255,0.03)",
-                border: "1px solid rgba(255,255,255,0.07)",
-                borderRadius: 12, padding: "1rem",
-              }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "0.5rem" }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 16, color: "#64748b" }}>devices</span>
-                  <span style={{ fontSize: "0.7rem", fontWeight: 600, color: "#64748b", letterSpacing: "0.06em", textTransform: "uppercase" }}>Equipamento</span>
-                </div>
-                <p style={{ margin: 0, fontSize: "0.88rem", fontWeight: 600, color: "#e2e8f0", lineHeight: 1.4 }}>
-                  {result.deviceLabel}
-                </p>
-              </div>
-
-              {/* Card Acessórios */}
-              <div style={{
-                background: "rgba(255,255,255,0.03)",
-                border: "1px solid rgba(255,255,255,0.07)",
-                borderRadius: 12, padding: "1rem",
-              }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "0.5rem" }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 16, color: "#64748b" }}>backpack</span>
-                  <span style={{ fontSize: "0.7rem", fontWeight: 600, color: "#64748b", letterSpacing: "0.06em", textTransform: "uppercase" }}>Acessórios</span>
-                </div>
-                <p style={{ margin: 0, fontSize: "0.83rem", color: "#94a3b8", lineHeight: 1.4 }}>
-                  {result.accessoriesLeft}
-                </p>
-              </div>
-            </div>
-
-            {/* Card Defeito Relatado */}
+            {/* ── NAVEGAÇÃO POR ABAS ── */}
             <div style={{
-              background: "rgba(255,255,255,0.03)",
-              border: "1px solid rgba(255,255,255,0.07)",
-              borderRadius: 12, padding: "1rem",
-              marginBottom: "1rem",
+              display: "flex", gap: "0.5rem", marginBottom: "1rem", overflowX: "auto", paddingBottom: "0.5rem"
             }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "0.5rem" }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 16, color: "#64748b" }}>report_problem</span>
-                <span style={{ fontSize: "0.7rem", fontWeight: 600, color: "#64748b", letterSpacing: "0.06em", textTransform: "uppercase" }}>Problema Reportado</span>
-              </div>
-              <p style={{ margin: 0, fontSize: "0.88rem", color: "#cbd5e1", lineHeight: 1.5, fontStyle: "italic" }}>
-                "{result.reportedDefect}"
-              </p>
+              <button
+                onClick={() => setActiveTab("STATUS")}
+                style={{
+                  flex: "1 0 auto", padding: "0.6rem 1rem", borderRadius: 8, fontSize: "0.8rem", fontWeight: 600,
+                  background: activeTab === "STATUS" ? "rgba(255,255,255,0.1)" : "transparent",
+                  color: activeTab === "STATUS" ? "#f8fafc" : "#94a3b8",
+                  border: activeTab === "STATUS" ? "1px solid rgba(255,255,255,0.2)" : "1px solid transparent",
+                  cursor: "pointer", transition: "all 0.2s"
+                }}
+              >Status & Resumo</button>
+              
+              <button
+                onClick={() => setActiveTab("DETALHES")}
+                style={{
+                  flex: "1 0 auto", padding: "0.6rem 1rem", borderRadius: 8, fontSize: "0.8rem", fontWeight: 600,
+                  background: activeTab === "DETALHES" ? "rgba(255,255,255,0.1)" : "transparent",
+                  color: activeTab === "DETALHES" ? "#f8fafc" : "#94a3b8",
+                  border: activeTab === "DETALHES" ? "1px solid rgba(255,255,255,0.2)" : "1px solid transparent",
+                  cursor: "pointer", transition: "all 0.2s"
+                }}
+              >Detalhes Técnicos</button>
+
+              {result.laudoFotos && result.laudoFotos.length > 0 && (
+                <button
+                  onClick={() => setActiveTab("FOTOS")}
+                  style={{
+                    flex: "1 0 auto", padding: "0.6rem 1rem", borderRadius: 8, fontSize: "0.8rem", fontWeight: 600,
+                    background: activeTab === "FOTOS" ? "rgba(255,255,255,0.1)" : "transparent",
+                    color: activeTab === "FOTOS" ? "#f8fafc" : "#94a3b8",
+                    border: activeTab === "FOTOS" ? "1px solid rgba(255,255,255,0.2)" : "1px solid transparent",
+                    cursor: "pointer", transition: "all 0.2s"
+                  }}
+                >Fotos ({result.laudoFotos.length})</button>
+              )}
+
+              {result.status === "ORCAMENTO" && (
+                <button
+                  onClick={() => setActiveTab("ORCAMENTO")}
+                  style={{
+                    flex: "1 0 auto", padding: "0.6rem 1rem", borderRadius: 8, fontSize: "0.8rem", fontWeight: 600,
+                    background: activeTab === "ORCAMENTO" ? "rgba(253,192,3,0.15)" : "transparent",
+                    color: activeTab === "ORCAMENTO" ? "#fdc003" : "#94a3b8",
+                    border: activeTab === "ORCAMENTO" ? "1px solid rgba(253,192,3,0.3)" : "1px solid transparent",
+                    cursor: "pointer", transition: "all 0.2s"
+                  }}
+                >Aprovar Orçamento</button>
+              )}
             </div>
 
-            {/* Card Valor Total (só quando pronto/finalizado) */}
-            {result.totalCost !== null && (
+            {/* CONTEÚDO DAS ABAS */}
+            
+            {/* ABA STATUS */}
+            {activeTab === "STATUS" && (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
+                  <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "1rem" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "0.5rem" }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 16, color: "#64748b" }}>devices</span>
+                      <span style={{ fontSize: "0.7rem", fontWeight: 600, color: "#64748b", letterSpacing: "0.06em", textTransform: "uppercase" }}>Equipamento</span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: "0.88rem", fontWeight: 600, color: "#e2e8f0", lineHeight: 1.4 }}>
+                      {result.deviceLabel}
+                    </p>
+                  </div>
+                  <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "1rem" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "0.5rem" }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 16, color: "#64748b" }}>backpack</span>
+                      <span style={{ fontSize: "0.7rem", fontWeight: 600, color: "#64748b", letterSpacing: "0.06em", textTransform: "uppercase" }}>Acessórios</span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: "0.83rem", color: "#94a3b8", lineHeight: 1.4 }}>
+                      {result.accessoriesLeft}
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "1rem", marginBottom: "1rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "0.5rem" }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 16, color: "#64748b" }}>report_problem</span>
+                    <span style={{ fontSize: "0.7rem", fontWeight: 600, color: "#64748b", letterSpacing: "0.06em", textTransform: "uppercase" }}>Problema Reportado</span>
+                  </div>
+                  <p style={{ margin: 0, fontSize: "0.88rem", color: "#cbd5e1", lineHeight: 1.5, fontStyle: "italic" }}>
+                    "{result.reportedDefect}"
+                  </p>
+                </div>
+              </>
+            )}
+
+            {/* ABA DETALHES TÉCNICOS */}
+            {activeTab === "DETALHES" && (
+              <>
+                <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "1rem", marginBottom: "1rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "0.5rem" }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 16, color: "#64748b" }}>clinical_notes</span>
+                    <span style={{ fontSize: "0.7rem", fontWeight: 600, color: "#64748b", letterSpacing: "0.06em", textTransform: "uppercase" }}>Diagnóstico Técnico</span>
+                  </div>
+                  <p style={{ margin: 0, fontSize: "0.88rem", color: "#cbd5e1", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
+                    {result.diagnostic || "Ainda não há notas técnicas para este equipamento."}
+                  </p>
+                </div>
+
+                {result.warrantyExpiresAt && (
+                  <div style={{ background: "rgba(16,185,129,0.05)", border: "1px solid rgba(16,185,129,0.2)", borderRadius: 12, padding: "1rem", marginBottom: "1rem" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "0.5rem" }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 16, color: "#10b981" }}>verified_user</span>
+                      <span style={{ fontSize: "0.7rem", fontWeight: 600, color: "#10b981", letterSpacing: "0.06em", textTransform: "uppercase" }}>Garantia do Serviço</span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: "0.88rem", color: "#e2e8f0" }}>
+                      Válida até: <strong style={{ color: "#34d399" }}>{formatDate(result.warrantyExpiresAt)}</strong>
+                    </p>
+                  </div>
+                )}
+
+                <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "1rem", marginBottom: "1rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "1rem" }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 16, color: "#64748b" }}>history</span>
+                    <span style={{ fontSize: "0.7rem", fontWeight: 600, color: "#64748b", letterSpacing: "0.06em", textTransform: "uppercase" }}>Timeline da OS</span>
+                  </div>
+                  <div style={{ position: "relative", paddingLeft: "1rem", borderLeft: "2px solid rgba(255,255,255,0.1)" }}>
+                    {result.timeline.map((event, index) => (
+                      <div key={index} style={{ marginBottom: "1rem", position: "relative" }}>
+                        <div style={{ position: "absolute", left: "-1.38rem", top: 4, width: 10, height: 10, borderRadius: "50%", background: "#fdc003", border: "2px solid #0a0a0a" }} />
+                        <p style={{ margin: 0, fontSize: "0.75rem", color: "#94a3b8" }}>{formatDate(event.date)} às {new Date(event.date).toLocaleTimeString("pt-BR", {hour:'2-digit', minute:'2-digit'})}</p>
+                        <p style={{ margin: "0.2rem 0", fontSize: "0.9rem", fontWeight: 600, color: "#e2e8f0" }}>{event.title}</p>
+                        <p style={{ margin: 0, fontSize: "0.83rem", color: "#64748b" }}>{event.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* ABA FOTOS */}
+            {activeTab === "FOTOS" && result.laudoFotos && result.laudoFotos.length > 0 && (
+              <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "1rem", marginBottom: "1rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "1rem" }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 16, color: "#64748b" }}>photo_library</span>
+                  <span style={{ fontSize: "0.7rem", fontWeight: 600, color: "#64748b", letterSpacing: "0.06em", textTransform: "uppercase" }}>Fotos do Laudo</span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "1rem" }}>
+                  {result.laudoFotos.map((foto, idx) => (
+                    <div key={idx} style={{ position: "relative", borderRadius: 8, overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)" }}>
+                      <img src={foto.base64 || foto.url} alt={`Foto ${idx+1}`} style={{ width: "100%", height: 140, objectFit: "cover" }} />
+                      {foto.caption && (
+                        <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "rgba(0,0,0,0.7)", padding: "0.4rem", fontSize: "0.7rem", color: "#fff", textAlign: "center" }}>
+                          {foto.caption}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ABA ORÇAMENTO / APROVAÇÃO */}
+            {activeTab === "ORCAMENTO" && result.status === "ORCAMENTO" && (
+              <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "1rem", marginBottom: "1rem", animation: "fadeIn 0.3s" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "1rem" }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 16, color: "#fdc003" }}>contract_edit</span>
+                  <span style={{ fontSize: "0.7rem", fontWeight: 600, color: "#fdc003", letterSpacing: "0.06em", textTransform: "uppercase" }}>Detalhes do Orçamento</span>
+                </div>
+                
+                <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 8, padding: "1rem", marginBottom: "1rem" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem", color: "#cbd5e1" }}>
+                    <tbody>
+                      {result.usedParts && result.usedParts.map((p, idx) => (
+                        <tr key={idx} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                          <td style={{ padding: "0.5rem 0" }}>{p.quantity}x {p.name}</td>
+                          <td style={{ padding: "0.5rem 0", textAlign: "right" }}>{formatCurrency(p.price * p.quantity)}</td>
+                        </tr>
+                      ))}
+                      {result.laborCost && result.laborCost > 0 && (
+                        <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                          <td style={{ padding: "0.5rem 0" }}>Mão de Obra Técnica</td>
+                          <td style={{ padding: "0.5rem 0", textAlign: "right" }}>{formatCurrency(result.laborCost)}</td>
+                        </tr>
+                      )}
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <td style={{ padding: "0.75rem 0 0", fontWeight: 700, color: "#f8fafc" }}>VALOR TOTAL</td>
+                        <td style={{ padding: "0.75rem 0 0", textAlign: "right", fontWeight: 700, color: "#fdc003", fontSize: "1.1rem" }}>{formatCurrency(result.totalCost || 0)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+
+                <div style={{ marginBottom: "1rem" }}>
+                  <p style={{ fontSize: "0.85rem", color: "#94a3b8", marginBottom: "0.75rem", lineHeight: 1.5 }}>
+                    Para autorizar o início do reparo sob os valores descritos acima, assine no quadro abaixo:
+                  </p>
+                  <div style={{ border: "2px dashed rgba(253,192,3,0.4)", borderRadius: 12, background: "#1e293b", position: "relative" }}>
+                    <canvas 
+                      ref={canvasRef} 
+                      width={600} 
+                      height={200} 
+                      style={{ width: "100%", height: 200, cursor: "crosshair", touchAction: "none", borderRadius: 12 }}
+                    />
+                    <button 
+                      onClick={handleClearCanvas}
+                      type="button"
+                      style={{ position: "absolute", top: 10, right: 10, background: "rgba(255,255,255,0.1)", border: "none", borderRadius: 6, color: "#cbd5e1", fontSize: "0.75rem", padding: "0.3rem 0.6rem", cursor: "pointer" }}
+                    >
+                      Limpar
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleApprove}
+                  disabled={isApproving}
+                  style={{
+                    width: "100%", background: "#fdc003", color: "#1c1b1b", border: "none", borderRadius: 10, padding: "0.875rem",
+                    fontSize: "0.9rem", fontWeight: 700, cursor: isApproving ? "not-allowed" : "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
+                    boxShadow: "0 0 20px rgba(253,192,3,0.25)"
+                  }}
+                >
+                  {isApproving ? "Processando..." : (
+                    <>
+                      <span className="material-symbols-outlined" style={{ fontSize: 18, fontVariationSettings: "'FILL' 1" }}>draw</span>
+                      Aprovar Orçamento e Iniciar Reparo
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+
+
+            {/* Card Valor Total Global (Fica embaixo das abas se estiver pronto/finalizado) */}
+            {result.totalCost !== null && result.status !== "ORCAMENTO" && (
               <div style={{
                 background: "rgba(16,185,129,0.08)",
                 border: "1px solid rgba(16,185,129,0.25)",

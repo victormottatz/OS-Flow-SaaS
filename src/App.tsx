@@ -5,6 +5,7 @@
 
 import { useState, useEffect } from "react";
 import { User, UserRole, Client, Device, OrdemServico, Part } from "./types";
+import { FeatureFlagProvider } from "./contexts/FeatureFlagContext";
 import Navbar from "./components/Navbar";
 import LoginForm from "./components/LoginForm";
 import DashboardView from "./components/DashboardView";
@@ -15,6 +16,8 @@ import BlingSandbox from "./components/BlingSandbox";
 import StockManager from "./components/StockManager";
 import PublicPortal from "./components/PublicPortal";
 import UserManagement from "./components/UserManagement";
+import FeatureFlagsPanel from "./components/FeatureFlagsPanel";
+import SkillTree from "./components/SkillTree";
 
 const getInitialTab = () => {
   const path = window.location.pathname;
@@ -24,6 +27,8 @@ const getInitialTab = () => {
   if (path === "/estoque") return "estoque";
   if (path === "/bling") return "bling";
   if (path === "/users") return "users";
+  if (path === "/feature-flags") return "feature-flags";
+  if (path === "/skills") return "skills";
   return "dashboard";
 };
 
@@ -57,6 +62,8 @@ export default function App() {
     else if (tab === "estoque") path = "/estoque";
     else if (tab === "bling") path = "/bling";
     else if (tab === "users") path = "/users";
+    else if (tab === "feature-flags") path = "/feature-flags";
+    else if (tab === "skills") path = "/skills";
     
     window.history.pushState(null, "", path);
   };
@@ -147,6 +154,7 @@ export default function App() {
 
   // Authenticated Dashboard layout viewport
   return (
+    <FeatureFlagProvider token={token}>
     <div className="min-h-screen bg-slate-50 flex flex-col text-slate-800 antialiased font-sans">
       <Navbar
         user={user}
@@ -224,6 +232,18 @@ export default function App() {
             isOffline={isOffline}
           />
         )}
+
+        {currentTab === "feature-flags" && (
+          <FeatureFlagsPanel
+            userRole={user.role}
+          />
+        )}
+
+        {currentTab === "skills" && (
+          <SkillTree
+            userRole={user.role}
+          />
+        )}
       </main>
 
       {/* Floating Action Button (FAB) for OS Creation (hidden when already on OS view) */}
@@ -241,5 +261,6 @@ export default function App() {
         <p>MGV Tecnologia & Assistência Técnica © {new Date().getFullYear()} – Centralized ERP Workspace</p>
       </footer>
     </div>
+    </FeatureFlagProvider>
   );
 }

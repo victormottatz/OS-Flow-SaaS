@@ -34,7 +34,7 @@ export async function sendOsToBling(os: any, client: any, partsDb: any[]): Promi
     if (os.usedParts && os.usedParts.length > 0) {
       for (const item of os.usedParts) {
         const partInDb = partsDb.find((p: any) => p.id === item.partId);
-        if (partInDb) {
+        if (partInDb && !item.isAvulso) {
           const produtoId = await syncPartToBling(partInDb);
           itens.push({
             produto: { id: produtoId },
@@ -42,9 +42,16 @@ export async function sendOsToBling(os: any, client: any, partsDb: any[]): Promi
             valor: item.price
           });
         } else {
-          // Fallback se não estiver no partsDb (improvável, mas seguro)
+          // É um item avulso ou fallback. Envia como serviço/taxa/produto específico no Bling
+          const avulsoCode = item.isAvulso && item.category ? `AVULSO-${item.category}` : "AVULSO-GERAL";
+          const genericAvulsoPart = {
+            name: `${item.name} (Avulso)`,
+            code: avulsoCode,
+            price: item.price
+          };
+          const produtoId = await syncPartToBling(genericAvulsoPart);
           itens.push({
-            descricao: item.name,
+            produto: { id: produtoId },
             quantidade: item.quantity,
             valor: item.price
           });

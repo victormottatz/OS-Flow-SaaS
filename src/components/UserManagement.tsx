@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { User, UserRole } from "../types";
 
 interface UserManagementProps {
@@ -27,7 +27,7 @@ export default function UserManagement({ userRole, isOffline }: UserManagementPr
     if (isOffline) return;
     try {
       const activeToken = localStorage.getItem("mgv_token") || "";
-      const res = await fetch("/api/users", {
+      const res = await fetch("/api/auth/users", {
         headers: { "Authorization": `Bearer ${activeToken}` }
       });
       if (res.ok) {
@@ -80,7 +80,7 @@ export default function UserManagement({ userRole, isOffline }: UserManagementPr
     
     try {
       const activeToken = localStorage.getItem("mgv_token") || "";
-      const res = await fetch(`/api/users/${id}`, {
+      const res = await fetch(`/api/auth/users/${id}`, {
         method: "DELETE",
         headers: { "Authorization": `Bearer ${activeToken}` }
       });

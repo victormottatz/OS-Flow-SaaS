@@ -40,6 +40,10 @@ export default function Navbar({
         return "Integração Fiscal & Bling";
       case "users":
         return "Gestão de Usuários";
+      case "feature-flags":
+        return "Configurações do Sistema";
+      case "skills":
+        return "Árvore de Habilidades (Roadmap)";
       default:
         return "MGV Assistência";
     }
@@ -71,7 +75,9 @@ export default function Navbar({
             { id: "kanban", label: "Quadro Técnico", icon: "splitscreen" },
             { id: "estoque", label: "Estoque", icon: "inventory_2" },
             ...((user.role === UserRole.OWNER || user.role === UserRole.FINANCIAL) ? [{ id: "bling", label: "Integração Fiscal", icon: "sync_alt" }] : []),
-            ...(user.role === UserRole.OWNER ? [{ id: "users", label: "Equipe", icon: "manage_accounts" }] : [])
+            ...(user.role === UserRole.OWNER ? [{ id: "users", label: "Equipe", icon: "manage_accounts" }] : []),
+            ...(user.role === UserRole.OWNER ? [{ id: "feature-flags", label: "Config. Sistema", icon: "toggle_on" }] : []),
+            { id: "skills", label: "Habilidades", icon: "account_tree" }
           ].map((item) => {
             const active = currentTab === item.id;
             return (
@@ -178,7 +184,9 @@ export default function Navbar({
           { id: "kanban", label: "Quadro", icon: "splitscreen" },
           { id: "estoque", label: "Estoque", icon: "inventory_2" },
           ...((user.role === UserRole.OWNER || user.role === UserRole.FINANCIAL) ? [{ id: "bling", label: "Fiscal", icon: "sync_alt" }] : []),
-          ...(user.role === UserRole.OWNER ? [{ id: "users", label: "Equipe", icon: "manage_accounts" }] : [])
+          ...(user.role === UserRole.OWNER ? [{ id: "users", label: "Equipe", icon: "manage_accounts" }] : []),
+          ...(user.role === UserRole.OWNER ? [{ id: "feature-flags", label: "Config", icon: "toggle_on" }] : []),
+          { id: "skills", label: "Skills", icon: "account_tree" }
         ].map((tab) => {
           const active = currentTab === tab.id;
           return (

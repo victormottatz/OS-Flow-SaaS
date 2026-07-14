@@ -5,6 +5,9 @@
 
 export enum UserRole {
   OWNER = 'OWNER',         // Dono/Administrador (Acesso Total)
+  ADMIN = 'ADMIN',         // Administrador
+  SUPERVISOR = 'SUPERVISOR',// Supervisor de Oficina
+  EDITOR = 'EDITOR',       // Editor genérico (legado)
   ATTENDANT = 'ATTENDANT', // Recepção/Atendimento
   TECHNICIAN = 'TECHNICIAN',// Laboratório/Técnico
   FINANCIAL = 'FINANCIAL'  // Financeiro/Faturamento
@@ -37,6 +40,8 @@ export interface Device {
   serialNumber: string; // "Sem Série" ou "N/D" permitido
   description: string; // características físicas para rastreabilidade
   deletedAt?: string | null;
+  warrantyExpiresAt?: string | null;
+  lastMaintenanceAt?: string | null;
 }
 
 export type OSStatus = 'ORCAMENTO' | 'AGUARDANDO_PECA' | 'EM_MANUTENCAO' | 'PRONTO_RETIRADA' | 'FINALIZADO';
@@ -59,13 +64,19 @@ export interface Part {
   createdAt?: string;
 }
 
+export type AvulsoCategory = 'PECA' | 'SERVICO' | 'TAXA' | 'FRETE' | 'DESCONTO' | 'OUTROS';
+
 export interface UsedPart {
-  partId: string;
+  id?: string; // ID único para a listagem (especialmente útil para itens avulsos)
+  partId?: string; // Tornou-se opcional, pois itens avulsos não têm partId
+  isAvulso?: boolean;
+  category?: AvulsoCategory;
   name: string;
   quantity: number;
   price: number;
-  costSnapshot?: number; // Snapshot do custo no momento da alocação (proteção contra inflação)
-  serialNumber?: string; // Nº de série da peça instalada (obrigatório se Part.requiresSerial = true)
+  costSnapshot?: number; // Snapshot do custo no momento da alocação ou custo do item avulso
+  serialNumber?: string; // Nº de série da peça instalada
+  observation?: string; // Observações para itens avulsos (ex: "Comprado especificamente para esta OS")
 }
 
 export interface ChecklistItem {
@@ -100,6 +111,7 @@ export interface OrdemServico {
   
   // Checklist de Entrada e Laudo Fotográfico
   checklistEntrada?: ChecklistItem[];
+  checklistSaida?: ChecklistItem[];
   laudoFotos?: EntradaFoto[];
   
   // Faturamento e Integração Bling
@@ -111,6 +123,16 @@ export interface OrdemServico {
   billingLogs?: string[];
   
   deletedAt?: string | null;
+  stressTestStartedAt?: string | null;
+  stressTestStartedBy?: string | null;
   createdAt: string;
+
+  // Rentabilidade (Virtual / Computado no backend para OWNER)
+  profitValue?: number | null;
+  profitMarginPercent?: number | null;
+  hasZeroCostParts?: boolean;
+
+  // Motor de Recorrência (Virtual / Computado no backend)
+  recurrentAlert?: { count: number; previousOsNumbers: string[] } | null;
 }
 

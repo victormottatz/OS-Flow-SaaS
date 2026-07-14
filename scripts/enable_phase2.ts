@@ -1,0 +1,1 @@
+import { PrismaClient } from "@prisma/client"; const prisma = new PrismaClient(); async function main() { await prisma.featureFlag.upsert({ where: { key: "CLIENT_360_AND_BASE_INSTALADA" }, update: { value: true }, create: { key: "CLIENT_360_AND_BASE_INSTALADA", value: true, description: "Fase 2" } }); console.log("Habilitado!"); } main().finally(() => prisma.$disconnect());

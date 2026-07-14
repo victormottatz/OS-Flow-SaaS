@@ -5,6 +5,7 @@
 
 import { useState, useMemo } from "react";
 import { Part, UserRole } from "../types";
+import { useFeatureFlags } from "../contexts/FeatureFlagContext";
 
 interface StockManagerProps {
   parts: Part[];
@@ -35,6 +36,15 @@ export default function StockManager({ parts, userRole, isOffline, onRefresh }: 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  // XML Import states (Fase 1 / Bling XML Purchase Import)
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [xmlContent, setXmlContent] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<any>(null);
+  const [importError, setImportError] = useState("");
+
+  const { isFeatureEnabled } = useFeatureFlags();
 
   // Computed: filtered and sorted parts
   const filteredParts = useMemo(() => {
@@ -272,16 +282,28 @@ export default function StockManager({ parts, userRole, isOffline, onRefresh }: 
             ))}
           </div>
 
-          {/* Add Button */}
+          {/* Add Button & XML Import */}
           {userRole !== UserRole.TECHNICIAN && (
-            <button
-              onClick={openCreateModal}
-              disabled={isOffline}
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-secondary-container hover:bg-secondary-container-hover text-primary-container text-xs font-bold rounded-xl transition cursor-pointer hover:scale-[1.02] active:scale-[0.98] shadow-sm disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-            >
-              <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>add</span>
-              <span>Nova Peça</span>
-            </button>
+            <div className="flex gap-2 w-full sm:w-auto shrink-0">
+              {isFeatureEnabled("FISCAL_NFE_EMISSION") && (
+                <button
+                  onClick={() => setShowImportModal(true)}
+                  disabled={isOffline}
+                  className="flex items-center gap-1.5 px-4 py-2.5 bg-indigo-650 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition cursor-pointer hover:scale-[1.02] active:scale-[0.98] shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="material-symbols-outlined text-[16px]">upload_file</span>
+                  <span>Importar XML NFe</span>
+                </button>
+              )}
+              <button
+                onClick={openCreateModal}
+                disabled={isOffline}
+                className="flex items-center gap-1.5 px-4 py-2.5 bg-secondary-container hover:bg-secondary-container-hover text-primary-container text-xs font-bold rounded-xl transition cursor-pointer hover:scale-[1.02] active:scale-[0.98] shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>add</span>
+                <span>Nova Peça</span>
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -515,6 +537,167 @@ export default function StockManager({ parts, userRole, isOffline, onRefresh }: 
                 )}
                 {editingPart ? "Salvar Alterações" : "Cadastrar Peça"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Import XML Modal (Fase 1 / Bling XML Purchase Import) */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4" onClick={() => {
+          setShowImportModal(false);
+          setXmlContent("");
+          setImportResult(null);
+          setImportError("");
+        }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b border-slate-200">
+              <h3 className="font-display font-bold text-lg text-slate-900 flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-indigo-650">upload_file</span>
+                Importar XML de NFe (Entrada de Estoque)
+              </h3>
+              <p className="text-[11px] text-slate-500 mt-0.5 font-semibold">
+                Importe a nota fiscal eletrônica de compra (XML) do seu fornecedor para dar entrada automática em lote e atualizar o custo médio.
+              </p>
+            </div>
+
+            <div className="p-6 space-y-4 flex-1 overflow-y-auto bg-slate-50/30">
+              {importError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[16px]">error</span>
+                  {importError}
+                </div>
+              )}
+
+              {importResult && (
+                <div className="bg-emerald-50 border border-emerald-250 text-emerald-850 p-4 rounded-xl text-xs space-y-3 shadow-inner">
+                  <div className="flex items-center gap-2 font-bold text-emerald-900 border-b border-emerald-200/50 pb-2">
+                    <span className="material-symbols-outlined">check_circle</span>
+                    <span>Importação realizada com sucesso!</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <p>Nota Fiscal: <strong className="text-emerald-950 font-mono">{importResult.nNF}</strong></p>
+                    <p>Fornecedor: <strong className="text-emerald-950">{importResult.supplier}</strong></p>
+                    <p>Itens Processados: <strong>{importResult.totalItems}</strong></p>
+                    <p>Cadastrados (Novos): <strong className="text-indigo-700">{importResult.createdCount}</strong></p>
+                    <p>Atualizados (Estoque/Custo): <strong className="text-emerald-800">{importResult.updatedCount}</strong></p>
+                  </div>
+                  
+                  {/* Minilog de alterações */}
+                  <div className="border-t border-emerald-200/50 pt-2 space-y-1.5 max-h-[150px] overflow-y-auto custom-scrollbar">
+                    <span className="block text-[10px] text-slate-500 uppercase font-bold tracking-wider">Histórico de Alterações:</span>
+                    {importResult.logs?.map((l: any, idx: number) => (
+                      <div key={idx} className="bg-white/60 p-2 rounded-lg border border-emerald-100 flex justify-between items-center text-[10px]">
+                        <div>
+                          <strong className="text-slate-800">{l.name}</strong>
+                          <span className="block font-mono text-[9px] text-slate-500">{l.code} ({l.action})</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="block font-bold">Estoque: {l.prevStock} ➔ {l.newStock}</span>
+                          <span className="block text-slate-500 font-mono">Custo: R$ {l.prevCost.toFixed(2)} ➔ R$ {l.newCost.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Upload Área */}
+              {!importResult && (
+                <div className="space-y-4">
+                  <div className="border-2 border-dashed border-slate-300 hover:border-indigo-400 bg-white rounded-2xl p-6 transition flex flex-col items-center justify-center relative cursor-pointer group">
+                    <input 
+                      type="file" 
+                      accept=".xml" 
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                          if (event.target?.result) {
+                            setXmlContent(event.target.result as string);
+                          }
+                        };
+                        reader.readAsText(file);
+                      }} 
+                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" 
+                    />
+                    <span className="material-symbols-outlined text-4xl text-slate-350 group-hover:text-indigo-500 transition mb-2">cloud_upload</span>
+                    <span className="text-xs font-bold text-slate-700">Selecione o arquivo XML da NFe</span>
+                    <span className="text-[10px] text-slate-400 mt-1">Limite: 1 arquivo (.xml)</span>
+                  </div>
+
+                  {xmlContent && (
+                    <div className="bg-slate-900 text-slate-300 font-mono text-[10px] p-3.5 rounded-xl max-h-[120px] overflow-y-auto border border-slate-800 shadow-inner">
+                      <span className="text-[9px] text-slate-500 uppercase font-bold block mb-1">Preview do Conteúdo XML carregado:</span>
+                      {xmlContent.slice(0, 1000)}...
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl flex items-center justify-end gap-3">
+              <button 
+                onClick={() => {
+                  setShowImportModal(false);
+                  setXmlContent("");
+                  setImportResult(null);
+                  setImportError("");
+                }} 
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition cursor-pointer"
+              >
+                {importResult ? "Fechar" : "Cancelar"}
+              </button>
+              
+              {!importResult && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!xmlContent.trim()) {
+                      setImportError("O conteúdo XML está vazio.");
+                      return;
+                    }
+
+                    setImporting(true);
+                    setImportError("");
+                    setImportResult(null);
+
+                    const token = localStorage.getItem("mgv_token") || "";
+                    const headers: Record<string, string> = { "Content-Type": "application/json" };
+                    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+                    try {
+                      const resp = await fetch("/api/integration/bling/import-xml", {
+                        method: "POST",
+                        headers,
+                        body: JSON.stringify({ xmlContent })
+                      });
+                      const data = await resp.json();
+
+                      if (!resp.ok) {
+                        setImportError(data.error || "Erro ao importar XML.");
+                      } else {
+                        setImportResult(data);
+                        onRefresh(); // Atualiza a tabela de estoque
+                      }
+                    } catch (err) {
+                      setImportError("Falha na comunicação com o servidor.");
+                    } finally {
+                      setImporting(false);
+                    }
+                  }}
+                  disabled={importing || !xmlContent}
+                  className="px-5 py-2.5 bg-indigo-650 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl hover:opacity-90 transition cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {importing ? (
+                    <span className="material-symbols-outlined text-[14px] animate-spin">progress_activity</span>
+                  ) : (
+                    <span className="material-symbols-outlined text-[14px]">play_for_work</span>
+                  )}
+                  Importar e Atualizar Estoque
+                </button>
+              )}
             </div>
           </div>
         </div>

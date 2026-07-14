@@ -8,9 +8,10 @@ import { OrdemServico, Client, Device } from "../types";
 
 
 interface BlingSandboxProps {
-  ordensServico: OrdemServico[];
+  ordensServico: any[];
   isOffline: boolean;
-  onRefresh: () => void;
+  onRefresh: () => Promise<void>;
+  userRole?: string;
 }
 
 export default function BlingSandbox({ ordensServico, isOffline, onRefresh }: BlingSandboxProps) {

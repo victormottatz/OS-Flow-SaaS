@@ -27,6 +27,7 @@ A sincronização com o Bling é vital. Foi decidido utilizar um modelo de atual
 - A aplicação escuta a URL de Callback, captura o código de autorização e o troca por um `access_token` e `refresh_token`.
 - Esses tokens são salvos de forma segura no banco de dados na tabela `BlingConfig`.
 - Sempre que a aplicação vai sincronizar Clientes ou Produtos com o Bling, ela verifica a validade do token. Se estiver expirando, ela usa o `refresh_token` automaticamente.
+- **Emissão Fiscal (NFe/DANFE):** A integração agora conta com faturamento completo de Ordens de Serviço (painel Bling Sandbox), permitindo emitir Notas Fiscais, consultar o status da SEFAZ, simular erros fiscais e pré-visualizar o DANFE diretamente pelo sistema.
 
 ### O Quadro Kanban
 > [!TIP]
@@ -45,6 +46,5 @@ As tabelas principais do nosso ecossistema são:
 5. `BlingConfig`: Configurações de sincronização.
 
 ## 5. Próximos Passos (Roadmap de Evolução)
-- **Notas Fiscais (NFe/NFCe):** Expandir a integração com o Bling para emitir recibos e Notas Fiscais no término de uma OS.
 - **Relatórios:** Criar um painel de métricas (Gráficos) calculando o lucro, peças mais vendidas e produtividade por técnico.
 - **WhatsApp Webhooks:** Envio automático de mensagens pelo WhatsApp quando o status da OS mudar.

@@ -11,6 +11,12 @@ Este documento detalha o plano estratégico de evolução do **Sistema MGV Assis
 Adotaremos a estratégia de **"Onboarding Progressivo" (Lazy Loading)**. 
 *Como vai funcionar:* Os equipamentos das OSs abertas (legadas) continuarão funcionando normalmente. No entanto, no momento em que o técnico ou atendente tentar mover a OS legada para a coluna "Finalizado" (ou adicionar uma peça com número de série nela), o sistema fará um bloqueio de tela solicitando: *"Por favor, vincule ou crie a ficha de Base Instalada deste equipamento (exigência de Número de Série)"*. Isso dilui o trabalho de recadastramento no dia a dia, sem travar a operação.
 
+*Roteiro do Plano de Migração Definitiva (SHOficina ➡️ Novo Sistema):*
+1. **Extração e Formatos de Entrada:** Os arquivos exportados do SHOficina estão localizados na pasta `temp_migration/` na raiz do projeto. Como vieram originalmente em formato `.xls` (`TABELA_CLIENTES.xls`, `TABELA_EQUIPAMENTOS.xls`, `TABELA_ORDENS_DE_SERVIÇO.xls` e `estoque 01_07-(novo).xls`), utilizaremos ferramentas/scripts internos para processá-los ou convertê-los para os correspondentes CSVs sanitizados esperados pelo pipeline de migração (`clientes.csv`, `equipamentos.csv`, `estoque.csv`, `ordens de seviços.csv`).
+2. **Validação (Dry Run):** Antes de persistir qualquer dado no banco real, executaremos o validador no modo a seco: `npx tsx scripts/import_legacy.ts --dry-run` para mapear ausência de colunas, verificar integridade de relacionamentos e avisos de qualidade.
+3. **Carga Definitiva:** Com a validação concluída sem erros críticos, executaremos `npx tsx scripts/import_legacy.ts`. O pipeline fará o vínculo de Clientes, Equipamentos (Base Instalada), Estoque de Peças e Histórico de OSs mapeando a estrutura legada à nova organização relacional e ao Kanban do novo sistema.
+4. **Verificação:** Validação pós-migração verificando quantidade de linhas importadas e testando integridade das visões 360º de clientes.
+
 ---
 
 ## Proposed Changes (Requisitos Arquiteturais)

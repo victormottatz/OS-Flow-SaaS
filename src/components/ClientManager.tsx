@@ -5,6 +5,7 @@
 
 import React, { useState } from "react";
 import { Client, Device, UserRole, OrdemServico } from "../types";
+import { useFeatureFlags } from "../contexts/FeatureFlagContext";
 
 
 interface ClientManagerProps {
@@ -25,6 +26,28 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh 
   const [deviceHistory, setDeviceHistory] = useState<OrdemServico[]>([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
 
+  // Visão 360 do Cliente (Prioridade 3)
+  const [activeClient360Id, setActiveClient360Id] = useState<string | null>(null);
+  const [prontuarioTab, setProntuarioTab] = useState<"history" | "parts" | "notes" | "warranty">("history");
+  const [client360Data, setClient360Data] = useState<any | null>(null);
+  const [is360Loading, setIs360Loading] = useState(false);
+  const [visao360Tab, setVisao360Tab] = useState<"devices" | "history">("devices");
+
+  // Edição de Dispositivo da Base Instalada (Prioridade 3)
+  const [showEditDeviceModal, setShowEditDeviceModal] = useState(false);
+  const [editDeviceId, setEditDeviceId] = useState("");
+  const [editDevType, setEditDevType] = useState("Ultrassom (Fisio/Estética)");
+  const [editDevBrand, setEditDevBrand] = useState("");
+  const [editDevModel, setEditDevModel] = useState("");
+  const [editDevSerial, setEditDevSerial] = useState("");
+  const [editDevDesc, setEditDevDesc] = useState("");
+  const [editErrorMsg, setEditErrorMsg] = useState("");
+  const [editSuccessMsg, setEditSuccessMsg] = useState("");
+  const [editLoading, setEditLoading] = useState(false);
+
+  // Filtro de base instalada
+  const [filterIncomplete, setFilterIncomplete] = useState(false);
+
   // Form Fields - Client
   const [clientName, setClientName] = useState("");
   const [clientCpfCnpj, setClientCpfCnpj] = useState("");
@@ -38,7 +61,7 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh 
   const [tempDevices, setTempDevices] = useState<{ type: string; brand: string; model: string; serialNumber: string; description: string }[]>([]);
 
   // Form Fields - Individual Device addition
-  const [devType, setDevType] = useState("Notebook");
+  const [devType, setDevType] = useState("Ultrassom (Fisio/Estética)");
   const [devBrand, setDevBrand] = useState("");
   const [devModel, setDevModel] = useState("");
   const [devSerial, setDevSerial] = useState("");
@@ -78,6 +101,11 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh 
     }
   };
 
+  // Estados para Prontuário Técnico
+  const [prontuarioData, setProntuarioData] = useState<any | null>(null);
+  const [newNoteContent, setNewNoteContent] = useState("");
+  const [isSavingNote, setIsSavingNote] = useState(false);
+
   const openDeviceHistory = async (dev: Device) => {
     if (isOffline) {
       alert("Acesso ao histórico completo indisponível offline.");
@@ -86,26 +114,166 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh 
     setSelectedDevice360(dev);
     setIsHistoryLoading(true);
     setDeviceHistory([]);
+    setProntuarioData(null);
     try {
       const token = localStorage.getItem("mgv_token") || "";
-      const res = await fetch("/api/ordens-servico", {
+      const res = await fetch(`/api/devices/${dev.id}/prontuario`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (res.ok) {
-        const allOs: OrdemServico[] = await res.json();
-        const hist = allOs
-          .filter(os => os.deviceId === dev.id)
-          .sort((a, b) => {
-            const dateA = new Date((a as any).createdAt || 0).getTime();
-            const dateB = new Date((b as any).createdAt || 0).getTime();
-            return dateB - dateA;
-          });
-        setDeviceHistory(hist);
+        const data = await res.json();
+        setProntuarioData(data);
+        setDeviceHistory(data.orders || []);
       }
     } catch(err) {
       console.error(err);
     } finally {
       setIsHistoryLoading(false);
+    }
+  };
+
+  const handleAddNote = async (deviceId: string) => {
+    if (!newNoteContent.trim()) return;
+    setIsSavingNote(true);
+    try {
+      const token = localStorage.getItem("mgv_token") || "";
+      const res = await fetch(`/api/devices/${deviceId}/notes`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ content: newNoteContent })
+      });
+      if (res.ok) {
+        const newNote = await res.json();
+        if (prontuarioData) {
+          setProntuarioData({
+            ...prontuarioData,
+            notes: [newNote, ...(prontuarioData.notes || [])]
+          });
+        }
+        setNewNoteContent("");
+      } else {
+        const errorData = await res.json();
+        alert(errorData.error || "Erro ao salvar nota.");
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSavingNote(false);
+    }
+  };
+
+  const handleUpdateWarranty = async (deviceId: string, warrantyExpiresAt: string, lastMaintenanceAt: string) => {
+    try {
+      const token = localStorage.getItem("mgv_token") || "";
+      const res = await fetch(`/api/devices/${deviceId}/warranty`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ warrantyExpiresAt, lastMaintenanceAt })
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        if (prontuarioData) {
+          setProntuarioData({
+            ...prontuarioData,
+            device: {
+              ...prontuarioData.device,
+              warrantyExpiresAt: updated.warrantyExpiresAt,
+              lastMaintenanceAt: updated.lastMaintenanceAt,
+              warrantyActive: updated.warrantyExpiresAt ? new Date(updated.warrantyExpiresAt).getTime() > Date.now() : false
+            }
+          });
+        }
+        alert("Datas de garantia e manutenção atualizadas com sucesso!");
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const { isFeatureEnabled } = useFeatureFlags();
+  const is360Enabled = isFeatureEnabled("CLIENT_360_AND_BASE_INSTALADA");
+
+  const openClient360 = async (clientId: string) => {
+    if (isOffline) {
+      alert("Visão 360 do cliente não disponível offline.");
+      return;
+    }
+    setActiveClient360Id(clientId);
+    setIs360Loading(true);
+    setClient360Data(null);
+    try {
+      const token = localStorage.getItem("mgv_token") || "";
+      const res = await fetch(`/api/clients/${clientId}/360`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setClient360Data(data);
+      } else {
+        console.error("Falha ao recuperar dados unificados.");
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIs360Loading(false);
+    }
+  };
+
+  const handleEditDevice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEditErrorMsg("");
+    setEditSuccessMsg("");
+    setEditLoading(true);
+
+    if (isOffline) {
+      setEditErrorMsg("O sistema está offline.");
+      setEditLoading(false);
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("mgv_token") || "";
+      const res = await fetch(`/api/devices/${editDeviceId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          type: editDevType,
+          brand: editDevBrand,
+          model: editDevModel,
+          serialNumber: editDevSerial,
+          description: editDevDesc
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Erro ao atualizar dispositivo.");
+      }
+
+      setEditSuccessMsg("Dispositivo atualizado com sucesso!");
+      onRefresh();
+
+      if (activeClient360Id) {
+        openClient360(activeClient360Id);
+      }
+
+      setTimeout(() => {
+        setShowEditDeviceModal(false);
+        setEditSuccessMsg("");
+      }, 1000);
+    } catch (err: any) {
+      setEditErrorMsg(err.message || "Erro inesperado.");
+    } finally {
+      setEditLoading(false);
     }
   };
 
@@ -116,7 +284,7 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh 
   };
 
   const addTempDeviceField = () => {
-    setTempDevices([...tempDevices, { type: "Notebook", brand: "", model: "", serialNumber: "", description: "" }]);
+    setTempDevices([...tempDevices, { type: "Ultrassom (Fisio/Estética)", brand: "", model: "", serialNumber: "", description: "" }]);
   };
 
   const updateTempDevice = (index: number, field: string, value: string) => {
@@ -297,6 +465,19 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh 
   // Filter lists based on search
   const filteredClients = clients.filter(c => {
     const searchLow = searchTerm.toLowerCase();
+    
+    const hasIncompleteDevice = c.devices.some(d => {
+      return d.serialNumber === "Sem Série" || 
+             !d.brand?.trim() || 
+             !d.model?.trim() ||
+             d.brand.toLowerCase() === "indefinido" ||
+             d.model.toLowerCase() === "indefinido";
+    });
+
+    if (is360Enabled && filterIncomplete && !hasIncompleteDevice) {
+      return false;
+    }
+
     const hasMatch = c.name.toLowerCase().includes(searchLow) || 
                      c.cpfCnpj.includes(searchLow) || 
                      c.email.toLowerCase().includes(searchLow) ||
@@ -328,25 +509,129 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh 
       </div>
 
       {/* Search Header */}
-      <div className="relative shadow-sm rounded-xl">
-        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-          <span className="material-symbols-outlined text-[18px]">search</span>
+      <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center">
+        <div className="relative shadow-sm rounded-xl flex-1">
+          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+            <span className="material-symbols-outlined text-[18px]">search</span>
+          </div>
+          <input
+            type="text"
+            placeholder="Filtrar por nome, CPF/CNPJ, e-mail, marca, modelo ou nº de série do equipamento..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 placeholder:text-slate-400 font-semibold transition"
+          />
         </div>
-        <input
-          type="text"
-          placeholder="Filtrar por nome, CPF/CNPJ, e-mail, marca, modelo ou nº de série do equipamento..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 placeholder:text-slate-400 font-semibold transition"
-        />
+        {is360Enabled && (
+          <button
+            onClick={() => setFilterIncomplete(!filterIncomplete)}
+            className={`px-4 py-2.5 rounded-xl border text-xs font-extrabold flex items-center gap-2 transition duration-200 cursor-pointer ${
+              filterIncomplete
+                ? "bg-amber-100 border-amber-300 text-amber-800"
+                : "bg-white border-slate-200 text-slate-650 hover:bg-slate-50"
+            }`}
+          >
+            <span className="material-symbols-outlined text-[16px] animate-pulse">warning</span>
+            <span>Apenas Pendentes de Higienização</span>
+          </button>
+        )}
       </div>
 
-      {/* Clients grid layout list */}
+      {/* Grid ou Tabela de Clientes */}
       {filteredClients.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-2xl border border-slate-200 shadow-sm">
           <p className="text-slate-500 text-sm font-semibold">Nenhum cliente ou aparelho coincide com a pesquisa no momento.</p>
         </div>
+      ) : is360Enabled ? (
+        /* VISÃO DATA TABLE COMPACTA (PRIORIDADE 3) */
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-900 text-white uppercase text-[9px] tracking-wider font-bold">
+                  <th className="p-3.5 pl-5">Código ERP</th>
+                  <th className="p-3.5">Nome / Razão Social</th>
+                  <th className="p-3.5">CPF / CNPJ</th>
+                  <th className="p-3.5">Telefone</th>
+                  <th className="p-3.5 text-center">Ativos no Parque</th>
+                  <th className="p-3.5 text-right pr-5">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                {filteredClients.map((client) => {
+                  const hasIncomplete = client.devices.some(d => {
+                    return d.serialNumber === "Sem Série" || 
+                           !d.brand?.trim() || 
+                           !d.model?.trim() ||
+                           d.brand.toLowerCase() === "indefinido" ||
+                           d.model.toLowerCase() === "indefinido";
+                  });
+
+                  return (
+                    <tr key={client.id} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="p-3.5 pl-5 font-mono text-slate-500 text-[10px]">
+                        CLI-{client.id.substring(0, 5).toUpperCase()}
+                      </td>
+                      <td className="p-3.5 font-bold text-slate-900">{client.name}</td>
+                      <td className="p-3.5 font-mono text-[10px]">{client.cpfCnpj}</td>
+                      <td className="p-3.5">{client.phone}</td>
+                      <td className="p-3.5 text-center">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold inline-flex items-center gap-1.5 ${
+                          hasIncomplete 
+                            ? "bg-amber-100 text-amber-800 border border-amber-200/50" 
+                            : "bg-indigo-50 text-indigo-700 border border-indigo-150"
+                        }`}>
+                          {client.devices?.length || 0}
+                          {hasIncomplete && (
+                            <span className="material-symbols-outlined text-[12px] text-amber-600 animate-pulse">warning</span>
+                          )}
+                        </span>
+                      </td>
+                      <td className="p-3.5 text-right pr-5">
+                        <div className="flex justify-end items-center gap-2">
+                          {(userRole === UserRole.OWNER || userRole === UserRole.ATTENDANT) && (
+                            <button
+                              onClick={() => {
+                                setActiveClientForDevice(client.id);
+                                setShowDeviceModal(true);
+                              }}
+                              className="p-1 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded transition"
+                              title="Vincular Novo Ativo"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">laptop_mac</span>
+                            </button>
+                          )}
+                          <button
+                            onClick={() => openClient360(client.id)}
+                            className="px-2.5 py-1 bg-gradient-to-r from-slate-900 to-indigo-950 text-white rounded text-[10px] font-extrabold uppercase tracking-wider flex items-center gap-1 hover:from-slate-800 hover:to-indigo-900 transition active:scale-95 cursor-pointer shadow-xs"
+                            title="Ver Visão 360º"
+                          >
+                            <span className="material-symbols-outlined text-[13px] text-teal-400">account_circle</span>
+                            <span>Visão 360º</span>
+                          </button>
+                          <button
+                            onClick={() => handleDeleteClient(client.id)}
+                            disabled={userRole !== UserRole.OWNER}
+                            className={`p-1 rounded transition ${
+                              userRole === UserRole.OWNER
+                                ? "text-slate-400 hover:text-red-600 hover:bg-red-50"
+                                : "text-slate-200 cursor-not-allowed"
+                            }`}
+                            title={userRole !== UserRole.OWNER ? "Apenas OWNER possui privilégios de exclusão" : "Excluir logicamente"}
+                          >
+                            <span className="material-symbols-outlined text-[16px]">delete</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       ) : (
+        /* VISÃO CARDS TRADICIONAIS (RETROCOMPATIBILIDADE) */
         <div className="grid grid-cols-1 gap-5">
           {filteredClients.map((client) => (
             <div key={client.id} className="bg-white rounded-2xl border border-slate-200/80 shadow-premium p-6 flex flex-col md:flex-row justify-between gap-6 hover:shadow-premium-hover transition-all duration-300 hover:-translate-y-0.5">
@@ -597,13 +882,9 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh 
                               onChange={(e) => updateTempDevice(idx, "type", e.target.value)}
                               className="w-full px-2.5 py-1.8 border border-slate-200 rounded-lg bg-white text-xs text-slate-850"
                             >
-                              <option value="Notebook">Notebook</option>
-                              <option value="Computador Desktop">Computador Desktop</option>
-                              <option value="Impressora">Impressora</option>
-                              <option value="Monitor LCD">Monitor LCD</option>
-                              <option value="Video Game Console">Vídeo Game / Console</option>
-                              <option value="Smart TV">Smart TV</option>
-                              <option value="Outro">Outro Equipamento</option>
+                              <option value="Ultrassom (Fisio/Estética)">Ultrassom (Fisio/Estética)</option>
+                              <option value="Carboxiterapia">Carboxiterapia</option>
+                              <option value="Outro">Outro</option>
                             </select>
                           </div>
                           <div>
@@ -715,12 +996,8 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh 
                   onChange={(e) => setDevType(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white text-slate-800"
                 >
-                  <option value="Notebook">Notebook</option>
-                  <option value="Computador Desktop">Computador Desktop</option>
-                  <option value="Impressora">Impressora</option>
-                  <option value="Monitor LCD">Monitor LCD</option>
-                  <option value="Video Game Console">Vídeo Game / Console</option>
-                  <option value="Smart TV">Smart TV</option>
+                  <option value="Ultrassom (Fisio/Estética)">Ultrassom (Fisio/Estética)</option>
+                  <option value="Carboxiterapia">Carboxiterapia</option>
                   <option value="Outro">Outro</option>
                 </select>
               </div>
@@ -730,7 +1007,7 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh 
                 <input
                   type="text"
                   required
-                  placeholder="Ex: Dell, Samsung"
+                  placeholder="Ex: Ibramed, KLD"
                   value={devBrand}
                   onChange={(e) => setDevBrand(e.target.value)}
                   className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-xs"
@@ -795,31 +1072,101 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh 
         </div>
       )}
 
-      {/* MODAL: VISÃO 360 / TIMELINE */}
+      {/* MODAL: VISÃO 360 / TIMELINE — PRONTUÁRIO TÉCNICO COMPLETO */}
       {selectedDevice360 && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-[70]">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh]">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl overflow-hidden flex flex-col max-h-[85vh]">
             <div className="px-6 py-4.5 bg-gradient-to-r from-slate-900 to-indigo-950 text-white flex items-center justify-between border-b border-slate-800">
               <div className="flex items-center space-x-2.5">
-                <span className="material-symbols-outlined text-[20px] text-teal-400">history</span>
-                <h3 className="font-bold text-base font-display">Visão 360º - Histórico do Aparelho</h3>
+                <span className="material-symbols-outlined text-[20px] text-teal-400">medical_services</span>
+                <h3 className="font-bold text-base font-display">Prontuário Técnico do Equipamento</h3>
               </div>
-              <button onClick={() => setSelectedDevice360(null)} className="text-slate-400 hover:text-white transition cursor-pointer">
+              <button onClick={() => { setSelectedDevice360(null); setProntuarioData(null); }} className="text-slate-400 hover:text-white transition cursor-pointer">
                 <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
             </div>
             
             <div className="p-6 bg-slate-50 border-b border-slate-200">
-              <div className="flex justify-between items-center">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                  <h4 className="font-bold text-slate-900 text-lg">{selectedDevice360.brand} {selectedDevice360.model}</h4>
-                  <span className="text-[10px] uppercase font-bold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full mr-2">{selectedDevice360.type}</span>
-                  <span className="text-xs text-slate-500 font-mono font-semibold">N/S: {selectedDevice360.serialNumber}</span>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h4 className="font-bold text-slate-900 text-lg">{selectedDevice360.brand} {selectedDevice360.model}</h4>
+                    {prontuarioData?.device?.warrantyActive ? (
+                      <span className="text-[9px] uppercase font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200">Garantia Ativa</span>
+                    ) : (
+                      <span className="text-[9px] uppercase font-bold text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full border border-slate-300">Sem Garantia</span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 items-center text-xs text-slate-500">
+                    <span className="font-bold text-indigo-650 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded">{selectedDevice360.type}</span>
+                    <span className="font-mono font-semibold">Série: {selectedDevice360.serialNumber}</span>
+                    {prontuarioData?.client && (
+                      <span className="text-slate-600">Proprietário: <strong>{prontuarioData.client.name}</strong></span>
+                    )}
+                  </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Total de OSs</span>
-                  <p className="text-xl font-bold text-indigo-700">{deviceHistory.length}</p>
-                </div>
+                {prontuarioData && (
+                  <div className="flex gap-4 bg-white p-3 rounded-xl border border-slate-200 shadow-xs self-stretch md:self-auto justify-around text-center">
+                    <div>
+                      <span className="text-[9px] text-slate-400 uppercase tracking-widest font-bold block">Total OSs</span>
+                      <p className="text-base font-bold text-indigo-700">{prontuarioData.stats.totalOrders}</p>
+                    </div>
+                    <div className="border-l border-slate-100 px-3">
+                      <span className="text-[9px] text-slate-400 uppercase tracking-widest font-bold block">Investido</span>
+                      <p className="text-base font-bold text-slate-800 font-mono">R$ {prontuarioData.stats.totalSpent.toFixed(2)}</p>
+                    </div>
+                    {prontuarioData.stats.recurrenceAlert && (
+                      <div className="border-l border-slate-100 pl-3">
+                        <span className="text-[9px] text-rose-500 uppercase tracking-widest font-bold block">Recorrência</span>
+                        <span className="text-xs font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-150 inline-block mt-0.5 animate-pulse">Crítico (90d)</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* TABS DO PRONTUÁRIO */}
+              <div className="flex border-b border-slate-200 mt-6 -mb-6">
+                <button
+                  onClick={() => setProntuarioTab("history")}
+                  className={`pb-2.5 px-4 text-xs font-extrabold transition-all border-b-2 cursor-pointer ${
+                    prontuarioTab === "history"
+                      ? "border-indigo-600 text-indigo-600"
+                      : "border-transparent text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  Histórico & Linhas do Tempo
+                </button>
+                <button
+                  onClick={() => setProntuarioTab("parts")}
+                  className={`pb-2.5 px-4 text-xs font-extrabold transition-all border-b-2 cursor-pointer ${
+                    prontuarioTab === "parts"
+                      ? "border-indigo-600 text-indigo-600"
+                      : "border-transparent text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  Peças & Defeitos
+                </button>
+                <button
+                  onClick={() => setProntuarioTab("notes")}
+                  className={`pb-2.5 px-4 text-xs font-extrabold transition-all border-b-2 cursor-pointer ${
+                    prontuarioTab === "notes"
+                      ? "border-indigo-600 text-indigo-600"
+                      : "border-transparent text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  Notas de Bancada ({prontuarioData?.notes?.length || 0})
+                </button>
+                <button
+                  onClick={() => setProntuarioTab("warranty")}
+                  className={`pb-2.5 px-4 text-xs font-extrabold transition-all border-b-2 cursor-pointer ${
+                    prontuarioTab === "warranty"
+                      ? "border-indigo-600 text-indigo-600"
+                      : "border-transparent text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  Datas & Garantias
+                </button>
               </div>
             </div>
 
@@ -827,54 +1174,637 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh 
               {isHistoryLoading ? (
                 <div className="flex flex-col items-center justify-center py-10 text-slate-400">
                   <span className="material-symbols-outlined text-[32px] animate-spin mb-3 text-indigo-400">autorenew</span>
-                  <p className="text-sm font-semibold">Carregando histórico completo...</p>
+                  <p className="text-sm font-semibold">Carregando prontuário técnico do ativo...</p>
                 </div>
-              ) : deviceHistory.length === 0 ? (
-                <div className="text-center py-10 bg-white border border-dashed border-slate-200 rounded-xl">
-                  <span className="material-symbols-outlined text-[32px] text-slate-300 mb-2">assignment</span>
-                  <p className="text-slate-500 font-semibold text-sm">Este aparelho não possui OSs anteriores.</p>
+              ) : !prontuarioData ? (
+                <div className="text-center py-10">
+                  <p className="text-sm font-semibold text-slate-400">Nenhum dado recuperado.</p>
                 </div>
               ) : (
-                <div className="relative border-l-2 border-indigo-200 ml-4 space-y-8 pb-4">
-                  {deviceHistory.map((os, index) => {
-                    const statusColor = 
-                      os.status === 'FINALIZADO' ? 'text-emerald-600 bg-emerald-100 border-emerald-300' :
-                      os.status === 'ORCAMENTO' ? 'text-amber-600 bg-amber-100 border-amber-300' :
-                      os.status === 'EM_MANUTENCAO' ? 'text-blue-600 bg-blue-100 border-blue-300' :
-                      'text-indigo-600 bg-indigo-100 border-indigo-300';
-                      
-                    return (
-                      <div key={os.id} className="relative pl-6">
-                        <div className={`absolute -left-[9px] top-1 w-4 h-4 rounded-full border-2 bg-white ${statusColor.split(' ')[2]}`} />
-                        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:shadow-md transition">
-                          <div className="flex justify-between items-start mb-2">
-                            <div>
-                              <span className="font-mono font-bold text-slate-900 text-sm bg-slate-100 px-2 py-0.5 rounded mr-2 border border-slate-200">{os.osNumber}</span>
-                              <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full ${statusColor}`}>{os.status.replace("_", " ")}</span>
-                            </div>
-                            <span className="text-[10px] text-slate-400 font-semibold">{new Date((os as any).createdAt).toLocaleDateString('pt-BR')}</span>
+                <>
+                  {/* TAB 1: HISTÓRICO & LINHA DO TEMPO */}
+                  {prontuarioTab === "history" && (
+                    <div className="space-y-6">
+                      {/* Timeline visual do status da OS mais recente */}
+                      {prontuarioData.orders.length > 0 && (
+                        <div className="bg-white p-4.5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                          <div className="flex justify-between items-center">
+                            <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Estágio da OS Atual ({prontuarioData.orders[0].osNumber})</h5>
+                            <span className="text-[10px] bg-indigo-50 border border-indigo-150 px-2 py-0.5 rounded font-mono font-bold text-indigo-700">{prontuarioData.orders[0].status}</span>
                           </div>
                           
-                          <div className="mt-3 space-y-2 text-xs">
-                            <p><strong className="text-slate-600 text-[10px] uppercase tracking-wider block mb-0.5">Defeito Relatado:</strong> <span className="text-slate-800 italic">"{os.reportedDefect}"</span></p>
-                            {os.diagnostic && (
-                              <div className="bg-slate-50 border border-slate-100 p-2.5 rounded-lg mt-2">
-                                <strong className="text-indigo-600 text-[10px] uppercase tracking-wider block mb-1">Diagnóstico / Laudo:</strong>
-                                <p className="text-slate-700">{os.diagnostic}</p>
+                          {/* Timeline Fluxograma */}
+                          <div className="flex items-center justify-between text-center overflow-x-auto py-2">
+                            {['ORCAMENTO', 'AGUARDANDO_PECA', 'EM_MANUTENCAO', 'PRONTO_RETIRADA', 'FINALIZADO'].map((statusOption, idx, arr) => {
+                              const orderStatus = prontuarioData.orders[0].status;
+                              const statusOrder = ['ORCAMENTO', 'AGUARDANDO_PECA', 'EM_MANUTENCAO', 'PRONTO_RETIRADA', 'FINALIZADO'];
+                              const currentIdx = statusOrder.indexOf(orderStatus);
+                              const isCompleted = statusOrder.indexOf(statusOption) <= currentIdx;
+                              const isCurrent = statusOption === orderStatus;
+
+                              const labelsMap: Record<string, string> = {
+                                ORCAMENTO: 'Orçamento',
+                                AGUARDANDO_PECA: 'Peças',
+                                EM_MANUTENCAO: 'Execução',
+                                PRONTO_RETIRADA: 'Teste/Pronto',
+                                FINALIZADO: 'Entregue'
+                              };
+
+                              return (
+                                <React.Fragment key={statusOption}>
+                                  <div className="flex flex-col items-center min-w-[70px]">
+                                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all border ${
+                                      isCurrent ? 'bg-indigo-650 text-white border-indigo-650 scale-110 shadow' :
+                                      isCompleted ? 'bg-emerald-500 text-white border-emerald-500' :
+                                      'bg-slate-100 text-slate-400 border-slate-200'
+                                    }`}>
+                                      {isCompleted && !isCurrent ? (
+                                        <span className="material-symbols-outlined text-[14px]">check</span>
+                                      ) : (
+                                        idx + 1
+                                      )}
+                                    </div>
+                                    <span className={`text-[9px] font-bold mt-1.5 ${
+                                      isCurrent ? 'text-indigo-600 font-extrabold' :
+                                      isCompleted ? 'text-slate-700' : 'text-slate-400'
+                                    }`}>{labelsMap[statusOption]}</span>
+                                  </div>
+                                  {idx < arr.length - 1 && (
+                                    <div className={`flex-1 h-0.5 min-w-[20px] ${
+                                      statusOrder.indexOf(arr[idx + 1]) <= currentIdx
+                                        ? 'bg-emerald-500'
+                                        : 'bg-slate-200'
+                                    }`} />
+                                  )}
+                                </React.Fragment>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Histórico Cronológico de Ordens de Serviço */}
+                      <div className="space-y-4">
+                        <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Histórico Completo de Ordens de Serviço</h5>
+                        {prontuarioData.orders.length === 0 ? (
+                          <div className="text-center py-10 bg-white border border-dashed border-slate-200 rounded-xl">
+                            <span className="material-symbols-outlined text-[32px] text-slate-300 mb-2">assignment</span>
+                            <p className="text-slate-500 font-semibold text-sm">Nenhuma OS anterior vinculada.</p>
+                          </div>
+                        ) : (
+                          <div className="relative border-l-2 border-slate-200 ml-4 space-y-6 pb-2">
+                            {prontuarioData.orders.map((os: any) => {
+                              const statusColor = 
+                                os.status === 'FINALIZADO' ? 'text-emerald-700 bg-emerald-50 border-emerald-250' :
+                                os.status === 'ORCAMENTO' ? 'text-amber-700 bg-amber-50 border-amber-250' :
+                                os.status === 'EM_MANUTENCAO' ? 'text-blue-700 bg-blue-50 border-blue-250' :
+                                'text-indigo-700 bg-indigo-50 border-indigo-250';
+                                
+                              return (
+                                <div key={os.id} className="relative pl-6">
+                                  <div className={`absolute -left-[5px] top-1.5 w-2 h-2 rounded-full border bg-white ${
+                                    os.status === 'FINALIZADO' ? 'border-emerald-500' :
+                                    os.status === 'ORCAMENTO' ? 'border-amber-500' : 'border-indigo-500'
+                                  }`} />
+                                  <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs hover:shadow-sm transition">
+                                    <div className="flex justify-between items-start mb-2">
+                                      <div>
+                                        <span className="font-mono font-bold text-slate-900 text-xs bg-slate-100 px-2 py-0.5 rounded border border-slate-200 mr-2">{os.osNumber}</span>
+                                        <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full border ${statusColor}`}>{os.status.replace("_", " ")}</span>
+                                      </div>
+                                      <span className="text-[10px] text-slate-400 font-semibold">{new Date(os.createdAt).toLocaleDateString('pt-BR')}</span>
+                                    </div>
+                                    
+                                    <div className="mt-3 space-y-2 text-xs">
+                                      <p><strong className="text-slate-500 text-[10px] uppercase tracking-wider block mb-0.5">Defeito Relatado:</strong> <span className="text-slate-800 italic">"{os.reportedDefect}"</span></p>
+                                      {os.diagnostic && (
+                                        <div className="bg-slate-50 border border-slate-150 p-2.5 rounded-lg mt-2 text-slate-700">
+                                          <strong className="text-indigo-600 text-[10px] uppercase tracking-wider block mb-1">Diagnóstico / Laudo Técnico:</strong>
+                                          <p>{os.diagnostic}</p>
+                                        </div>
+                                      )}
+                                      
+                                      {os.usedParts && os.usedParts.length > 0 && (
+                                        <div className="mt-2.5">
+                                          <strong className="text-slate-500 text-[10px] uppercase tracking-wider block mb-1">Peças Aplicadas:</strong>
+                                          <div className="flex flex-wrap gap-1.5">
+                                            {os.usedParts.map((part: any, pIdx: number) => (
+                                              <span key={pIdx} className="text-[10px] bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md text-slate-650">
+                                                {part.name} (x{part.quantity})
+                                              </span>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )}
+                                      
+                                      <div className="text-right mt-3 border-t border-slate-100 pt-2 flex justify-between items-center text-[10px] text-slate-400 uppercase tracking-widest font-bold">
+                                        <span>Diagnóstico: {os.diagnostic ? "Preenchido" : "Pendente"}</span>
+                                        <span>Total: <span className="font-mono text-slate-800 font-bold normal-case text-xs">R$ {os.totalCost?.toFixed(2) || '0.00'}</span></span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TAB 2: PEÇAS & DEFEITOS */}
+                  {prontuarioTab === "parts" && (
+                    <div className="space-y-6">
+                      {/* Histórico acumulado de peças */}
+                      <div className="bg-white p-4.5 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                        <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Histórico de Peças Instaladas</h5>
+                        {prontuarioData.partsHistory.length === 0 ? (
+                          <p className="text-xs text-slate-450 italic py-4 text-center">Nenhuma peça foi aplicada neste equipamento ainda.</p>
+                        ) : (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-xs text-left">
+                              <thead>
+                                <tr className="text-slate-450 uppercase text-[9px] tracking-wider border-b border-slate-100">
+                                  <th className="py-2">Peça</th>
+                                  <th className="py-2 text-center">Quantidade</th>
+                                  <th className="py-2">Aplicada na OS</th>
+                                  <th className="py-2 text-right">Data</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {prontuarioData.partsHistory.map((item: any, idx: number) => (
+                                  <tr key={idx} className="text-slate-700 hover:bg-slate-50/50">
+                                    <td className="py-2.5 font-bold text-slate-800">{item.name}</td>
+                                    <td className="py-2.5 text-center font-bold text-indigo-700">{item.quantity}</td>
+                                    <td className="py-2.5 font-mono">{item.osNumber}</td>
+                                    <td className="py-2.5 text-right text-slate-400">{new Date(item.date).toLocaleDateString('pt-BR')}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Histórico acumulado de defeitos */}
+                      <div className="bg-white p-4.5 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                        <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Histórico de Sintomas & Soluções</h5>
+                        {prontuarioData.defectsHistory.length === 0 ? (
+                          <p className="text-xs text-slate-450 italic py-4 text-center">Nenhum sintoma registrado.</p>
+                        ) : (
+                          <div className="space-y-3">
+                            {prontuarioData.defectsHistory.map((item: any, idx: number) => (
+                              <div key={idx} className="border-b border-slate-100 last:border-0 pb-3 last:pb-0 text-xs">
+                                <div className="flex justify-between items-center mb-1">
+                                  <span className="font-mono font-bold text-[10px] bg-slate-100 border px-1.5 py-0.5 rounded text-slate-600">{item.osNumber}</span>
+                                  <span className="text-[10px] text-slate-400">{new Date(item.date).toLocaleDateString('pt-BR')}</span>
+                                </div>
+                                <p className="text-slate-800 mb-1"><strong>Sintoma:</strong> "{item.defect}"</p>
+                                {item.diagnostic && (
+                                  <p className="text-indigo-650 bg-indigo-50/40 p-2 rounded border border-indigo-100/50"><strong>Solução/Laudo:</strong> {item.diagnostic}</p>
+                                )}
                               </div>
-                            )}
-                            <div className="text-right mt-3 border-t border-slate-100 pt-2">
-                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mr-2">Valor Cobrado:</span>
-                              <span className="font-mono font-bold text-slate-800">R$ {os.totalCost?.toFixed(2) || '0.00'}</span>
-                            </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TAB 3: NOTAS DE BANCADA */}
+                  {prontuarioTab === "notes" && (
+                    <div className="space-y-6">
+                      {/* Editor de Notas */}
+                      <div className="bg-white p-4.5 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                        <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Nova Observação / Laudo Livre</h5>
+                        <div className="space-y-2.5">
+                          <textarea
+                            rows={3}
+                            placeholder="Adicione observações técnicas de longa duração para este equipamento (ex: problemas crônicos na placa, resistências antigas, avisos importantes de manuseio)..."
+                            value={newNoteContent}
+                            onChange={(e) => setNewNoteContent(e.target.value)}
+                            className="w-full p-3 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 text-slate-800"
+                          />
+                          <div className="flex justify-end">
+                            <button
+                              onClick={() => handleAddNote(selectedDevice360.id)}
+                              disabled={isSavingNote || !newNoteContent.trim()}
+                              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-350 text-white font-extrabold text-xs uppercase tracking-wider rounded-lg transition"
+                            >
+                              {isSavingNote ? "Gravando..." : "Salvar Nota"}
+                            </button>
                           </div>
                         </div>
                       </div>
-                    );
-                  })}
+
+                      {/* Lista de Notas */}
+                      <div className="space-y-3">
+                        <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Notas Registradas</h5>
+                        {prontuarioData.notes?.length === 0 ? (
+                          <div className="text-center py-8 bg-white border border-dashed border-slate-200 rounded-xl text-slate-450 italic text-xs">
+                            Nenhuma nota técnica registrada para este equipamento.
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            {prontuarioData.notes.map((note: any) => (
+                              <div key={note.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs text-xs space-y-2">
+                                <div className="flex justify-between items-center text-[10px] text-slate-400 font-semibold border-b border-slate-100 pb-1.5">
+                                  <span>Por: <strong className="text-slate-650">{note.createdBy}</strong></span>
+                                  <span>{new Date(note.createdAt).toLocaleDateString('pt-BR')} às {new Date(note.createdAt).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}</span>
+                                </div>
+                                <p className="text-slate-750 font-medium whitespace-pre-wrap">{note.content}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TAB 4: DATAS & GARANTIAS */}
+                  {prontuarioTab === "warranty" && (
+                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-6">
+                      <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Controle de Vida Útil do Equipamento</h5>
+                      
+                      <form onSubmit={(e) => {
+                        e.preventDefault();
+                        const formData = new FormData(e.currentTarget);
+                        const exp = formData.get("warrantyExpiresAt") as string;
+                        const maint = formData.get("lastMaintenanceAt") as string;
+                        handleUpdateWarranty(selectedDevice360.id, exp, maint);
+                      }} className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Expiração da Garantia</label>
+                            <input
+                              type="date"
+                              name="warrantyExpiresAt"
+                              defaultValue={prontuarioData.device.warrantyExpiresAt ? new Date(prontuarioData.device.warrantyExpiresAt).toISOString().split('T')[0] : ""}
+                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 text-slate-700"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Última Manutenção Preventiva</label>
+                            <input
+                              type="date"
+                              name="lastMaintenanceAt"
+                              defaultValue={prontuarioData.device.lastMaintenanceAt ? new Date(prontuarioData.device.lastMaintenanceAt).toISOString().split('T')[0] : ""}
+                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 text-slate-700"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-150 text-xs text-slate-650 space-y-2">
+                          <p>💡 <strong>Dica de Conformidade:</strong></p>
+                          <p>Defina a data de expiração da garantia para emitir alertas automáticos no painel do Kanban quando o cliente reabrir uma OS dentro do prazo. Manutenções preventivas ajudam no histórico de durabilidade do ativo.</p>
+                        </div>
+
+                        <div className="flex justify-end pt-3 border-t border-slate-100">
+                          <button
+                            type="submit"
+                            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-lg transition"
+                          >
+                            Salvar Datas
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DRAWER LATERAL: VISÃO 360 DO CLIENTE (Sprint 3) */}
+      {is360Enabled && activeClient360Id && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex justify-end z-[80] transition-opacity duration-300">
+          <div className="absolute inset-0" onClick={() => { setActiveClient360Id(null); setClient360Data(null); }} />
+
+          <div className="relative w-full max-w-2xl bg-white h-full shadow-2xl flex flex-col anim-slideright border-l border-slate-200">
+            <div className="px-6 py-5 bg-gradient-to-r from-slate-900 to-indigo-950 text-white flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-base font-display flex items-center gap-2">
+                  <span className="material-symbols-outlined text-teal-400">account_circle</span>
+                  <span>Visão 360º do Cliente</span>
+                </h3>
+                {client360Data && (
+                  <p className="text-[10px] text-slate-350 font-bold uppercase tracking-wider mt-1">
+                    {client360Data.client.name} — CPF/CNPJ: {client360Data.client.cpfCnpj}
+                  </p>
+                )}
+              </div>
+              <button 
+                onClick={() => { setActiveClient360Id(null); setClient360Data(null); }} 
+                className="text-slate-400 hover:text-white transition cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto bg-slate-50">
+              {is360Loading ? (
+                <div className="flex flex-col items-center justify-center h-64 text-slate-400">
+                  <span className="material-symbols-outlined text-[32px] animate-spin mb-3 text-indigo-500">autorenew</span>
+                  <p className="text-xs font-semibold">Carregando dados unificados do cliente...</p>
+                </div>
+              ) : !client360Data ? (
+                <div className="text-center py-10">
+                  <p className="text-xs text-red-650 font-semibold">Falha ao recuperar informações cadastrais.</p>
+                </div>
+              ) : (
+                <div className="space-y-6 p-6">
+                  <div className="bg-white rounded-xl border border-slate-200 p-4.5 shadow-sm space-y-3">
+                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Detalhes Cadastrais</h4>
+                    <div className="grid grid-cols-2 gap-3 text-xs font-semibold">
+                      <div>
+                        <span className="text-slate-400 block text-[9px] uppercase tracking-wider">Telefone</span>
+                        <span className="text-slate-800 font-bold">{client360Data.client.phone}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[9px] uppercase tracking-wider">E-mail</span>
+                        <span className="text-slate-800 font-bold">{client360Data.client.email}</span>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="text-slate-400 block text-[9px] uppercase tracking-wider">Endereço</span>
+                        <span className="text-slate-800 font-bold">{client360Data.client.address}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex border-b border-slate-200">
+                      <button
+                        onClick={() => setVisao360Tab("devices")}
+                        className={`pb-2.5 px-4 text-xs font-extrabold transition-all border-b-2 cursor-pointer ${
+                          visao360Tab === "devices"
+                            ? "border-blue-650 text-blue-600"
+                            : "border-transparent text-slate-500 hover:text-slate-700"
+                        }`}
+                      >
+                        Parque Instalado ({client360Data.devices?.length || 0})
+                      </button>
+                      <button
+                        onClick={() => setVisao360Tab("history")}
+                        className={`pb-2.5 px-4 text-xs font-extrabold transition-all border-b-2 cursor-pointer ${
+                          visao360Tab === "history"
+                            ? "border-blue-650 text-blue-600"
+                            : "border-transparent text-slate-500 hover:text-slate-700"
+                        }`}
+                      >
+                        Histórico de Manutenções ({client360Data.orders?.length || 0})
+                      </button>
+                    </div>
+
+                    {visao360Tab === "devices" && (
+                      <div className="space-y-3">
+                        {client360Data.devices?.length === 0 ? (
+                          <div className="text-center py-8 bg-white rounded-xl border border-dashed border-slate-200">
+                            <p className="text-xs text-slate-500 font-semibold italic">Nenhum equipamento vinculado à base instalada.</p>
+                          </div>
+                        ) : (
+                          client360Data.devices.map((dev: any) => {
+                            const isIncomplete = dev.serialNumber === "Sem Série" || !dev.brand?.trim() || !dev.model?.trim() || dev.brand.toLowerCase() === "indefinido" || dev.model.toLowerCase() === "indefinido";
+                            
+                            return (
+                              <div 
+                                key={dev.id}
+                                className={`bg-white p-4.5 rounded-xl border shadow-sm transition hover:shadow-md ${
+                                  isIncomplete ? "border-amber-200 bg-amber-50/20" : "border-slate-200"
+                                }`}
+                              >
+                                <div className="flex justify-between items-start font-semibold text-slate-700">
+                                  <div>
+                                    <div className="flex items-center space-x-2">
+                                      <span className="font-bold text-slate-900 text-sm">{dev.brand} {dev.model}</span>
+                                      <span className="text-[9px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-150 px-2 py-0.5 rounded-full uppercase">
+                                        {dev.type}
+                                      </span>
+                                    </div>
+                                    <div className="text-slate-500 text-xs mt-1.5 font-mono">
+                                      N/S: <span className={dev.serialNumber === "Sem Série" ? "text-amber-700 font-bold" : "text-slate-800 font-bold"}>{dev.serialNumber}</span>
+                                    </div>
+                                    <p className="text-slate-500 text-[11px] mt-2 italic font-semibold leading-relaxed">{dev.description}</p>
+                                  </div>
+                                  
+                                  <div className="flex flex-col items-end gap-2">
+                                    {isIncomplete && (
+                                      <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-md flex items-center space-x-1 animate-pulse">
+                                        <span className="material-symbols-outlined text-[12px]">warning</span>
+                                        <span>Pendência</span>
+                                      </span>
+                                    )}
+                                    <button
+                                      onClick={() => {
+                                        setEditDeviceId(dev.id);
+                                        setEditDevType(dev.type);
+                                        setEditDevBrand(dev.brand === "Indefinido" ? "" : dev.brand);
+                                        setEditDevModel(dev.model === "Indefinido" ? "" : dev.model);
+                                        setEditDevSerial(dev.serialNumber === "Sem Série" ? "" : dev.serialNumber);
+                                        setEditDevDesc(dev.description === "Sem observações." ? "" : dev.description);
+                                        setEditErrorMsg("");
+                                        setEditSuccessMsg("");
+                                        setShowEditDeviceModal(true);
+                                      }}
+                                      className="text-[10px] font-extrabold text-blue-650 hover:text-blue-755 uppercase tracking-wider flex items-center space-x-1 transition active:scale-95 cursor-pointer mt-1"
+                                    >
+                                      <span className="material-symbols-outlined text-[13px]">edit_note</span>
+                                      <span>Ajustar Ativo</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    )}
+
+                    {visao360Tab === "history" && (
+                      <div className="space-y-4">
+                        {client360Data.orders?.length === 0 ? (
+                          <div className="text-center py-8 bg-white rounded-xl border border-dashed border-slate-200">
+                            <p className="text-xs text-slate-500 font-semibold italic">Nenhuma ordem de serviço cadastrada no histórico.</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-3.5">
+                            {client360Data.orders.map((os: any) => {
+                              const statusColor = 
+                                os.status === 'FINALIZADO' ? 'text-emerald-700 bg-emerald-50 border-emerald-200' :
+                                os.status === 'ORCAMENTO' ? 'text-amber-700 bg-amber-50 border-amber-200' :
+                                os.status === 'EM_MANUTENCAO' ? 'text-blue-700 bg-blue-50 border-blue-200' :
+                                'text-indigo-700 bg-indigo-50 border-indigo-200';
+
+                              return (
+                                <div key={os.id} className="bg-white p-4.5 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                                  <div className="flex justify-between items-start">
+                                    <div className="flex items-center space-x-2">
+                                      <span className="font-mono font-bold text-slate-800 text-xs bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">
+                                        {os.osNumber}
+                                      </span>
+                                      <span className={`text-[9px] uppercase font-extrabold px-2 py-0.5 rounded-full border ${statusColor}`}>
+                                        {os.status.replace("_", " ")}
+                                      </span>
+                                    </div>
+                                    <span className="text-[10px] text-slate-450 font-bold">
+                                      {new Date(os.createdAt).toLocaleDateString('pt-BR')}
+                                    </span>
+                                  </div>
+
+                                  <div className="text-xs space-y-2 text-slate-650 font-semibold">
+                                    <p>
+                                      <span className="text-slate-400 text-[9px] uppercase tracking-wider block">Equipamento</span>
+                                      <span className="text-slate-800 font-bold">{os.device ? `${os.device.brand} ${os.device.model} (S/N: ${os.device.serialNumber})` : "Não informado"}</span>
+                                    </p>
+                                    <p>
+                                      <span className="text-slate-400 text-[9px] uppercase tracking-wider block">Defeito Relatado</span>
+                                      <span className="text-slate-800 italic">"{os.reportedDefect}"</span>
+                                    </p>
+                                    {os.diagnostic && (
+                                      <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 mt-2">
+                                        <span className="text-indigo-650 text-[9px] uppercase tracking-wider font-extrabold block mb-1">Diagnóstico / Laudo</span>
+                                        <p className="text-slate-700 text-[11px] leading-relaxed font-semibold">{os.diagnostic}</p>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <div className="flex justify-between items-center border-t border-slate-100 pt-2.5 mt-2">
+                                    <div className="text-[10px] text-slate-450 font-bold uppercase tracking-wider">Faturamento</div>
+                                    <div className="font-mono font-extrabold text-slate-800">
+                                      R$ {os.totalCost?.toFixed(2) || '0.00'}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
+
+            {client360Data && (
+              <div className="bg-slate-900 text-white p-5 border-t border-slate-800 flex justify-between items-center shrink-0">
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-450">Faturamento Total Realizado</span>
+                <span className="font-mono font-extrabold text-lg text-teal-400">
+                  R$ {client360Data.totalSpent?.toFixed(2) || '0.00'}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: AJUSTAR ATIVO DA BASE INSTALADA (Sprint 3) */}
+      {is360Enabled && showEditDeviceModal && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-[90] overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md anim-slideup">
+            <div className="px-5 py-4 bg-gradient-to-r from-slate-900 to-indigo-950 text-white flex items-center justify-between rounded-t-2xl border-b border-slate-800">
+              <div className="flex items-center space-x-2">
+                <span className="material-symbols-outlined text-teal-400 text-[18px]">edit_note</span>
+                <h3 className="font-bold text-sm font-display">Ajustar Ficha do Ativo</h3>
+              </div>
+              <button onClick={() => setShowEditDeviceModal(false)} className="text-slate-400 hover:text-white transition cursor-pointer">
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleEditDevice} className="p-5 space-y-4">
+              {editErrorMsg && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-lg">
+                  {editErrorMsg}
+                </div>
+              )}
+              {editSuccessMsg && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold rounded-lg">
+                  {editSuccessMsg}
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3.5">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-650 mb-1 uppercase tracking-wider">Tipo</label>
+                  <select
+                    value={editDevType}
+                    onChange={(e) => setEditDevType(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold"
+                  >
+                    <option value="Ultrassom">Ultrassom</option>
+                    <option value="Carboxiterapia">Carboxiterapia</option>
+                    <option value="Outro">Outro</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-650 mb-1 uppercase tracking-wider">Marca / Fabricante</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ex: Ibramed, KLD"
+                    value={editDevBrand}
+                    onChange={(e) => setEditDevBrand(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-650 mb-1 uppercase tracking-wider">Modelo</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Latitude 3420, ThinkPad E14"
+                  value={editDevModel}
+                  onChange={(e) => setEditDevModel(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-650 mb-1 uppercase tracking-wider">Número de Série (N/S)</label>
+                <input
+                  type="text"
+                  placeholder="Digite o número de série real ou deixe em branco se não houver"
+                  value={editDevSerial}
+                  onChange={(e) => setEditDevSerial(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono font-semibold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-650 mb-1 uppercase tracking-wider">
+                  Descrição Física / Marcas Estéticas
+                </label>
+                <textarea
+                  rows={3}
+                  required={!editDevSerial.trim()}
+                  placeholder="Se o ativo não possuir número de série, descreva características estéticas detalhadas (ex: risco na tampa, adesivos, cantos amassados)."
+                  value={editDevDesc}
+                  onChange={(e) => setEditDevDesc(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowEditDeviceModal(false)}
+                  className="px-4 py-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={editLoading}
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-lg transition hover-premium active-premium cursor-pointer"
+                >
+                  {editLoading ? "Gravando..." : "Salvar Alterações"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

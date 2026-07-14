@@ -4,7 +4,9 @@
  */
 
 import React, { useState, useEffect } from "react";
-import { OrdemServico, OSStatus, Part, UsedPart, UserRole, Client, Device, ChecklistItem, EntradaFoto } from "../types";
+import { useFeatureFlags } from "../contexts/FeatureFlagContext";
+import { OrdemServico, OSStatus, Part, UsedPart, UserRole, Client, Device, ChecklistItem, EntradaFoto, AvulsoCategory } from "../types";
+import OSWhatsAppPanel from "./OSWhatsAppPanel";
 
 
 interface KanbanBoardProps {
@@ -52,7 +54,10 @@ const KanbanCard = React.memo(({
       <div className="flex justify-between items-start mb-2">
         <span className="text-[10px] font-bold font-mono text-slate-900 bg-slate-100 px-2 py-0.5 rounded">{os.osNumber}</span>
         {hasRecurrence && (
-          <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded flex items-center font-bold gap-0.5" title="Recorrência: > 2 OS em 90 dias">
+          <span 
+            className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded flex items-center font-bold gap-0.5" 
+            title={os.recurrentAlert ? `Alerta de Falha Crônica: Retornou ${os.recurrentAlert.count} vezes em 90 dias (${os.recurrentAlert.previousOsNumbers.join(", ")})` : "Recorrência: > 2 OS em 90 dias"}
+          >
             <span className="material-symbols-outlined text-[12px]">warning</span> Recorrente
           </span>
         )}
@@ -67,6 +72,153 @@ const KanbanCard = React.memo(({
   );
 }, (prevProps, nextProps) => prevProps.os === nextProps.os && prevProps.hasRecurrence === nextProps.hasRecurrence);
 
+// Componente auxiliar para o timer do teste de estresse
+interface StressTestWidgetProps {
+  os: OrdemServico;
+  onStartStress: () => Promise<void>;
+}
+
+const StressTestWidget: React.FC<StressTestWidgetProps> = ({ os, onStartStress }) => {
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const [isStarting, setIsStarting] = useState(false);
+
+  useEffect(() => {
+    if (!os.stressTestStartedAt) {
+      setTimeLeft(null);
+      return;
+    }
+
+    const limit = ((import.meta as any).env.DEV)
+      ? 10 * 1000       // 10s em desenvolvimento
+      : 30 * 60 * 1000; // 30min em produção
+
+    const calculateTimeLeft = () => {
+      const startedTime = new Date(os.stressTestStartedAt!).getTime();
+      const elapsed = Date.now() - startedTime;
+      const remaining = limit - elapsed;
+      return remaining > 0 ? remaining : 0;
+    };
+
+    setTimeLeft(calculateTimeLeft());
+
+    const interval = setInterval(() => {
+      const remaining = calculateTimeLeft();
+      setTimeLeft(remaining);
+      if (remaining <= 0) {
+        clearInterval(interval);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [os.stressTestStartedAt]);
+
+  const formatTime = (ms: number) => {
+    const totalSeconds = Math.ceil(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  };
+
+  const handleStart = async () => {
+    setIsStarting(true);
+    try {
+      await onStartStress();
+    } catch (err) {
+      // erro tratado no pai
+    } finally {
+      setIsStarting(false);
+    }
+  };
+
+  if (!os.stressTestStartedAt) {
+    return (
+      <div className="bg-slate-900/60 backdrop-blur-md p-4 rounded-xl border border-indigo-500/30 flex flex-col sm:flex-row items-center justify-between gap-3 select-none transition hover:border-indigo-500/50">
+        <div className="flex items-center space-x-3">
+          <span className="material-symbols-outlined text-[20px] text-indigo-400 animate-pulse">timer</span>
+          <div>
+            <h4 className="font-bold text-xs text-white">Protocolo de Garantia e Eficácia MGV</h4>
+            <p className="text-[10px] text-slate-350">É obrigatório executar o teste de estresse de 30min antes de finalizar.</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          disabled={isStarting}
+          onClick={handleStart}
+          className="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-xl text-[10px] font-bold hover:from-indigo-700 hover:to-violet-700 shadow-md shadow-indigo-900/20 active:scale-95 transition-all disabled:opacity-50 shrink-0"
+        >
+          {isStarting ? "Iniciando..." : "Iniciar Teste de Estresse"}
+        </button>
+      </div>
+    );
+  }
+
+  const isFinished = timeLeft === 0;
+  const startedDate = new Date(os.stressTestStartedAt!);
+  const limit = ((import.meta as any).env.DEV) ? 10 * 1000 : 30 * 60 * 1000;
+  const apiUrl = (import.meta as any).env.VITE_API_URL || "http://localhost:3000";
+  const expectedEndDate = new Date(startedDate.getTime() + limit);
+
+  const formatHM = (date: Date) => {
+    return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  };
+
+  return (
+    <div className={`p-4 rounded-xl border select-none transition ${
+      isFinished 
+        ? "bg-emerald-950/40 border-emerald-500/30 text-emerald-100" 
+        : "bg-indigo-950/40 border-indigo-500/30 text-indigo-100"
+    }`}>
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-white/10 pb-2.5">
+          <div className="flex items-center space-x-3">
+            <span className={`material-symbols-outlined text-[20px] ${
+              isFinished ? "text-emerald-400" : "text-indigo-400 animate-spin"
+            }`}>
+              {isFinished ? "check_circle" : "sync"}
+            </span>
+            <div>
+              <h4 className="font-bold text-xs text-white">
+                {isFinished ? "Teste de Estresse Concluído!" : "Teste de Estresse em Execução"}
+              </h4>
+              <p className="text-[10px] text-slate-350">
+                {isFinished 
+                  ? "Conformidade de garantia atestada com sucesso." 
+                  : "Equipamento sob teste de carga na bancada."}
+              </p>
+            </div>
+          </div>
+          
+          <div className="font-mono text-sm font-extrabold flex items-center gap-1.5 shrink-0 bg-slate-900/80 px-3 py-1 rounded-xl border border-slate-800">
+            {!isFinished && timeLeft !== null ? (
+              <>
+                <span className="text-[9px] text-indigo-400 uppercase font-sans tracking-wider mr-1">Faltam</span>
+                <span className="text-white text-xs animate-pulse">{formatTime(timeLeft)}</span>
+              </>
+            ) : (
+              <span className="text-emerald-400 text-xs font-sans tracking-wide uppercase">✓ Liberado</span>
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[10px] text-slate-300 font-semibold">
+          <div>
+            <span className="text-[9px] text-slate-400 block uppercase tracking-wider">Iniciado por:</span>
+            <span className="text-slate-200 font-bold">{os.stressTestStartedBy || "Técnico"}</span>
+          </div>
+          <div>
+            <span className="text-[9px] text-slate-400 block uppercase tracking-wider">Início:</span>
+            <span className="text-slate-250 font-bold font-mono">{formatHM(startedDate)}</span>
+          </div>
+          <div className="col-span-2 sm:col-span-1">
+            <span className="text-[9px] text-slate-400 block uppercase tracking-wider">Término Previsto:</span>
+            <span className="text-slate-250 font-bold font-mono">{formatHM(expectedEndDate)}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function KanbanBoard({ 
   ordensServico, 
   parts, 
@@ -78,7 +230,30 @@ export default function KanbanBoard({
   const [selectedOS, setSelectedOS] = useState<OrdemServico | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [modalTab, setModalTab] = useState<"laudo" | "pecas" | "entrada">("laudo");
+  const [modalTab, setModalTab] = useState<"laudo" | "pecas" | "entrada" | "saida">("laudo");
+
+  // Checklist de Saída & Categorias
+  const [deviceCategories, setDeviceCategories] = useState<{ id: string; name: string; defaultChecklist: ChecklistItem[] }[]>([]);
+  const [editChecklistSaida, setEditChecklistSaida] = useState<ChecklistItem[]>([]);
+  const [isEditingSaida, setIsEditingSaida] = useState(false);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const token = localStorage.getItem("mgv_token") || "";
+        const res = await fetch("/api/device-categories", {
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setDeviceCategories(data);
+        }
+      } catch (err) {
+        console.error("Erro ao carregar categorias:", err);
+      }
+    };
+    fetchCategories();
+  }, []);
 
   // Checklist & Photos states in modal
   const [isEditingEntrada, setIsEditingEntrada] = useState(false);
@@ -109,6 +284,114 @@ export default function KanbanBoard({
   const [successMsg, setSuccessMsg] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const { isFeatureEnabled } = useFeatureFlags();
+
+  // Onboarding de Dispositivo Legado (Lazy Loading) - Sprint 3
+  const [onboardingOS, setOnboardingOS] = useState<OrdemServico | null>(null);
+  const [onboardingDevice, setOnboardingDevice] = useState<any | null>(null);
+  const [onboardingTargetStatus, setOnboardingTargetStatus] = useState<OSStatus | null>(null);
+  const [showOnboardingModal, setShowOnboardingModal] = useState(false);
+
+  // Form Fields - Onboarding
+  const [onbType, setOnbType] = useState("Ultrassom (Fisio/Estética)");
+  const [onbBrand, setOnbBrand] = useState("");
+  const [onbModel, setOnbModel] = useState("");
+  const [onbSerial, setOnbSerial] = useState("");
+  const [onbDesc, setOnbDesc] = useState("");
+  const [onbErrorMsg, setOnbErrorMsg] = useState("");
+  const [onbSuccessMsg, setOnbSuccessMsg] = useState("");
+  const [onbLoading, setOnbLoading] = useState(false);
+  
+  // Calcular métricas de rentabilidade para o modal de fechamento se ele estiver aberto
+  const isVirtualProfitAvailable = closingOS?.profitValue !== undefined && closingOS?.profitValue !== null;
+
+  const closingProfitVal = closingOS 
+    ? (isVirtualProfitAvailable 
+        ? closingOS.profitValue! 
+        : (closingOS.totalCost - ((closingOS.usedParts?.reduce((sum, item) => sum + ((item.costSnapshot || 0) * item.quantity), 0) || 0) + ((closingOS.technicianLaborHours || 0) * (closingOS.technicianHourlyRate || 0)))))
+    : 0;
+
+  const closingOpsCostVal = closingOS
+    ? (isVirtualProfitAvailable
+        ? (closingOS.totalCost - closingOS.profitValue!)
+        : ((closingOS.usedParts?.reduce((sum, item) => sum + ((item.costSnapshot || 0) * item.quantity), 0) || 0) + ((closingOS.technicianLaborHours || 0) * (closingOS.technicianHourlyRate || 0))))
+    : 0;
+
+  const closingProfitMarginPercentVal = closingOS
+    ? (isVirtualProfitAvailable
+        ? closingOS.profitMarginPercent!
+        : (closingOS.totalCost > 0 ? (closingProfitVal / closingOS.totalCost) * 100 : 0))
+    : 0;
+
+  const closingHasZeroCost = closingOS
+    ? (isVirtualProfitAvailable
+        ? closingOS.hasZeroCostParts
+        : closingOS.usedParts?.some(p => !p.costSnapshot))
+    : false;
+
+  const isAvulsoEnabled = isFeatureEnabled("OS_MANUAL_ITEMS");
+
+  const [isAddingAvulso, setIsAddingAvulso] = useState(false);
+  const [avulsoCategory, setAvulsoCategory] = useState<AvulsoCategory>("PECA");
+  const [avulsoName, setAvulsoName] = useState("");
+  const [avulsoQty, setAvulsoQty] = useState(1);
+  const [avulsoPrice, setAvulsoPrice] = useState(0);
+  const [avulsoCost, setAvulsoCost] = useState(0);
+  const [avulsoObs, setAvulsoObs] = useState("");
+
+  const handleStartStressTest = async () => {
+    if (!selectedOS || isOffline) return;
+    try {
+      const token = localStorage.getItem("mgv_token") || "";
+      const res = await fetch(`/api/ordens-servico/${selectedOS.id}/start-stress`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setErrorMsg(data.error || "Erro ao iniciar teste de estresse.");
+      } else {
+        const updatedOS = await res.json();
+        setSelectedOS(updatedOS);
+        setSuccessMsg("Teste de estresse de garantia iniciado com sucesso!");
+        setTimeout(() => setSuccessMsg(""), 3000);
+        onRefresh();
+      }
+    } catch (err: any) {
+      setErrorMsg("Falha ao comunicar com o servidor: " + err.message);
+    }
+  };
+
+  const handleSaveChecklistSaida = async () => {
+    if (!selectedOS) return;
+    try {
+      const token = localStorage.getItem("mgv_token") || "";
+      const res = await fetch(`/api/ordens-servico/${selectedOS.id}/checklist-saida`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ checklistSaida: editChecklistSaida })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSuccessMsg("Checklist de saída salvo com sucesso!");
+        setTimeout(() => setSuccessMsg(""), 3000);
+        setSelectedOS({ ...selectedOS, checklistSaida: data.checklistSaida });
+        setIsEditingSaida(false);
+        onRefresh();
+      } else {
+        const err = await res.json();
+        setErrorMsg(err.error || "Erro ao salvar checklist de saída.");
+      }
+    } catch (err: any) {
+      setErrorMsg("Erro ao salvar checklist de saída: " + err.message);
+    }
+  };
+
   const openOSDetails = (os: OrdemServico) => {
     setSelectedOS(os);
     setDiagnostic(os.diagnostic || "");
@@ -123,18 +406,28 @@ export default function KanbanBoard({
       { id: "botoes", label: "Botões físicos (ligar, volume)", status: "NA", observacao: "" },
       { id: "porta_carga", label: "Porta de carregamento", status: "NA", observacao: "" },
       { id: "carcaca", label: "Carcaça / Tampa traseira", status: "NA", observacao: "" },
-      { id: "dobradicas", label: "Dobradiças (notebooks)", status: "NA", observacao: "" },
       { id: "bateria", label: "Bateria / Nível de carga", status: "NA", observacao: "" },
       { id: "carregador", label: "Adaptador / Carregador entregue", status: "NA", observacao: "" },
       { id: "umidade", label: "Alta umidade / Corrosão", status: "NA", observacao: "" },
       { id: "queda", label: "Sinais de queda ou impacto", status: "NA", observacao: "" },
       { id: "temperatura", label: "Temperatura anormal", status: "NA", observacao: "" },
-      { id: "memoria", label: "SIM / Memória externa", status: "NA", observacao: "" },
       { id: "acessorios_extra", label: "Acessórios entregues junto", status: "NA", observacao: "" },
       { id: "garantia", label: "Selo de garantia intacto", status: "NA", observacao: "" }
     ]);
     setEditPhotos(os.laudoFotos || []);
     setIsEditingEntrada(false);
+
+    // Inicialização do Checklist de Saída por Categoria
+    const devType = (os as any).device?.type || "";
+    const matchedCat = deviceCategories.find(c => c.name.toLowerCase() === devType.toLowerCase());
+    const defaultSaida = matchedCat ? matchedCat.defaultChecklist : [
+      { id: "geral", label: "Funcionamento Geral do Equipamento", status: "NA", observacao: "" },
+      { id: "limpeza", label: "Limpeza Física Externa", status: "NA", observacao: "" },
+      { id: "seguranca", label: "Lacre de Segurança Aplicado", status: "NA", observacao: "" }
+    ];
+    setEditChecklistSaida(os.checklistSaida && os.checklistSaida.length > 0 ? os.checklistSaida : defaultSaida);
+    setIsEditingSaida(false);
+
     setModalTab("laudo");
     setErrorMsg("");
     setSuccessMsg("");
@@ -195,12 +488,19 @@ export default function KanbanBoard({
     if (isOffline || !selectedOS) return;
     setLoading(true);
     try {
+      const token = localStorage.getItem("mgv_token") || "";
       const response = await fetch(`/api/ordens-servico/${selectedOS.id}/laudo-fotos`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify({ checklistEntrada: editChecklist, laudoFotos: editPhotos })
       });
-      if (!response.ok) throw new Error("Erro ao gravar laudo de entrada.");
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Erro ao gravar laudo de entrada.");
+      }
       
       setSuccessMsg("Checklist e fotos de entrada gravados com sucesso!");
       onRefresh();
@@ -232,7 +532,8 @@ export default function KanbanBoard({
     if (!draggingId || isOffline) return;
 
     const osToMove = ordensServico.find(o => o.id === draggingId);
-    if (targetStatus === "FINALIZADO" && userRole === UserRole.OWNER && osToMove) {
+    const isProfitEnabled = isFeatureEnabled("OS_PROFITABILITY_CALC");
+    if (targetStatus === "FINALIZADO" && userRole === UserRole.OWNER && isProfitEnabled && osToMove) {
       setClosingOS(osToMove);
       setDraggingId(null);
       return;
@@ -247,7 +548,21 @@ export default function KanbanBoard({
       });
       if (!response.ok) {
         const errData = await response.json();
-        alert(errData.error || "Erro ao mover a OS.");
+        if (errData.code === "DEVICE_INCOMPLETE") {
+          setOnboardingOS(osToMove || null);
+          setOnboardingDevice(errData.device);
+          setOnboardingTargetStatus(targetStatus);
+          setOnbType(errData.device.type || "Ultrassom (Fisio/Estética)");
+          setOnbBrand(errData.device.brand === "Indefinido" ? "" : errData.device.brand);
+          setOnbModel(errData.device.model === "Indefinido" ? "" : errData.device.model);
+          setOnbSerial(errData.device.serialNumber === "Sem Série" ? "" : errData.device.serialNumber);
+          setOnbDesc(errData.device.description === "Sem observações." ? "" : errData.device.description);
+          setOnbErrorMsg("");
+          setOnbSuccessMsg("");
+          setShowOnboardingModal(true);
+        } else {
+          alert(errData.error || "Erro ao mover a OS.");
+        }
       } else {
         onRefresh();
       }
@@ -258,7 +573,8 @@ export default function KanbanBoard({
     if (isOffline) return;
 
     const osToMove = ordensServico.find(o => o.id === id);
-    if (newStatus === "FINALIZADO" && userRole === UserRole.OWNER && osToMove) {
+    const isProfitEnabled = isFeatureEnabled("OS_PROFITABILITY_CALC");
+    if (newStatus === "FINALIZADO" && userRole === UserRole.OWNER && isProfitEnabled && osToMove) {
       setClosingOS(osToMove);
       return;
     }
@@ -272,18 +588,100 @@ export default function KanbanBoard({
       });
       if (!response.ok) {
         const errData = await response.json();
-        alert(errData.error || "Erro ao alterar status.");
+        if (errData.code === "DEVICE_INCOMPLETE") {
+          setOnboardingOS(osToMove || null);
+          setOnboardingDevice(errData.device);
+          setOnboardingTargetStatus(newStatus);
+          setOnbType(errData.device.type || "Ultrassom (Fisio/Estética)");
+          setOnbBrand(errData.device.brand === "Indefinido" ? "" : errData.device.brand);
+          setOnbModel(errData.device.model === "Indefinido" ? "" : errData.device.model);
+          setOnbSerial(errData.device.serialNumber === "Sem Série" ? "" : errData.device.serialNumber);
+          setOnbDesc(errData.device.description === "Sem observações." ? "" : errData.device.description);
+          setOnbErrorMsg("");
+          setOnbSuccessMsg("");
+          setShowOnboardingModal(true);
+        } else {
+          alert(errData.error || "Erro ao alterar status.");
+        }
       } else {
         onRefresh();
       }
     } catch (err: any) { alert(err.message); }
   };
 
+  const handleOnboardingSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setOnbErrorMsg("");
+    setOnbSuccessMsg("");
+    setOnbLoading(true);
+
+    if (isOffline) {
+      setOnbErrorMsg("O sistema está offline.");
+      setOnbLoading(false);
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("mgv_token") || "";
+      const devRes = await fetch(`/api/devices/${onboardingDevice.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          type: onbType,
+          brand: onbBrand,
+          model: onbModel,
+          serialNumber: onbSerial,
+          description: onbDesc
+        })
+      });
+
+      const devData = await devRes.json();
+      if (!devRes.ok) {
+        throw new Error(devData.error || "Erro ao atualizar dados do equipamento na base instalada.");
+      }
+
+      setOnbSuccessMsg("Equipamento convertido para Base Instalada com sucesso!");
+
+      if (onboardingOS && onboardingTargetStatus) {
+        const statusRes = await fetch(`/api/ordens-servico/${onboardingOS.id}/status`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({ status: onboardingTargetStatus })
+        });
+
+        const statusData = await statusRes.json();
+        if (!statusRes.ok) {
+          throw new Error(statusData.error || "Erro ao concluir a mudança de status da OS.");
+        }
+      }
+
+      onRefresh();
+
+      setTimeout(() => {
+        setShowOnboardingModal(false);
+        setOnboardingOS(null);
+        setOnboardingDevice(null);
+        setOnboardingTargetStatus(null);
+        setOnbSuccessMsg("");
+      }, 1000);
+    } catch (err: any) {
+      setOnbErrorMsg(err.message || "Erro inesperado no onboarding.");
+    } finally {
+      setOnbLoading(false);
+    }
+  };
+
   const handleAddPartToOS = () => {
     if (!tempPartId) return;
     const part = parts.find(p => p.id === tempPartId);
     if (!part || part.stock < tempPartQty) return;
-    const existsIdx = selectedParts.findIndex(item => item.partId === tempPartId);
+    const existsIdx = selectedParts.findIndex(item => item.partId === tempPartId && !item.isAvulso);
     if (existsIdx !== -1) {
       const updated = [...selectedParts];
       updated[existsIdx].quantity += Number(tempPartQty);
@@ -302,6 +700,58 @@ export default function KanbanBoard({
     setTempPartQty(1);
   };
 
+  const handleAddAvulsoToOS = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!avulsoName.trim() || avulsoQty < 1 || avulsoPrice < 0) return;
+
+    setSelectedParts([...selectedParts, {
+      id: `avulso-${Date.now()}`,
+      isAvulso: true,
+      category: avulsoCategory,
+      name: avulsoName.trim(),
+      quantity: avulsoQty,
+      price: avulsoPrice,
+      costSnapshot: avulsoCost,
+      observation: avulsoObs
+    }]);
+
+    setAvulsoName("");
+    setAvulsoQty(1);
+    setAvulsoPrice(0);
+    setAvulsoCost(0);
+    setAvulsoObs("");
+    setIsAddingAvulso(false);
+  };
+
+  const handlePromoteToStock = async (item: UsedPart) => {
+    if (!confirm(`Deseja cadastrar "${item.name}" definitivamente no estoque?`)) return;
+    try {
+      const token = localStorage.getItem("mgv_token") || "";
+      const res = await fetch("/api/parts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({
+          name: item.name,
+          code: `AV-${Date.now().toString().slice(-6)}`,
+          stock: 0,
+          cost: item.costSnapshot || 0,
+          price: item.price,
+          requiresSerial: false
+        })
+      });
+      if (res.ok) {
+         alert("Produto criado no estoque com sucesso! Você já poderá selecioná-lo nas próximas OS.");
+         onRefresh();
+      } else {
+         const err = await res.json();
+         alert(err.error || "Erro ao criar item no estoque.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Erro de comunicação ao criar produto.");
+    }
+  };
+
   const handleRemovePartFromOS = (partId: string) => setSelectedParts(selectedParts.filter(item => item.partId !== partId));
 
   const partsTotal = selectedParts.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -312,12 +762,19 @@ export default function KanbanBoard({
     if (isOffline || !selectedOS) return;
     setLoading(true);
     try {
+      const token = localStorage.getItem("mgv_token") || "";
       const response = await fetch(`/api/ordens-servico/${selectedOS.id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify({ diagnostic, usedParts: selectedParts, laborCost, technicianLaborHours, technicianHourlyRate })
       });
-      if (!response.ok) throw new Error("Erro ao gravar.");
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Erro ao gravar.");
+      }
       setSuccessMsg("Laudo pericial e peças salvas com sucesso!");
       onRefresh();
       setTimeout(() => { setShowEditModal(false); setSuccessMsg(""); }, 1200);
@@ -356,11 +813,11 @@ export default function KanbanBoard({
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5 h-[calc(100vh-140px)] min-h-[500px]">
+      <div className="flex overflow-x-auto lg:grid lg:grid-cols-5 gap-5 h-[calc(100vh-140px)] min-h-[500px] pb-2 snap-x snap-mandatory">
         {COLUMNS.map((column) => {
           const colOS = ordensServico.filter(os => os.status === column.id);
           return (
-            <div key={column.id} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, column.id)} className={`rounded-2xl border border-slate-200/85 border-t-4 p-4 flex flex-col h-full max-h-full gap-4 overflow-hidden ${column.color}`}>
+            <div key={column.id} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, column.id)} className={`min-w-[85vw] sm:min-w-[320px] lg:min-w-0 shrink-0 snap-center rounded-2xl border border-slate-200/85 border-t-4 p-4 flex flex-col h-full max-h-full gap-4 overflow-hidden ${column.color}`}>
               <div className="flex items-center justify-between border-b border-slate-200/60 pb-3 shrink-0">
                 <h3 className="font-bold text-sm text-slate-900">{column.name}</h3>
                 <span className="bg-slate-900 text-white font-mono text-[10px] px-2 py-0.5 rounded-full">{colOS.length}</span>
@@ -375,7 +832,7 @@ export default function KanbanBoard({
                     new Date(otherOS.createdAt) >= ninetyDaysAgo &&
                     new Date(otherOS.createdAt) <= new Date(os.createdAt)
                   ).length;
-                  const hasRecurrence = recurrenceCount >= 3;
+                  const hasRecurrence = os.recurrentAlert ? true : (recurrenceCount >= 3);
 
                   return (
                     <KanbanCard 
@@ -437,6 +894,28 @@ export default function KanbanBoard({
               >
                 3. Laudo & Checklist de Entrada
               </button>
+              {isFeatureEnabled("CHECKLIST_SAIDA") && (
+                <button 
+                  type="button" 
+                  onClick={() => setModalTab("saida")}
+                  className={`px-3 py-1.5 text-xs font-extrabold rounded-lg transition-all duration-200 active:scale-95 ${
+                    modalTab === "saida" ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-slate-200/60"
+                  }`}
+                >
+                  4. Checklist de Saída
+                </button>
+              )}
+              {isFeatureEnabled("WHATSAPP_AUTO_MESSAGES") && (
+                <button 
+                  type="button" 
+                  onClick={() => setModalTab("whatsapp" as any)}
+                  className={`px-3 py-1.5 text-xs font-extrabold rounded-lg transition-all duration-200 active:scale-95 ${
+                    modalTab === ("whatsapp" as any) ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-slate-200/60"
+                  }`}
+                >
+                  {isFeatureEnabled("CHECKLIST_SAIDA") ? "5. WhatsApp" : "4. WhatsApp"}
+                </button>
+              )}
             </div>
 
             {/* Inner Content */}
@@ -459,6 +938,12 @@ export default function KanbanBoard({
                 <p><span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block">Dispositivo em conserto</span> <strong className="text-slate-800 text-sm mt-0.5 block">{(selectedOS as any).device?.type} {(selectedOS as any).device?.brand} ({(selectedOS as any).device?.model})</strong></p>
                 <p className="sm:col-span-2 border-t border-slate-100 pt-2"><span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block">Sintoma Narrado pelo Solicitante</span> <span className="text-slate-600 italic block mt-1 font-mono">"{(selectedOS as any).reportedDefect}"</span></p>
               </div>
+
+              {/* Widget de Teste de Estresse para Garantia */}
+              <StressTestWidget 
+                os={selectedOS} 
+                onStartStress={handleStartStressTest} 
+              />
 
               {/* TAB 1: LAUDO & CUSTOS */}
               {modalTab === "laudo" && (
@@ -565,7 +1050,70 @@ export default function KanbanBoard({
                       >
                         Lançar Peça
                       </button>
+
+                      {isAvulsoEnabled && (
+                        <button
+                          type="button"
+                          onClick={() => setIsAddingAvulso(true)}
+                          className="bg-indigo-50 border border-indigo-200 text-indigo-700 font-extrabold text-[10px] uppercase tracking-wider px-4 py-1.8 h-[34px] rounded-lg hover:bg-indigo-100 transition duration-150 shrink-0 flex items-center gap-1"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">add</span> Item Avulso
+                        </button>
+                      )}
                     </div>
+
+                    {isAvulsoEnabled && isAddingAvulso && (
+                      <form onSubmit={handleAddAvulsoToOS} className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-200 space-y-3 mt-3 anim-fadein shadow-inner">
+                        <div className="flex justify-between items-center border-b border-indigo-100 pb-2">
+                          <h5 className="text-[11px] font-bold text-indigo-800 uppercase flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[16px]">sparkles</span> Novo Item Avulso (Apenas nesta OS)
+                          </h5>
+                          <button type="button" onClick={() => setIsAddingAvulso(false)} className="text-slate-400 hover:text-slate-600">
+                            <span className="material-symbols-outlined text-[18px]">close</span>
+                          </button>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-600 mb-1">Tipo</label>
+                            <select value={avulsoCategory} onChange={(e) => setAvulsoCategory(e.target.value as AvulsoCategory)} className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs">
+                              <option value="PECA">Peça</option>
+                              <option value="SERVICO">Serviço</option>
+                              <option value="TAXA">Taxa</option>
+                              <option value="FRETE">Frete</option>
+                              <option value="DESCONTO">Desconto</option>
+                              <option value="OUTROS">Outros</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-600 mb-1">Descrição</label>
+                            <input required type="text" value={avulsoName} onChange={(e) => setAvulsoName(e.target.value)} placeholder="Ex: Mangueira hidráulica 3/8" className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs" />
+                          </div>
+                          <div className="grid grid-cols-3 gap-2 sm:col-span-2">
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-600 mb-1">Qtd</label>
+                              <input required type="number" min={1} value={avulsoQty} onChange={(e) => setAvulsoQty(Math.max(1, Number(e.target.value)))} className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs" />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-600 mb-1">Valor Venda (R$)</label>
+                              <input required type="number" min={0} step="0.01" value={avulsoPrice} onChange={(e) => setAvulsoPrice(Math.max(0, Number(e.target.value)))} className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs" />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-600 mb-1">Custo (Opcional)</label>
+                              <input type="number" min={0} step="0.01" value={avulsoCost} onChange={(e) => setAvulsoCost(Math.max(0, Number(e.target.value)))} className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs" />
+                            </div>
+                          </div>
+                          <div className="sm:col-span-2">
+                            <label className="block text-[10px] font-bold text-slate-600 mb-1">Observação</label>
+                            <input type="text" value={avulsoObs} onChange={(e) => setAvulsoObs(e.target.value)} placeholder="Ex: Comprado especificamente para esta OS" className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs" />
+                          </div>
+                        </div>
+                        
+                        <div className="flex justify-end pt-2">
+                          <button type="submit" className="bg-indigo-600 text-white font-bold text-xs px-4 py-2 rounded-lg hover:bg-indigo-700 transition">Adicionar Item à OS</button>
+                        </div>
+                      </form>
+                    )}
 
                     {/* Used pieces summary list */}
                     {selectedParts.length === 0 ? (
@@ -579,18 +1127,35 @@ export default function KanbanBoard({
                             <div key={p.partId} className={`text-xs bg-slate-50 p-2.5 rounded-lg border transition duration-150 ${needsSerial && (!p.serialNumber || p.serialNumber.trim() === "") ? "border-violet-400 bg-violet-50/30" : "border-slate-200 hover:border-slate-350"}`}>
                               <div className="flex items-center justify-between">
                                 <div>
+                                  {p.isAvulso ? (
+                                    <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded-md mr-2 uppercase tracking-wider inline-flex items-center" title="Item existe apenas nesta OS"><span className="material-symbols-outlined text-[10px] mr-0.5">sparkles</span> Avulso</span>
+                                  ) : (
+                                    <span className="text-[9px] bg-slate-200 text-slate-700 font-bold px-1.5 py-0.5 rounded-md mr-2 uppercase tracking-wider inline-flex items-center" title="Baixa no estoque automático"><span className="material-symbols-outlined text-[10px] mr-0.5">inventory_2</span> Estoque</span>
+                                  )}
                                   <span className="font-bold text-slate-850">{p.name}</span>
+                                  {p.isAvulso && p.category && <span className="ml-1 text-[10px] text-slate-500 font-medium font-mono">({p.category})</span>}
                                   <span className="text-slate-400 mx-2">|</span>
                                   <span className="text-slate-500 font-mono font-semibold">{p.quantity} x R$ {p.price.toFixed(2)}</span>
+                                  {p.observation && <span className="block mt-1 text-[10px] italic text-slate-500">Nota: {p.observation}</span>}
                                 </div>
                                 <div className="flex items-center space-x-3">
                                   <span className="font-bold text-slate-900 font-mono">
                                     R$ {(p.price * p.quantity).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                   </span>
+                                  {p.isAvulso && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handlePromoteToStock(p)}
+                                      className="text-[10px] bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-2 py-1 rounded-lg font-bold transition flex items-center gap-1"
+                                      title="Criar como Produto no Estoque"
+                                    >
+                                      <span className="material-symbols-outlined text-[14px]">save</span> Salvar no Estoque
+                                    </button>
+                                  )}
                                   <button
                                     type="button"
-                                    onClick={() => handleRemovePartFromOS(p.partId)}
-                                    className="text-red-500 hover:text-red-700 transition"
+                                    onClick={() => handleRemovePartFromOS(p.partId || p.id || "")}
+                                    className="text-red-500 hover:text-red-700 transition ml-2"
                                     title="Remover peça da OS"
                                   >
                                     <span className="material-symbols-outlined text-[16px]">delete</span>
@@ -840,6 +1405,147 @@ export default function KanbanBoard({
                 </div>
               )}
 
+              {/* TAB: CHECKLIST DE SAÍDA */}
+              {modalTab === "saida" && (
+                <div className="space-y-6 anim-fadein text-xs">
+                  <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                    <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5 font-display">
+                      <span className="material-symbols-outlined text-[18px] text-indigo-650">fact_check</span>
+                      <span>Checklist de Controle de Qualidade de Saída</span>
+                    </h4>
+                    {!isEditingSaida && selectedOS.status !== "FINALIZADO" && (
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingSaida(true)}
+                        className="text-xs font-extrabold text-indigo-600 hover:text-indigo-850 flex items-center gap-1 cursor-pointer bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-lg transition"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">edit</span> Editar Checklist
+                      </button>
+                    )}
+                    {isEditingSaida && (
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditChecklistSaida(selectedOS.checklistSaida && selectedOS.checklistSaida.length > 0 ? selectedOS.checklistSaida : []);
+                            setIsEditingSaida(false);
+                          }}
+                          className="text-xs font-extrabold text-slate-600 hover:text-slate-850 flex items-center gap-1 cursor-pointer bg-slate-100 border border-slate-250 px-3 py-1.5 rounded-lg transition"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSaveChecklistSaida}
+                          className="text-xs font-extrabold text-white hover:bg-emerald-700 flex items-center gap-1 cursor-pointer bg-emerald-600 border border-emerald-500 px-3 py-1.5 rounded-lg transition"
+                        >
+                          Salvar Alterações
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {isEditingSaida ? (
+                    /* EDITING MODE FOR EXIT CHECKLIST */
+                    <div className="space-y-4 max-w-xl">
+                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3 max-h-[350px] overflow-y-auto">
+                        {editChecklistSaida.map((item, idx) => (
+                          <div key={item.id} className="flex flex-col border-b border-slate-200/50 pb-2.5 last:border-0 last:pb-0 gap-2">
+                            <span className="text-xs font-semibold text-slate-700">{item.label}</span>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shrink-0">
+                                {(["OK", "AVARIA", "NA"] as const).map((status) => {
+                                  let activeClass = "";
+                                  if (item.status === status) {
+                                    if (status === "OK") activeClass = "bg-emerald-500 text-white shadow-sm font-bold";
+                                    else if (status === "AVARIA") activeClass = "bg-rose-500 text-white shadow-sm font-bold";
+                                    else activeClass = "bg-slate-500 text-white shadow-sm font-bold";
+                                  } else {
+                                    activeClass = "text-slate-600 hover:bg-slate-100";
+                                  }
+                                  return (
+                                    <button
+                                      key={status}
+                                      type="button"
+                                      onClick={() => {
+                                        const updated = [...editChecklistSaida];
+                                        updated[idx].status = status;
+                                        if (status !== "AVARIA") {
+                                          updated[idx].observacao = "";
+                                        }
+                                        setEditChecklistSaida(updated);
+                                      }}
+                                      className={`px-3 py-1 text-[10px] rounded-md transition-all cursor-pointer ${activeClass}`}
+                                    >
+                                      {status === "OK" ? "OK" : status === "AVARIA" ? "Avaria" : "N/A"}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              {item.status === "AVARIA" && (
+                                <input
+                                  type="text"
+                                  placeholder="Descreva a avaria observada..."
+                                  value={item.observacao || ""}
+                                  onChange={(e) => {
+                                    const updated = [...editChecklistSaida];
+                                    updated[idx].observacao = e.target.value;
+                                    setEditChecklistSaida(updated);
+                                  }}
+                                  className="flex-1 min-w-[200px] px-2.5 py-1 text-[11px] border border-rose-300 bg-rose-50/20 text-slate-700 rounded-md focus:outline-none focus:ring-1 focus:ring-rose-500"
+                                />
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    /* VIEW MODE */
+                    <div className="space-y-4 max-w-xl">
+                      {editChecklistSaida.length === 0 ? (
+                        <p className="text-slate-500 italic">Nenhum checklist de saída configurado para este equipamento.</p>
+                      ) : (
+                        <div className="bg-white rounded-xl border border-slate-200/80 p-4.5 shadow-sm space-y-2">
+                          {editChecklistSaida.map((item) => (
+                            <div key={item.id} className="flex justify-between items-center py-2 border-b border-slate-100 last:border-0 last:pb-0">
+                              <span className="font-semibold text-slate-700">{item.label}</span>
+                              <div className="flex items-center space-x-2">
+                                <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase border ${
+                                  item.status === "OK" ? "text-emerald-700 bg-emerald-50 border-emerald-200" :
+                                  item.status === "AVARIA" ? "text-rose-700 bg-rose-50 border-rose-200" :
+                                  "text-slate-500 bg-slate-100 border-slate-200"
+                                }`}>
+                                  {item.status === "OK" ? "OK" : item.status === "AVARIA" ? "Avaria" : "N/A"}
+                                </span>
+                                {item.status === "AVARIA" && item.observacao && (
+                                  <span className="text-[10px] text-rose-600 bg-rose-50 px-2 py-0.5 rounded-lg font-medium max-w-[200px] truncate" title={item.observacao}>
+                                    {item.observacao}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 4: WHATSAPP AUTOMATION PANEL */}
+              {modalTab === ("whatsapp" as any) && (
+                <OSWhatsAppPanel
+                  orderId={selectedOS.id}
+                  clientPhone={(selectedOS as any).client?.phone || ""}
+                  clientName={(selectedOS as any).client?.name || ""}
+                  osNumber={selectedOS.osNumber}
+                  deviceModel={(selectedOS as any).device?.model || ""}
+                  deviceBrand={(selectedOS as any).device?.brand || ""}
+                  totalCost={computedTotal}
+                />
+              )}
+
               {/* Bling Transition reminder */}
               {selectedOS.status === "PRONTO_RETIRADA" && (
                 <div className="bg-blue-50 border border-blue-200/60 rounded-xl p-3.5 text-xs text-blue-800 flex items-start space-x-2.5 font-semibold leading-relaxed shadow-sm">
@@ -1038,8 +1744,8 @@ export default function KanbanBoard({
                   <span className="material-symbols-outlined text-[16px] mr-1.5 text-slate-650">devices</span>
                   Aparelho em Manutenção
                 </h4>
-                <p className="font-bold text-slate-950 text-sm">{(activePrintOS as any).device?.type || "Notebook"} {(activePrintOS as any).device?.brand || "Dell"}</p>
-                <p className="mt-1.5 font-medium text-slate-700">Modelo: {(activePrintOS as any).device?.model || "Inspiron"}</p>
+                <p className="font-bold text-slate-950 text-sm">{(activePrintOS as any).device?.type || "Ultrassom (Fisio/Estética)"} {(activePrintOS as any).device?.brand || "Ibramed"}</p>
+                <p className="mt-1.5 font-medium text-slate-700">Modelo: {(activePrintOS as any).device?.model || "Neurodyn"}</p>
                 <p className="font-medium text-slate-700 font-mono">Série: <span className="bg-slate-200 px-1 py-0.5 rounded font-bold text-slate-800">{(activePrintOS as any).device?.serialNumber || "Sem Série"}</span></p>
                 <p className="mt-1.5 text-slate-550 font-medium italic">Estética: {(activePrintOS as any).device?.description || "N/D"}</p>
               </div>
@@ -1142,18 +1848,18 @@ export default function KanbanBoard({
               <div className="flex justify-between items-center bg-red-50 p-3 rounded-lg border border-red-100">
                 <span className="text-sm font-semibold text-slate-600">Custos Operacionais (Peças + Mão de Obra)</span>
                 <span className="font-mono font-bold text-red-600">
-                  - R$ { ((closingOS.usedParts?.reduce((sum, item) => sum + ((item.costSnapshot || 0) * item.quantity), 0) || 0) + ((closingOS.technicianLaborHours || 0) * (closingOS.technicianHourlyRate || 0))).toFixed(2) }
+                  - R$ {closingOpsCostVal.toFixed(2)}
                 </span>
               </div>
               
               <div className="flex justify-between items-center bg-indigo-50 p-3 rounded-lg border border-indigo-200">
                 <span className="text-sm font-bold text-slate-800">Margem de Lucro Real</span>
                 <span className="font-mono font-extrabold text-indigo-700">
-                  R$ { (closingOS.totalCost - ((closingOS.usedParts?.reduce((sum, item) => sum + ((item.costSnapshot || 0) * item.quantity), 0) || 0) + ((closingOS.technicianLaborHours || 0) * (closingOS.technicianHourlyRate || 0)))).toFixed(2) }
+                  R$ {closingProfitVal.toFixed(2)} ({closingProfitMarginPercentVal.toFixed(1)}%)
                 </span>
               </div>
               
-              {closingOS.usedParts?.some(p => !p.costSnapshot) && (
+              {closingHasZeroCost && (
                 <div className="text-[10px] text-amber-700 bg-amber-50 p-2 border border-amber-200 rounded-lg">
                   <strong>Aviso:</strong> Algumas peças desta OS não possuem preço de custo (Custo Zero), afetando a exatidão do lucro.
                 </div>
@@ -1209,6 +1915,157 @@ export default function KanbanBoard({
           {lightboxPhoto.legenda && (
             <p className="mt-4 text-white font-medium text-sm bg-slate-900/60 px-4 py-2 rounded-xl border border-slate-800">{lightboxPhoto.legenda}</p>
           )}
+        </div>
+      )}
+
+      {/* MODAL: ONBOARDING DE DISPOSITIVO LEGADO (Sprint 3) */}
+      {showOnboardingModal && onboardingDevice && (
+        <div className="fixed inset-0 bg-slate-950/65 backdrop-blur-sm flex items-center justify-center p-4 z-[90] overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md anim-slideup">
+            <div className="px-5 py-4 bg-gradient-to-r from-slate-900 to-indigo-950 text-white flex items-center justify-between rounded-t-2xl border-b border-slate-800">
+              <div className="flex items-center space-x-2">
+                <span className="material-symbols-outlined text-teal-400 text-[18px]">warning</span>
+                <h3 className="font-bold text-sm font-display">Higienizar Base Instalada</h3>
+              </div>
+              <button 
+                onClick={() => {
+                  setShowOnboardingModal(false);
+                  setOnboardingOS(null);
+                  setOnboardingDevice(null);
+                  setOnboardingTargetStatus(null);
+                }} 
+                className="text-slate-400 hover:text-white transition cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            {(() => {
+              const missing = [];
+              if (!onbBrand.trim()) missing.push("Marca/Fabricante");
+              if (!onbModel.trim()) missing.push("Modelo");
+              const isSerialEmpty = !onbSerial.trim() || onbSerial.trim() === "Sem Série";
+              if (isSerialEmpty && (!onbDesc.trim() || onbDesc.trim().length < 5)) {
+                missing.push("Descrição Física detalhada (mínimo de 5 caracteres)");
+              }
+              const count = missing.length;
+              return (
+                <div className="p-5 bg-indigo-50/50 border-b border-indigo-100 text-slate-700 text-xs font-semibold leading-relaxed">
+                  <p className="flex items-start space-x-1.5 mb-1.5">
+                    <span className="material-symbols-outlined text-indigo-600 text-[16px] shrink-0 mt-0.5">info</span>
+                    <span>
+                      {count > 0 
+                        ? `Faltam apenas ${count} ${count === 1 ? 'informação' : 'informações'} para concluir esta Ordem de Serviço.` 
+                        : "Todas as informações obrigatórias de qualidade foram fornecidas!"}
+                    </span>
+                  </p>
+                  {count > 0 && (
+                    <ul className="list-disc pl-5 text-slate-500 font-medium space-y-0.5">
+                      {missing.map((f, i) => <li key={i}>{f}</li>)}
+                    </ul>
+                  )}
+                </div>
+              );
+            })()}
+
+            <form onSubmit={handleOnboardingSubmit} className="p-5 space-y-4">
+              {onbErrorMsg && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-lg">
+                  {onbErrorMsg}
+                </div>
+              )}
+              {onbSuccessMsg && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold rounded-lg">
+                  {onbSuccessMsg}
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3.5">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-650 mb-1 uppercase tracking-wider">Tipo</label>
+                  <select
+                    value={onbType}
+                    onChange={(e) => setOnbType(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold"
+                  >
+                    <option value="Ultrassom (Fisio/Estética)">Ultrassom (Fisio/Estética)</option>
+                    <option value="Carboxiterapia">Carboxiterapia</option>
+                    <option value="Outro">Outro</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-650 mb-1 uppercase tracking-wider">Marca / Fabricante</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ex: Dell, Lenovo, HP"
+                    value={onbBrand}
+                    onChange={(e) => setOnbBrand(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-650 mb-1 uppercase tracking-wider">Modelo</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Latitude 3420, ThinkPad E14"
+                  value={onbModel}
+                  onChange={(e) => setOnbModel(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-650 mb-1 uppercase tracking-wider">Número de Série (N/S)</label>
+                <input
+                  type="text"
+                  placeholder="Digite o número de série real ou deixe em branco se não houver"
+                  value={onbSerial}
+                  onChange={(e) => setOnbSerial(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono font-semibold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-650 mb-1 uppercase tracking-wider">
+                  Descrição Física / Marcas Estéticas
+                </label>
+                <textarea
+                  rows={3}
+                  required={!onbSerial.trim()}
+                  placeholder="Se o ativo não possuir número de série, descreva características estéticas detalhadas (ex: risco na tampa, adesivos, cantos amassados)."
+                  value={onbDesc}
+                  onChange={(e) => setOnbDesc(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowOnboardingModal(false);
+                    setOnboardingOS(null);
+                    setOnboardingDevice(null);
+                    setOnboardingTargetStatus(null);
+                  }}
+                  className="px-4 py-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={onbLoading}
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-lg transition hover-premium active-premium cursor-pointer"
+                >
+                  {onbLoading ? "Gravando..." : "Confirmar e Mudar Status"}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
