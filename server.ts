@@ -12,6 +12,8 @@ import jwt from "jsonwebtoken";
 import { createServer as createViteServer } from "vite";
 import { UserRole, OSStatus } from "./src/types";
 import { PrismaClient } from "@prisma/client";
+import { authenticateJWT } from "./src/middlewares/auth";
+import apiRoutes from "./src/routes";
 
 const prisma = new PrismaClient();
 const DB_FILE = path.join(process.cwd(), "database.json");
