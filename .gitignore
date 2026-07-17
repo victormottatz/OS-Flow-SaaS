@@ -9,3 +9,14 @@ database.json
 /data/
 /EXPOTAÇÃO-SH OFICINA/
 /bling/
+
+# Documentos, planilhas e backups locais
+*.xlsx
+*.xls
+*.pdf
+*.lnk
+*.bak
+temp/
+MGV/
+LOGOS_EM_PNG/
+*.htm

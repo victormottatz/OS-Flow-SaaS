@@ -44,6 +44,56 @@ export class PermissionsController {
       res.status(500).json({ error: err.message });
     }
   }
+
+  async getRolePermissions(req: Request, res: Response) {
+    try {
+      const rolePermissions = await prisma.rolePermission.findMany({
+        select: {
+          role: true,
+          permission: true
+        }
+      });
+      res.json(rolePermissions);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+
+  async updateRolePermissions(req: Request, res: Response) {
+    const { rolePermissions } = req.body; // array of { role: string, permissions: string[] }
+
+    if (!Array.isArray(rolePermissions)) {
+      res.status(400).json({ error: "O campo rolePermissions deve ser um array." });
+      return;
+    }
+
+    try {
+      await prisma.$transaction(async (tx) => {
+        for (const item of rolePermissions) {
+          const { role, permissions } = item;
+          
+          // 1. Deleta as antigas permissões dessa Role específica
+          await tx.rolePermission.deleteMany({
+            where: { role: role as any }
+          });
+
+          // 2. Insere as novas permissões
+          if (permissions && permissions.length > 0) {
+            await tx.rolePermission.createMany({
+              data: permissions.map((p: string) => ({
+                role: role as any,
+                permission: p
+              }))
+            });
+          }
+        }
+      });
+
+      res.json({ success: true, message: "Permissões de perfis atualizadas com sucesso." });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  }
 }
 
 export const permissionsController = new PermissionsController();

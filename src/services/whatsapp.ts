@@ -2,11 +2,14 @@ import prisma from "../database/prisma";
 import { featureFlags } from "./FeatureFlagService";
 
 const WHATSAPP_TEMPLATES: Record<string, string> = {
-  ORCAMENTO: "Olá, {cliente_nome}! O orçamento para a manutenção do seu equipamento {aparelho_modelo} está pronto. O valor total é de R$ {valor_total}. Acesse para aprovar online: {link_portal}",
+  AGUARDANDO_AVALIACAO: "Olá, {cliente_nome}! Seu equipamento {aparelho_modelo} deu entrada em nossa oficina (OS {os_numero}) e está aguardando avaliação técnica.",
+  AGUARDANDO_AUTORIZACAO: "Olá, {cliente_nome}! O orçamento para a manutenção do seu equipamento {aparelho_modelo} (OS {os_numero}) está pronto. O valor total é de R$ {valor_total}. Acesse para aprovar online: {link_portal}",
   AGUARDANDO_PECA: "Olá, {cliente_nome}! A Ordem de Serviço {os_numero} do seu equipamento {aparelho_modelo} foi atualizada para: Aguardando Peças de Reposição.",
   EM_MANUTENCAO: "Olá, {cliente_nome}! Informamos que o reparo do seu equipamento {aparelho_modelo} (OS {os_numero}) foi iniciado pelo nosso laboratório técnico.",
   PRONTO_RETIRADA: "Olá, {cliente_nome}! Ótimas notícias! O seu equipamento {aparelho_modelo} (OS {os_numero}) está pronto para retirada. Aguardamos você em nossa oficina!",
-  FINALIZADO: "Olá, {cliente_nome}! A Ordem de Serviço {os_numero} do seu equipamento {aparelho_modelo} foi faturada e concluída com sucesso. Obrigado pela preferência!"
+  FINALIZADO: "Olá, {cliente_nome}! A Ordem de Serviço {os_numero} do seu equipamento {aparelho_modelo} foi faturada e concluída com sucesso. Obrigado pela preferência!",
+  ORCAMENTO_RECUSADO: "Olá, {cliente_nome}! Confirmamos que o orçamento da OS {os_numero} para o equipamento {aparelho_modelo} foi encerrado sem reparo. Seu equipamento está disponível para retirada na oficina. Qualquer dúvida, estamos à disposição!",
+  DESCARTE: "Olá, {cliente_nome}! Informamos que o equipamento {aparelho_modelo} da OS {os_numero} foi avaliado como inviável para reparo. Conforme combinado, o equipamento será destinado ao descarte ambientalmente adequado pela nossa oficina. Obrigado pela confiança!"
 };
 
 function formatWhatsAppMessage(template: string, data: {
@@ -45,14 +48,24 @@ export async function triggerWhatsAppNotification(orderId: string, status: strin
       return false;
     }
 
-    if (status === "ORCAMENTO" && (!os.diagnostic || os.totalCost === 0)) {
-      console.log(`[WhatsApp Service] Disparo abortado para status ORCAMENTO: orçamento ainda não preenchido/precificado.`);
+    if (status === "AGUARDANDO_AUTORIZACAO" && (!os.diagnostic || os.totalCost === 0)) {
+      console.log(`[WhatsApp Service] Disparo abortado para status AGUARDANDO_AUTORIZACAO: orçamento ainda não preenchido/precificado.`);
       return false;
     }
 
-    const template = WHATSAPP_TEMPLATES[status];
+    // Seleciona template com base no status e no closingReason
+    let templateKey = status;
+    if (status === "FINALIZADO") {
+      if (os.closingReason === "ORCAMENTO_RECUSADO") {
+        templateKey = "ORCAMENTO_RECUSADO";
+      } else if (os.closingReason === "DESCARTE_CLIENTE_RETIRA" || os.closingReason === "DESCARTE_OFICINA") {
+        templateKey = "DESCARTE";
+      }
+    }
+
+    const template = WHATSAPP_TEMPLATES[templateKey];
     if (!template) {
-      console.log(`[WhatsApp Service] Sem template cadastrado para o status ${status}.`);
+      console.log(`[WhatsApp Service] Sem template cadastrado para a chave ${templateKey}.`);
       return false;
     }
 

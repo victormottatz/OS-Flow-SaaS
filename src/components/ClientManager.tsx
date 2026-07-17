@@ -13,9 +13,11 @@ interface ClientManagerProps {
   userRole: UserRole;
   isOffline: boolean;
   onRefresh: () => void;
+  limit: number | "all";
+  onLimitChange: (limit: number | "all") => void;
 }
 
-export default function ClientManager({ clients, userRole, isOffline, onRefresh }: ClientManagerProps) {
+export default function ClientManager({ clients, userRole, isOffline, onRefresh, limit, onLimitChange }: ClientManagerProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDeviceModal, setShowDeviceModal] = useState(false);
@@ -37,6 +39,7 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh 
   const [showEditDeviceModal, setShowEditDeviceModal] = useState(false);
   const [editDeviceId, setEditDeviceId] = useState("");
   const [editDevType, setEditDevType] = useState("Ultrassom (Fisio/Estética)");
+  const [editDevExtraType, setEditDevExtraType] = useState("");
   const [editDevBrand, setEditDevBrand] = useState("");
   const [editDevModel, setEditDevModel] = useState("");
   const [editDevSerial, setEditDevSerial] = useState("");
@@ -58,10 +61,11 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh 
   const [isCepLoading, setIsCepLoading] = useState(false);
   
   // Custom list of devices inside the Add Client modal
-  const [tempDevices, setTempDevices] = useState<{ type: string; brand: string; model: string; serialNumber: string; description: string }[]>([]);
+  const [tempDevices, setTempDevices] = useState<{ type: string; extraType?: string; brand: string; model: string; serialNumber: string; description: string }[]>([]);
 
   // Form Fields - Individual Device addition
   const [devType, setDevType] = useState("Ultrassom (Fisio/Estética)");
+  const [devExtraType, setDevExtraType] = useState("");
   const [devBrand, setDevBrand] = useState("");
   const [devModel, setDevModel] = useState("");
   const [devSerial, setDevSerial] = useState("");
@@ -246,7 +250,7 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh 
           "Authorization": `Bearer ${token}`
         },
         body: JSON.stringify({
-          type: editDevType,
+          type: editDevExtraType.trim() ? `${editDevType} / ${editDevExtraType.trim()}` : editDevType,
           brand: editDevBrand,
           model: editDevModel,
           serialNumber: editDevSerial,
@@ -284,7 +288,7 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh 
   };
 
   const addTempDeviceField = () => {
-    setTempDevices([...tempDevices, { type: "Ultrassom (Fisio/Estética)", brand: "", model: "", serialNumber: "", description: "" }]);
+    setTempDevices([...tempDevices, { type: "Ultrassom (Fisio/Estética)", extraType: "", brand: "", model: "", serialNumber: "", description: "" }]);
   };
 
   const updateTempDevice = (index: number, field: string, value: string) => {
@@ -333,7 +337,13 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh 
           phone: clientPhone,
           email: clientEmail,
           address: clientAddress,
-          devices: tempDevices
+          devices: tempDevices.map(d => ({
+            type: d.extraType?.trim() ? `${d.type} / ${d.extraType.trim()}` : d.type,
+            brand: d.brand,
+            model: d.model,
+            serialNumber: d.serialNumber,
+            description: d.description
+          }))
         })
       });
 
@@ -390,7 +400,7 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clientId: activeClientForDevice,
-          type: devType,
+          type: devExtraType.trim() ? `${devType} / ${devExtraType.trim()}` : devType,
           brand: devBrand,
           model: devModel,
           serialNumber: resolvedSerial,
@@ -521,6 +531,19 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh 
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 placeholder:text-slate-400 font-semibold transition"
           />
+        </div>
+        <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2 shrink-0">
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Limite:</label>
+          <select
+            value={limit}
+            onChange={(e) => onLimitChange(e.target.value === "all" ? "all" : Number(e.target.value))}
+            className="bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer"
+          >
+            <option value="100">100 Clientes</option>
+            <option value="250">250 Clientes</option>
+            <option value="500">500 Clientes</option>
+            <option value="all">Exibir Todos</option>
+          </select>
         </div>
         {is360Enabled && (
           <button
@@ -883,9 +906,24 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh 
                               className="w-full px-2.5 py-1.8 border border-slate-200 rounded-lg bg-white text-xs text-slate-850"
                             >
                               <option value="Ultrassom (Fisio/Estética)">Ultrassom (Fisio/Estética)</option>
+                              <option value="Radiofrequência">Radiofrequência</option>
+                              <option value="Eletroestimulador / Correntes">Eletroestimulador / Correntes</option>
+                              <option value="Laserterapia / LED">Laserterapia / LED</option>
+                              <option value="Vapor de Ozônio">Vapor de Ozônio</option>
+                              <option value="Gerador de Ozônio">Gerador de Ozônio</option>
+                              <option value="Alta Frequência">Alta Frequência</option>
+                              <option value="Criolipólise / Estética">Criolipólise / Estética</option>
+                              <option value="Pressoterapia">Pressoterapia</option>
                               <option value="Carboxiterapia">Carboxiterapia</option>
                               <option value="Outro">Outro</option>
                             </select>
+                            <input
+                              type="text"
+                              placeholder="Função Extra (Opcional)"
+                              value={dev.extraType || ""}
+                              onChange={(e) => updateTempDevice(idx, "extraType", e.target.value)}
+                              className="w-full mt-2 px-2.5 py-1.8 border border-slate-200 rounded-lg bg-white text-xs text-slate-850"
+                            />
                           </div>
                           <div>
                             <label className="block text-[10px] font-bold text-slate-600 mb-1 uppercase tracking-wider">Marca</label>
@@ -1195,15 +1233,16 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh 
                           
                           {/* Timeline Fluxograma */}
                           <div className="flex items-center justify-between text-center overflow-x-auto py-2">
-                            {['ORCAMENTO', 'AGUARDANDO_PECA', 'EM_MANUTENCAO', 'PRONTO_RETIRADA', 'FINALIZADO'].map((statusOption, idx, arr) => {
+                            {['AGUARDANDO_AVALIACAO', 'AGUARDANDO_AUTORIZACAO', 'AGUARDANDO_PECA', 'EM_MANUTENCAO', 'PRONTO_RETIRADA', 'FINALIZADO'].map((statusOption, idx, arr) => {
                               const orderStatus = prontuarioData.orders[0].status;
-                              const statusOrder = ['ORCAMENTO', 'AGUARDANDO_PECA', 'EM_MANUTENCAO', 'PRONTO_RETIRADA', 'FINALIZADO'];
+                              const statusOrder = ['AGUARDANDO_AVALIACAO', 'AGUARDANDO_AUTORIZACAO', 'AGUARDANDO_PECA', 'EM_MANUTENCAO', 'PRONTO_RETIRADA', 'FINALIZADO'];
                               const currentIdx = statusOrder.indexOf(orderStatus);
                               const isCompleted = statusOrder.indexOf(statusOption) <= currentIdx;
                               const isCurrent = statusOption === orderStatus;
 
                               const labelsMap: Record<string, string> = {
-                                ORCAMENTO: 'Orçamento',
+                                AGUARDANDO_AVALIACAO: 'Avaliação',
+                                AGUARDANDO_AUTORIZACAO: 'Orçamento',
                                 AGUARDANDO_PECA: 'Peças',
                                 EM_MANUTENCAO: 'Execução',
                                 PRONTO_RETIRADA: 'Teste/Pronto',
@@ -1254,23 +1293,37 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh 
                         ) : (
                           <div className="relative border-l-2 border-slate-200 ml-4 space-y-6 pb-2">
                             {prontuarioData.orders.map((os: any) => {
-                              const statusColor = 
-                                os.status === 'FINALIZADO' ? 'text-emerald-700 bg-emerald-50 border-emerald-250' :
-                                os.status === 'ORCAMENTO' ? 'text-amber-700 bg-amber-50 border-amber-250' :
-                                os.status === 'EM_MANUTENCAO' ? 'text-blue-700 bg-blue-50 border-blue-250' :
-                                'text-indigo-700 bg-indigo-50 border-indigo-250';
+                              const getStatusDisplayAndColor = () => {
+                                if (os.status === 'FINALIZADO') {
+                                  if (os.closingReason === 'ORCAMENTO_RECUSADO') {
+                                    return { label: 'Sem Reparo (Recusado)', color: 'text-amber-700 bg-amber-50 border-amber-250', dotColor: 'border-amber-500' };
+                                  }
+                                  if (os.closingReason === 'DESCARTE_CLIENTE_RETIRA') {
+                                    return { label: 'Descarte (Cliente Retira)', color: 'text-slate-700 bg-slate-50 border-slate-250', dotColor: 'border-slate-400' };
+                                  }
+                                  if (os.closingReason === 'DESCARTE_OFICINA') {
+                                    return { label: 'Descarte (Oficina)', color: 'text-rose-700 bg-rose-50 border-rose-250', dotColor: 'border-rose-500' };
+                                  }
+                                  return { label: 'Finalizado', color: 'text-emerald-700 bg-emerald-50 border-emerald-250', dotColor: 'border-emerald-500' };
+                                }
+                                if (os.status === 'AGUARDANDO_AVALIACAO' || os.status === 'AGUARDANDO_AUTORIZACAO') {
+                                  return { label: os.status.replace("_", " "), color: 'text-amber-700 bg-amber-50 border-amber-250', dotColor: 'border-amber-500' };
+                                }
+                                if (os.status === 'EM_MANUTENCAO') {
+                                  return { label: os.status.replace("_", " "), color: 'text-blue-700 bg-blue-50 border-blue-250', dotColor: 'border-indigo-500' };
+                                }
+                                return { label: os.status.replace("_", " "), color: 'text-indigo-700 bg-indigo-50 border-indigo-250', dotColor: 'border-indigo-500' };
+                              };
+                              const { label: displayLabel, color: statusColor, dotColor } = getStatusDisplayAndColor();
                                 
                               return (
                                 <div key={os.id} className="relative pl-6">
-                                  <div className={`absolute -left-[5px] top-1.5 w-2 h-2 rounded-full border bg-white ${
-                                    os.status === 'FINALIZADO' ? 'border-emerald-500' :
-                                    os.status === 'ORCAMENTO' ? 'border-amber-500' : 'border-indigo-500'
-                                  }`} />
+                                  <div className={`absolute -left-[5px] top-1.5 w-2 h-2 rounded-full border bg-white ${dotColor}`} />
                                   <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs hover:shadow-sm transition">
                                     <div className="flex justify-between items-start mb-2">
                                       <div>
                                         <span className="font-mono font-bold text-slate-900 text-xs bg-slate-100 px-2 py-0.5 rounded border border-slate-200 mr-2">{os.osNumber}</span>
-                                        <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full border ${statusColor}`}>{os.status.replace("_", " ")}</span>
+                                        <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full border ${statusColor}`}>{displayLabel}</span>
                                       </div>
                                       <span className="text-[10px] text-slate-400 font-semibold">{new Date(os.createdAt).toLocaleDateString('pt-BR')}</span>
                                     </div>
@@ -1598,7 +1651,14 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh 
                                     <button
                                       onClick={() => {
                                         setEditDeviceId(dev.id);
-                                        setEditDevType(dev.type);
+                                        const splitIdx = dev.type.indexOf(" / ");
+                                        if (splitIdx > -1) {
+                                          setEditDevType(dev.type.substring(0, splitIdx));
+                                          setEditDevExtraType(dev.type.substring(splitIdx + 3));
+                                        } else {
+                                          setEditDevType(dev.type);
+                                          setEditDevExtraType("");
+                                        }
                                         setEditDevBrand(dev.brand === "Indefinido" ? "" : dev.brand);
                                         setEditDevModel(dev.model === "Indefinido" ? "" : dev.model);
                                         setEditDevSerial(dev.serialNumber === "Sem Série" ? "" : dev.serialNumber);
@@ -1632,7 +1692,7 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh 
                             {client360Data.orders.map((os: any) => {
                               const statusColor = 
                                 os.status === 'FINALIZADO' ? 'text-emerald-700 bg-emerald-50 border-emerald-200' :
-                                os.status === 'ORCAMENTO' ? 'text-amber-700 bg-amber-50 border-amber-200' :
+                                (os.status === 'AGUARDANDO_AVALIACAO' || os.status === 'AGUARDANDO_AUTORIZACAO') ? 'text-amber-700 bg-amber-50 border-amber-200' :
                                 os.status === 'EM_MANUTENCAO' ? 'text-blue-700 bg-blue-50 border-blue-200' :
                                 'text-indigo-700 bg-indigo-50 border-indigo-200';
 
@@ -1727,16 +1787,31 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh 
 
               <div className="grid grid-cols-2 gap-3.5">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-650 mb-1 uppercase tracking-wider">Tipo</label>
+                  <label className="block text-[10px] font-bold text-slate-650 mb-1 uppercase tracking-wider">Tipo Primário</label>
                   <select
                     value={editDevType}
                     onChange={(e) => setEditDevType(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold"
                   >
-                    <option value="Ultrassom">Ultrassom</option>
+                    <option value="Ultrassom (Fisio/Estética)">Ultrassom (Fisio/Estética)</option>
+                    <option value="Radiofrequência">Radiofrequência</option>
+                    <option value="Eletroestimulador / Correntes">Eletroestimulador / Correntes</option>
+                    <option value="Laserterapia / LED">Laserterapia / LED</option>
+                    <option value="Vapor de Ozônio">Vapor de Ozônio</option>
+                    <option value="Gerador de Ozônio">Gerador de Ozônio</option>
+                    <option value="Alta Frequência">Alta Frequência</option>
+                    <option value="Criolipólise / Estética">Criolipólise / Estética</option>
+                    <option value="Pressoterapia">Pressoterapia</option>
                     <option value="Carboxiterapia">Carboxiterapia</option>
                     <option value="Outro">Outro</option>
                   </select>
+                  <input
+                    type="text"
+                    placeholder="Função Extra (Opcional)"
+                    value={editDevExtraType}
+                    onChange={(e) => setEditDevExtraType(e.target.value)}
+                    className="w-full mt-2 px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold"
+                  />
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-slate-650 mb-1 uppercase tracking-wider">Marca / Fabricante</label>

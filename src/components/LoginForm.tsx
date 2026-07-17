@@ -93,28 +93,29 @@ export default function LoginForm({ onLoginSuccess, isOffline }: LoginFormProps)
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-tr from-slate-950 via-slate-900 to-indigo-950 relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-slate-50 relative overflow-hidden">
       {/* Dynamic Background Blur Shapes */}
-      <div className="absolute top-1/4 left-1/4 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-indigo-500/10 rounded-full blur-[100px] pointer-events-none"></div>
-      <div className="absolute bottom-1/4 right-1/4 translate-x-1/2 translate-y-1/2 w-80 h-80 bg-teal-500/10 rounded-full blur-[100px] pointer-events-none"></div>
+      <div className="absolute top-1/4 left-1/4 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-secondary-container/5 rounded-full blur-[100px] pointer-events-none"></div>
+      <div className="absolute bottom-1/4 right-1/4 translate-x-1/2 translate-y-1/2 w-80 h-80 bg-slate-medium/5 rounded-full blur-[100px] pointer-events-none"></div>
 
-      <div className="w-full max-w-md glassmorphism-dark rounded-2xl shadow-2xl overflow-hidden relative z-10 hover:border-slate-800 transition-all duration-500 anim-fadein">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-premium border border-slate-100 overflow-hidden relative z-10 transition-all duration-500 anim-fadein">
         {/* Banner Area */}
-        <div className="px-6 py-8 text-white relative text-center border-b border-slate-800/60 bg-slate-950/40">
-          <div className="absolute top-3 right-3 flex items-center bg-teal-500/10 text-teal-400 border border-teal-500/30 font-mono text-[9px] uppercase tracking-wider px-2.5 py-0.5 rounded-full select-none anim-pulse">
+        <div className="px-6 py-8 relative text-center border-b border-slate-100 bg-slate-50/50">
+          <div className="absolute top-3 right-3 flex items-center bg-emerald-50 text-emerald-700 border border-emerald-200 font-mono text-[9px] uppercase tracking-wider px-2.5 py-0.5 rounded-full select-none anim-pulse">
             Supabase Auth Ativo
           </div>
-          <div className="w-14 h-14 bg-gradient-to-br from-teal-400 to-emerald-500 rounded-2xl mx-auto flex items-center justify-center font-extrabold text-slate-950 mb-3 shadow-lg neon-glow-emerald">
-            MGV
-          </div>
-          <h2 className="text-xl font-bold tracking-tight text-white font-display">MGV Assistência Técnica</h2>
-          <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
+          <img 
+            src="/logos/LOGO V3.0 (90).png" 
+            alt="MGV Assistência Técnica" 
+            className="h-20 mx-auto mb-2 object-contain"
+          />
+          <p className="text-xs text-slate-500 max-w-xs mx-auto font-medium">
             Substituto Corporativo Web Integrado do SH Oficina Desktop
           </p>
         </div>
 
         {/* Auth Mode Tabs */}
-        <div className="flex border-b border-slate-800/60 bg-slate-950/20">
+        <div className="flex border-b border-slate-100 bg-slate-50/20">
           <button
             onClick={() => {
               setIsLoginMode(true);
@@ -123,8 +124,8 @@ export default function LoginForm({ onLoginSuccess, isOffline }: LoginFormProps)
             }}
             className={`w-1/2 py-3.5 text-xs font-bold uppercase tracking-wider transition-all duration-300 ${
               isLoginMode
-                ? "text-teal-400 bg-teal-950/20 border-b-2 border-teal-500"
-                : "text-slate-500 hover:text-slate-300 hover:bg-slate-900/10"
+                ? "text-slate-950 bg-white border-b-2 border-secondary-container"
+                : "text-slate-450 hover:text-slate-700 hover:bg-slate-50/20"
             }`}
           >
             Acessar Sistema
@@ -137,8 +138,8 @@ export default function LoginForm({ onLoginSuccess, isOffline }: LoginFormProps)
             }}
             className={`w-1/2 py-3.5 text-xs font-bold uppercase tracking-wider transition-all duration-300 ${
               !isLoginMode
-                ? "text-teal-400 bg-teal-950/20 border-b-2 border-teal-500"
-                : "text-slate-500 hover:text-slate-300 hover:bg-slate-900/10"
+                ? "text-slate-950 bg-white border-b-2 border-secondary-container"
+                : "text-slate-450 hover:text-slate-700 hover:bg-slate-50/20"
             }`}
           >
             Cadastrar Técnico
@@ -147,15 +148,15 @@ export default function LoginForm({ onLoginSuccess, isOffline }: LoginFormProps)
 
         <div className="p-6 sm:p-8">
           {errorMsg && (
-            <div className="mb-5 bg-red-950/50 border-l-4 border-red-500 p-3 rounded-lg text-xs text-red-200 flex items-start space-x-2 border border-red-900/20 anim-slideup">
-              <span className="material-symbols-outlined text-[16px] text-red-400 mt-0.5 shrink-0">shield_alert</span>
+            <div className="mb-5 bg-red-50 border-l-4 border-red-500 p-3 rounded-lg text-xs text-red-700 flex items-start space-x-2 border border-red-200 anim-slideup">
+              <span className="material-symbols-outlined text-[16px] text-red-500 mt-0.5 shrink-0">shield_alert</span>
               <span>{errorMsg}</span>
             </div>
           )}
 
           {successMsg && (
-            <div className="mb-5 bg-emerald-950/50 border-l-4 border-emerald-500 p-3 rounded-lg text-xs text-emerald-200 flex items-start space-x-2 border border-emerald-900/20 anim-slideup">
-              <span className="material-symbols-outlined text-[16px] text-emerald-400 mt-0.5 shrink-0">check_circle</span>
+            <div className="mb-5 bg-emerald-50 border-l-4 border-emerald-500 p-3 rounded-lg text-xs text-emerald-700 flex items-start space-x-2 border border-emerald-200 anim-slideup">
+              <span className="material-symbols-outlined text-[16px] text-emerald-500 mt-0.5 shrink-0">check_circle</span>
               <span>{successMsg}</span>
             </div>
           )}
@@ -163,7 +164,7 @@ export default function LoginForm({ onLoginSuccess, isOffline }: LoginFormProps)
           <form onSubmit={handleSubmit} className="space-y-4">
             {!isLoginMode && (
               <div className="anim-slideup">
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">
                   Nome Completo
                 </label>
                 <input
@@ -172,13 +173,13 @@ export default function LoginForm({ onLoginSuccess, isOffline }: LoginFormProps)
                   placeholder="Ex: Vinícius Souza"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3 py-2.5 bg-slate-900/60 border border-slate-800 rounded-lg text-sm text-white placeholder-slate-650 focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/10 hover:border-slate-700 transition duration-200"
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-950 placeholder-slate-450 focus:outline-none focus:border-secondary-container focus:ring-2 focus:ring-secondary-container/20 hover:border-slate-300 transition duration-200"
                 />
               </div>
             )}
 
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">
                 E-mail de Trabalho
               </label>
               <input
@@ -187,12 +188,12 @@ export default function LoginForm({ onLoginSuccess, isOffline }: LoginFormProps)
                 placeholder="Ex: tecnico@mgv.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-3 py-2.5 bg-slate-900/60 border border-slate-800 rounded-lg text-sm text-white placeholder-slate-650 focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/10 hover:border-slate-700 transition duration-200"
+                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-950 placeholder-slate-450 focus:outline-none focus:border-secondary-container focus:ring-2 focus:ring-secondary-container/20 hover:border-slate-300 transition duration-200"
               />
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">
                 Senha Segura
               </label>
               <input
@@ -201,25 +202,25 @@ export default function LoginForm({ onLoginSuccess, isOffline }: LoginFormProps)
                 placeholder="• • • • • •"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3 py-2.5 bg-slate-900/60 border border-slate-800 rounded-lg text-sm text-white placeholder-slate-650 focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/10 hover:border-slate-700 transition duration-200"
+                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-950 placeholder-slate-450 focus:outline-none focus:border-secondary-container focus:ring-2 focus:ring-secondary-container/20 hover:border-slate-300 transition duration-200"
               />
             </div>
 
             {!isLoginMode && (
               <div className="anim-slideup">
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">
                   Perfil de Acesso (Role)
                 </label>
                 <select
                   value={role}
                   onChange={(e) => setRole(e.target.value as UserRole)}
-                  className="w-full px-3 py-2.5 bg-slate-900 border border-slate-800 rounded-lg text-sm text-white focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/10 hover:border-slate-700 transition duration-200"
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-950 focus:outline-none focus:border-secondary-container focus:ring-2 focus:ring-secondary-container/20 hover:border-slate-300 transition duration-200"
                 >
                   <option value={UserRole.EDITOR}>EDITOR (Técnicos e Atendentes)</option>
                   <option value={UserRole.OWNER}>OWNER (Diretores e Administradores)</option>
                 </select>
                 <p className="text-[11px] text-slate-500 mt-2 flex items-start space-x-1.5 leading-relaxed">
-                  <span className="material-symbols-outlined text-[14px] text-teal-400 shrink-0 mt-0.5">info</span>
+                  <span className="material-symbols-outlined text-[14px] text-secondary-container shrink-0 mt-0.5">info</span>
                   <span>
                     O perfil EDITOR não possui privilégios de exclusão (Políticas RLS ativas).
                   </span>
@@ -230,7 +231,7 @@ export default function LoginForm({ onLoginSuccess, isOffline }: LoginFormProps)
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-6 bg-teal-400 hover:bg-teal-350 active:bg-teal-500 text-slate-950 py-2.5 rounded-lg text-xs uppercase tracking-wider font-extrabold shadow-md flex items-center justify-center space-x-2 disabled:bg-slate-800 disabled:text-slate-550 disabled:cursor-not-allowed hover-premium active-premium"
+              className="w-full mt-6 bg-secondary-container hover:bg-secondary-container-hover text-slate-950 py-2.5 rounded-lg text-xs uppercase tracking-wider font-extrabold shadow-md flex items-center justify-center space-x-2 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed hover-premium active-premium"
             >
               {loading ? (
                 <span>Tratando com o Supabase Auth...</span>
@@ -247,8 +248,6 @@ export default function LoginForm({ onLoginSuccess, isOffline }: LoginFormProps)
               )}
             </button>
           </form>
-
-
         </div>
       </div>
     </div>

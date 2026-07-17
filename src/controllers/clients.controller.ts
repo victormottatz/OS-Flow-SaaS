@@ -1,17 +1,22 @@
 import { Request, Response } from "express";
 import prisma from "../database/prisma";
 import { eventBus, Events } from "../events";
+import { getRecurrentAlert } from "./os.controller";
 
 export class ClientsController {
   async getAll(req: Request, res: Response) {
     try {
+      const limitParam = req.query.limit as string;
+      const limit = limitParam === "all" ? undefined : (Number(limitParam) || 100);
+
       const activeClients = await prisma.client.findMany({
         where: { deletedAt: null },
         include: {
           devices: {
             where: { deletedAt: null }
           }
-        }
+        },
+        take: limit
       });
 
       res.json(activeClients.map(c => ({
@@ -144,7 +149,31 @@ export class ClientsController {
         deletedAt: null
       };
 
-      // TODO: Registrar evento de auditoria `CLIENT_UPDATED` aqui no eventBus
+      // Dispara evento de auditoria CLIENT_UPDATED
+      eventBus.emit(Events.CLIENT_UPDATED, {
+        id: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+        aggregateId: updated.id,
+        aggregateType: "Client",
+        actor: (req as any).user?.id || "SYSTEM",
+        payload: {
+          before: {
+            name: client.name,
+            cpfCnpj: client.cpfCnpj,
+            phone: client.phone,
+            email: client.email,
+            address: client.address
+          },
+          after: {
+            name: updated.name,
+            cpfCnpj: updated.cpfCnpj,
+            phone: updated.phone,
+            email: updated.email,
+            address: updated.address
+          }
+        },
+        version: 1
+      });
 
       res.json(responsePayload);
     } catch (err: any) {
@@ -208,13 +237,15 @@ export class ClientsController {
       );
       const totalSpent = finishedOrders.reduce((sum: number, o: any) => sum + (o.totalCost || 0), 0);
 
-      const parsedOrders = orders.map((o: any) => ({
+      const parsedOrders = await Promise.all(orders.map(async (o: any) => ({
         ...o,
         usedParts: typeof o.usedParts === "string" ? JSON.parse(o.usedParts) : o.usedParts || [],
         billingLogs: typeof o.billingLogs === "string" ? JSON.parse(o.billingLogs) : o.billingLogs || [],
         checklistEntrada: typeof o.checklistEntrada === "string" ? JSON.parse(o.checklistEntrada || "[]") : o.checklistEntrada || [],
-        laudoFotos: typeof o.laudoFotos === "string" ? JSON.parse(o.laudoFotos || "[]") : o.laudoFotos || []
-      }));
+        laudoFotos: typeof o.laudoFotos === "string" ? JSON.parse(o.laudoFotos || "[]") : o.laudoFotos || [],
+        recurrent: o.recurrent,
+        recurrentAlert: await getRecurrentAlert(o)
+      })));
 
       res.json({
         client: {

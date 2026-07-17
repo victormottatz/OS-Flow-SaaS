@@ -18,6 +18,9 @@ export interface User {
   name: string;
   email: string;
   role: UserRole;
+  phone?: string;
+  avatarUrl?: string;
+  bio?: string;
   createdAt: string;
 }
 
@@ -44,7 +47,13 @@ export interface Device {
   lastMaintenanceAt?: string | null;
 }
 
-export type OSStatus = 'ORCAMENTO' | 'AGUARDANDO_PECA' | 'EM_MANUTENCAO' | 'PRONTO_RETIRADA' | 'FINALIZADO';
+export type OSStatus = 'AGUARDANDO_AVALIACAO' | 'AGUARDANDO_AUTORIZACAO' | 'AGUARDANDO_PECA' | 'EM_MANUTENCAO' | 'PRONTO_RETIRADA' | 'PAGO_PRONTO_RETIRADA' | 'FINALIZADO';
+
+export type OSClosingReason =
+  | 'REPARO_CONCLUIDO'
+  | 'ORCAMENTO_RECUSADO'
+  | 'DESCARTE_CLIENTE_RETIRA'
+  | 'DESCARTE_OFICINA';
 
 export interface Part {
   id: string;
@@ -103,6 +112,7 @@ export interface OrdemServico {
   physicalState: string;
   status: OSStatus;
   diagnostic?: string;
+  laudoMacro?: string;
   usedParts: UsedPart[];
   laborCost: number;
   technicianLaborHours?: number;
@@ -126,6 +136,10 @@ export interface OrdemServico {
   stressTestStartedAt?: string | null;
   stressTestStartedBy?: string | null;
   createdAt: string;
+  originalExitDate?: string | null;
+  closingReason?: OSClosingReason | null;
+  client?: Client | null;
+  device?: Device | null;
 
   // Rentabilidade (Virtual / Computado no backend para OWNER)
   profitValue?: number | null;

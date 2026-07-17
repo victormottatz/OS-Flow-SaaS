@@ -25,6 +25,7 @@ class AuditService {
 
   private registerListeners() {
     eventBus.on(Events.CLIENT_CREATED, this.handleClientCreated.bind(this));
+    eventBus.on(Events.CLIENT_UPDATED, this.handleClientUpdated.bind(this));
     // Outros listeners de auditoria...
   }
 
@@ -37,6 +38,34 @@ class AuditService {
       userId: event.actor,
       source: "backend",
       reason: "Criação de novo cliente via API"
+    });
+  }
+
+  private async handleClientUpdated(event: StandardEvent) {
+    const { before, after } = event.payload;
+    
+    const oldValue: Record<string, any> = {};
+    const newValue: Record<string, any> = {};
+
+    for (const key of Object.keys(after)) {
+      if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) {
+        oldValue[key] = before[key];
+        newValue[key] = after[key];
+      }
+    }
+
+    // Só registra se houve mudança real
+    if (Object.keys(newValue).length === 0) return;
+
+    await this.log({
+      entityName: event.aggregateType,
+      entityId: event.aggregateId,
+      action: "CLIENT_UPDATED",
+      oldValue,
+      newValue,
+      userId: event.actor,
+      source: "backend",
+      reason: "Atualização de dados do cliente via API"
     });
   }
   /**

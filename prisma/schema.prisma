@@ -20,10 +20,20 @@ enum UserRole {
 
 enum OSStatus {
   ORCAMENTO
+  AGUARDANDO_AVALIACAO
+  AGUARDANDO_AUTORIZACAO
   AGUARDANDO_PECA
   EM_MANUTENCAO
   PRONTO_RETIRADA
+  PAGO_PRONTO_RETIRADA
   FINALIZADO
+}
+
+enum OSClosingReason {
+  REPARO_CONCLUIDO
+  ORCAMENTO_RECUSADO
+  DESCARTE_CLIENTE_RETIRA
+  DESCARTE_OFICINA
 }
 
 model User {
@@ -33,6 +43,9 @@ model User {
   passwordHash String
   role         UserRole @default(EDITOR)
   permissions  String[] @default([])
+  phone        String?
+  avatarUrl    String?
+  bio          String?
   createdAt    DateTime @default(now())
 
   @@map("users")
@@ -95,38 +108,42 @@ model Part {
 }
 
 model OrdemServico {
-  id                   String           @id @default(uuid())
-  osNumber             String           @unique
+  id                   String               @id @default(uuid())
+  osNumber             String               @unique
   clientId             String
-  client               Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client               Client               @relation(fields: [clientId], references: [id], onDelete: Cascade)
   deviceId             String
-  device               Device           @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  device               Device               @relation(fields: [deviceId], references: [id], onDelete: Cascade)
   reportedDefect       String
-  accessoriesLeft      String           @default("Nenhum")
-  physicalState        String           @default("Não especificado")
-  status               OSStatus         @default(ORCAMENTO)
+  accessoriesLeft      String               @default("Nenhum")
+  physicalState        String               @default("Não especificado")
+  status               OSStatus             @default(AGUARDANDO_AVALIACAO)
   diagnostic           String?
-  usedParts            Json             @default("[]") // Stores array of UsedPart { partId, name, quantity, price }
-  laborCost            Float            @default(0.0)
+  laudoMacro           String?
+  usedParts            Json                 @default("[]") // Stores array of UsedPart { partId, name, quantity, price }
+  laborCost            Float                @default(0.0)
   technicianLaborHours Float?
   technicianHourlyRate Float?
-  totalCost            Float            @default(0.0)
-  billingStatus        String           @default("PENDENTE") // PENDENTE, PROCESSANDO, FATURADO, REJEITADO, TIMEOUT
+  totalCost            Float                @default(0.0)
+  billingStatus        String               @default("PENDENTE") // PENDENTE, PROCESSANDO, FATURADO, REJEITADO, TIMEOUT
   blingId              String?
   blingKey             String?
   sefazErrorMessage    String?
   pdfUrl               String?
-  billingLogs          Json             @default("[]") // Stores string array of logs
-  checklistEntrada     Json?            @default("[]") // Stores checklist details
-  checklistSaida       Json?            @default("[]") // Stores exit checklist details
-  laudoFotos           Json?            @default("[]") // Stores base64 images and captions
+  billingLogs          Json                 @default("[]") // Stores string array of logs
+  checklistEntrada     Json?                @default("[]") // Stores checklist details
+  checklistSaida       Json?                @default("[]") // Stores exit checklist details
+  laudoFotos           Json?                @default("[]") // Stores base64 images and captions
   originalEntryDate    DateTime?
   originalExitDate     DateTime?
   stressTestStartedAt  DateTime?
   stressTestStartedBy  String?
-  createdAt            DateTime         @default(now())
+  createdAt            DateTime             @default(now())
   deletedAt            DateTime?
+  recurrent            Boolean              @default(false)
+  closingReason        OSClosingReason?
   messageHistories     MessageHistory[]
+  conciliationItems    OSConciliationItem[]
 
   @@map("ordem_servicos")
 }
@@ -165,17 +182,17 @@ model MessageHistory {
 }
 
 model AuditLog {
-  id          String   @id @default(uuid())
-  entityName  String   // "OrdemServico", "Part", "Device", "Client"
-  entityId    String
-  action      String   // "UPDATE", "CREATE", "DELETE"
-  oldValue    Json?
-  newValue    Json?
-  userId      String   // ID or email/name
-  ipAddress   String?
-  source      String?  // ex: "WEB", "API", "SYSTEM"
-  reason      String?
-  createdAt   DateTime @default(now())
+  id         String   @id @default(uuid())
+  entityName String // "OrdemServico", "Part", "Device", "Client"
+  entityId   String
+  action     String // "UPDATE", "CREATE", "DELETE"
+  oldValue   Json?
+  newValue   Json?
+  userId     String // ID or email/name
+  ipAddress  String?
+  source     String? // ex: "WEB", "API", "SYSTEM"
+  reason     String?
+  createdAt  DateTime @default(now())
 
   @@map("audit_logs")
 }
@@ -192,9 +209,9 @@ model DeviceNote {
 }
 
 model DeviceCategory {
-  id               String   @id @default(uuid())
-  name             String   @unique // ex: "Autoclave", "Compressor"
-  defaultChecklist Json     @default("[]")
+  id               String @id @default(uuid())
+  name             String @unique // ex: "Autoclave", "Compressor"
+  defaultChecklist Json   @default("[]")
 
   @@map("device_categories")
 }
@@ -202,9 +219,9 @@ model DeviceCategory {
 model OfficeSetting {
   id          String   @id @default(uuid())
   key         String   @unique
-  value       String   // Stringified JSON or plain text
+  value       String // Stringified JSON or plain text
   type        String   @default("string") // boolean, number, string, json
-  category    String   @default("GERAL")  // GERAL, FINANCEIRO, KANBAN, GARANTIAS, WHATSAPP, CENTRAL_CLIENTE, ESTOQUE, ISAIAS
+  category    String   @default("GERAL") // GERAL, FINANCEIRO, KANBAN, GARANTIAS, WHATSAPP, CENTRAL_CLIENTE, ESTOQUE, ISAIAS
   description String?
   updatedAt   DateTime @updatedAt
 
@@ -219,4 +236,32 @@ model RolePermission {
 
   @@unique([role, permission])
   @@map("role_permissions")
+}
+
+model OSConciliationBatch {
+  id        String               @id @default(uuid())
+  createdAt DateTime             @default(now())
+  createdBy String // Nome/ID do usuário que executou
+  items     OSConciliationItem[]
+
+  @@map("os_conciliation_batches")
+}
+
+model OSConciliationItem {
+  id              String              @id @default(uuid())
+  batchId         String
+  batch           OSConciliationBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  orderId         String
+  order           OrdemServico        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  oldStatus       OSStatus
+  newStatus       OSStatus
+  reason          String
+  confidence      Int                 @default(0)
+  confidenceLevel String              @default("LOW")
+  rulesSatisfied  String[]
+  sourceFiles     String[]
+  metadata        Json?
+  undoneAt        DateTime? // Preenchido caso o lote seja desfeito
+
+  @@map("os_conciliation_items")
 }

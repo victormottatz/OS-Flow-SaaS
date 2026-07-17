@@ -12,13 +12,15 @@ interface StockManagerProps {
   userRole: UserRole;
   isOffline: boolean;
   onRefresh: () => void;
+  limit: number | "all";
+  onLimitChange: (limit: number | "all") => void;
 }
 
 type SortField = "name" | "code" | "stock" | "cost" | "price" | "stockMin";
 type SortDirection = "asc" | "desc";
 type StockFilter = "all" | "low" | "serialized";
 
-export default function StockManager({ parts, userRole, isOffline, onRefresh }: StockManagerProps) {
+export default function StockManager({ parts, userRole, isOffline, onRefresh, limit, onLimitChange }: StockManagerProps) {
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState("");
   const [stockFilter, setStockFilter] = useState<StockFilter>("all");
@@ -280,6 +282,20 @@ export default function StockManager({ parts, userRole, isOffline, onRefresh }: 
                 <span className="hidden sm:inline">{f.label}</span>
               </button>
             ))}
+          </div>
+
+          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 shrink-0">
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Limite:</label>
+            <select
+              value={limit}
+              onChange={(e) => onLimitChange(e.target.value === "all" ? "all" : Number(e.target.value))}
+              className="bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer"
+            >
+              <option value="100">100 Peças</option>
+              <option value="250">250 Peças</option>
+              <option value="500">500 Peças</option>
+              <option value="all">Exibir Todas</option>
+            </select>
           </div>
 
           {/* Add Button & XML Import */}

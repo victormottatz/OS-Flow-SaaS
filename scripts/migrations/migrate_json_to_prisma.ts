@@ -102,7 +102,7 @@ async function run() {
           reportedDefect: os.reportedDefect || "",
           accessoriesLeft: os.accessoriesLeft || "Nenhum",
           physicalState: os.physicalState || "Não especificado",
-          status: os.status || "ORCAMENTO",
+          status: os.status || "AGUARDANDO_AVALIACAO",
           diagnostic: os.diagnostic || null,
           usedParts: os.usedParts || [],
           laborCost: os.laborCost || 0,

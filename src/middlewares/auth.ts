@@ -41,6 +41,15 @@ export function authenticateJWT(req: Request, res: Response, next: NextFunction)
   next();
 }
 
+export function requireAuth(req: Request, res: Response, next: NextFunction): void {
+  const userId = req.headers["x-user-id"];
+  if (!userId) {
+    res.status(401).json({ error: "Acesso negado. Usuário não autenticado." });
+    return;
+  }
+  next();
+}
+
 export function checkRole(...allowedRoles: UserRole[]) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const userRole = req.headers["x-user-role"] as string;
@@ -81,15 +90,26 @@ export function checkPermission(...requiredPermissions: string[]) {
         return;
       }
 
-      const hasAll = requiredPermissions.every(p => user.permissions.includes(p));
+      // Busca as permissões padrão atribuídas ao Perfil (Role) na tabela RolePermission
+      const rolePermissions = await prisma.rolePermission.findMany({
+        where: { role: userRole as any },
+        select: { permission: true }
+      });
+
+      const allPermissions = [
+        ...(user.permissions || []),
+        ...rolePermissions.map(rp => rp.permission)
+      ];
+
+      const hasAll = requiredPermissions.every(p => allPermissions.includes(p));
       if (!hasAll) {
-        res.status(403).json({ error: "Permissão insuficiente." });
+        res.status(403).json({ error: "Acesso negado. Permissão insuficiente para o recurso." });
         return;
       }
 
       next();
     } catch (err: any) {
-      res.status(500).json({ error: "Erro ao verificar permissões." });
+      res.status(500).json({ error: "Erro ao verificar permissões do usuário." });
     }
   };
 }

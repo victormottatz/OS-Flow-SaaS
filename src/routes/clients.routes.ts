@@ -1,14 +1,13 @@
 import { Router } from "express";
 import { clientsController } from "../controllers/clients.controller";
-import { checkRole } from "../middlewares/auth";
-import { UserRole } from "../types";
+import { checkPermission } from "../middlewares/auth";
 
 const router = Router();
 
-router.get("/", clientsController.getAll.bind(clientsController));
-router.post("/", clientsController.create.bind(clientsController));
-router.put("/:id", clientsController.update.bind(clientsController));
-router.delete("/:id", checkRole(UserRole.OWNER), clientsController.delete.bind(clientsController));
-router.get("/:id/360", clientsController.get360.bind(clientsController));
+router.get("/", checkPermission("clients.view"), clientsController.getAll.bind(clientsController));
+router.post("/", checkPermission("clients.manage"), clientsController.create.bind(clientsController));
+router.put("/:id", checkPermission("clients.manage"), clientsController.update.bind(clientsController));
+router.delete("/:id", checkPermission("clients.manage"), clientsController.delete.bind(clientsController));
+router.get("/:id/360", checkPermission("clients.view"), clientsController.get360.bind(clientsController));
 
 export default router;

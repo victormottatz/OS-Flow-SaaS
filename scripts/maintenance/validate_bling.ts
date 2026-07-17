@@ -1,6 +1,6 @@
 import fs from 'fs';
 import axios from 'axios';
-import { getAccessToken } from '../src/services/bling';
+import { getAccessToken } from '../../src/services/bling';
 
 async function main() {
   const fileContent = fs.readFileSync('data/clientes_para_bling.csv', 'utf8');

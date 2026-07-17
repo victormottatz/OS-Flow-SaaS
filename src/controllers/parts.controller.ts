@@ -5,8 +5,15 @@ import { eventBus, Events } from "../events";
 export class PartsController {
   async getAll(req: Request, res: Response) {
     try {
+      const limitParam = req.query.limit as string;
+      const limit = limitParam === "all" ? undefined : (Number(limitParam) || 100);
+
       const activeParts = await prisma.part.findMany({
-        where: { deletedAt: null }
+        where: { deletedAt: null },
+        orderBy: {
+          createdAt: "desc"
+        },
+        take: limit
       });
       res.json(activeParts.map(p => ({
         ...p,

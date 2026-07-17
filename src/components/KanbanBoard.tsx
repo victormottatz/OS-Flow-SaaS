@@ -16,22 +16,28 @@ interface KanbanBoardProps {
   isOffline: boolean;
   onRefresh: () => void;
   onNavigateToBlingPanel: () => void;
+  limit: number | "all";
+  onLimitChange: (limit: number | "all") => void;
 }
 
 const COLUMNS: { id: OSStatus; name: string; color: string; desc: string }[] = [
-  { id: "ORCAMENTO", name: "Orçamento", color: "border-t-blue-500 bg-blue-50/10", desc: "Aguardando laudo inicial" },
+  { id: "AGUARDANDO_AVALIACAO", name: "Aguardando Avaliação", color: "border-t-slate-400 bg-slate-500/10", desc: "Equipamento em triagem inicial" },
+  { id: "AGUARDANDO_AUTORIZACAO", name: "Aguardando Autorização", color: "border-t-blue-500 bg-blue-50/10", desc: "Orçamento pronto p/ aprovação" },
   { id: "AGUARDANDO_PECA", name: "Aguardando Peça", color: "border-t-amber-500 bg-amber-50/10", desc: "Fora de estoque local" },
   { id: "EM_MANUTENCAO", name: "Em Manutenção", color: "border-t-purple-500 bg-purple-50/10", desc: "Conserto ativo na bancada" },
   { id: "PRONTO_RETIRADA", name: "Pronto p/ Retirada", color: "border-t-teal-500 bg-teal-50/10", desc: "Reparo efetuado" },
+  { id: "PAGO_PRONTO_RETIRADA", name: "Pago Pronto p/ Retirada", color: "border-t-cyan-500 bg-cyan-50/10", desc: "Pago e pronto para busca" },
   { id: "FINALIZADO", name: "Finalizado", color: "border-t-emerald-500 bg-emerald-50/10", desc: "Faturando no Bling" },
 ];
 
 const getOSCardBorders = (status: OSStatus) => {
   switch (status) {
-    case "ORCAMENTO": return "border-l-4 border-l-blue-500";
+    case "AGUARDANDO_AVALIACAO": return "border-l-4 border-l-slate-400";
+    case "AGUARDANDO_AUTORIZACAO": return "border-l-4 border-l-blue-500";
     case "AGUARDANDO_PECA": return "border-l-4 border-l-amber-500";
     case "EM_MANUTENCAO": return "border-l-4 border-l-purple-500";
     case "PRONTO_RETIRADA": return "border-l-4 border-l-teal-500";
+    case "PAGO_PRONTO_RETIRADA": return "border-l-4 border-l-cyan-500";
     case "FINALIZADO": return "border-l-4 border-l-emerald-500";
     default: return "border-l-4 border-l-slate-400";
   }
@@ -41,36 +47,151 @@ const KanbanCard = React.memo(({
   os,
   hasRecurrence,
   onDragStart,
-  onClick
+  onClick,
+  isSelectMode,
+  isSelected,
+  onSelectToggle
 }: {
   os: OrdemServico;
   hasRecurrence?: boolean;
   onDragStart: (e: React.DragEvent, id: string) => void;
   onClick: (os: OrdemServico) => void;
+  isSelectMode?: boolean;
+  isSelected?: boolean;
+  onSelectToggle?: (e: React.MouseEvent, id: string) => void;
 }) => {
   const total = (os.usedParts?.reduce((s, i) => s + (i.price * i.quantity), 0) || 0) + (os.laborCost || 0);
+
+  // Calcular status do teste de estresse
+  const getStressTestBadge = () => {
+    if (!os.stressTestStartedAt) return null;
+    const limit = (import.meta as any).env.DEV ? 10 * 1000 : 30 * 60 * 1000;
+    const elapsed = Date.now() - new Date(os.stressTestStartedAt).getTime();
+    const isFinished = elapsed >= limit;
+    if (isFinished) {
+      return (
+        <span className="text-[9px] bg-emerald-50 border border-emerald-200 text-emerald-700 px-1.5 py-0.5 rounded-lg flex items-center font-bold gap-0.5 shadow-xs">
+          <span className="material-symbols-outlined text-[11px]">check_circle</span> Estresse OK
+        </span>
+      );
+    } else {
+      return (
+        <span className="text-[9px] bg-indigo-50 border border-indigo-200 text-indigo-700 px-1.5 py-0.5 rounded-lg flex items-center font-bold gap-0.5 animate-pulse shadow-xs">
+          <span className="material-symbols-outlined text-[11px] animate-spin">sync</span> Sob Estresse
+        </span>
+      );
+    }
+  };
+
+  const stressBadge = getStressTestBadge();
+
   return (
-    <div draggable onDragStart={(e) => onDragStart(e, os.id)} onClick={() => onClick(os)} className={`bg-white rounded-xl border border-slate-200 p-4 shadow-sm cursor-pointer transition hover:shadow-md ${getOSCardBorders(os.status)}`}>
-      <div className="flex justify-between items-start mb-2">
-        <span className="text-[10px] font-bold font-mono text-slate-900 bg-slate-100 px-2 py-0.5 rounded">{os.osNumber}</span>
-        {hasRecurrence && (
-          <span 
-            className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded flex items-center font-bold gap-0.5" 
-            title={os.recurrentAlert ? `Alerta de Falha Crônica: Retornou ${os.recurrentAlert.count} vezes em 90 dias (${os.recurrentAlert.previousOsNumbers.join(", ")})` : "Recorrência: > 2 OS em 90 dias"}
-          >
-            <span className="material-symbols-outlined text-[12px]">warning</span> Recorrente
+    <div 
+      draggable={!isSelectMode} 
+      onDragStart={(e) => onDragStart(e, os.id)} 
+      onClick={(e) => {
+        if (isSelectMode) {
+          e.stopPropagation();
+          onSelectToggle?.(e, os.id);
+        } else {
+          onClick(os);
+        }
+      }} 
+      className={`bg-white rounded-2xl border p-5.5 shadow-sm cursor-pointer transition-all duration-300 hover:shadow-md hover:scale-[1.01] flex flex-col space-y-3.5 select-none ${
+        isSelected ? "border-l-4 border-rose-500 bg-rose-50/5 ring-2 ring-rose-500/20" : getOSCardBorders(os.status)
+      }`}
+    >
+      {/* Header Row */}
+      <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-100 pb-2.5">
+        <div className="flex items-center gap-2">
+          {isSelectMode && (
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={() => {}}
+              onClick={(e) => e.stopPropagation()}
+              className="w-4 h-4 rounded border-slate-350 text-rose-600 focus:ring-rose-500 cursor-pointer"
+            />
+          )}
+          <span className="text-[10px] font-bold font-mono text-slate-800 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md shadow-xs">
+            {os.osNumber}
           </span>
-        )}
+        </div>
+        <div className="flex items-center gap-1">
+          {stressBadge}
+          {hasRecurrence && (
+            <span 
+              className="text-[9px] bg-rose-50 border border-rose-200 text-rose-700 px-1.5 py-0.5 rounded-lg flex items-center font-bold gap-0.5 shadow-xs" 
+              title={os.recurrentAlert ? `Alerta de Falha Crônica: Retornou ${os.recurrentAlert.count} vezes em 90 dias (${os.recurrentAlert.previousOsNumbers.join(", ")})` : "Recorrência: > 2 OS em 90 dias"}
+            >
+              <span className="material-symbols-outlined text-[11px]">warning</span> Recorrente
+            </span>
+          )}
+        </div>
       </div>
-      <h4 className="font-extrabold text-slate-900 text-xs truncate">{(os as any).client?.name}</h4>
-      <p className="text-[11px] text-slate-500 font-semibold">{(os as any).device?.model}</p>
-      <div className="border-t mt-3 pt-2.5 flex justify-between text-[10px]">
-        <span className="text-slate-400">{new Date(os.createdAt).toLocaleDateString()}</span>
-        <span className="text-slate-900 font-extrabold">R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+
+      {/* Client Section */}
+      <div className="space-y-0.5">
+        <h4 className="font-extrabold text-slate-900 text-[13px] leading-tight truncate">
+          {(os as any).client?.name}
+        </h4>
+        <p className="text-[10px] text-slate-400 font-mono">
+          TEL: {(os as any).client?.phone || "N/A"}
+        </p>
+      </div>
+
+      {/* Equipment Section */}
+      <div className="bg-slate-50/50 p-2.5 rounded-xl border border-slate-150 space-y-1">
+        <div className="flex items-center gap-1.5">
+          <span className="material-symbols-outlined text-[14px] text-slate-450">devices</span>
+          <p className="text-[11px] text-slate-700 font-bold leading-tight">
+            {(os as any).device?.type} {(os as any).device?.brand}
+          </p>
+        </div>
+        <div className="pl-5 text-[10px] text-slate-500 font-semibold space-y-0.5">
+          <p>Modelo: {(os as any).device?.model}</p>
+          <p className="font-mono text-[9px]">Série: <span className="bg-slate-150/70 px-1 py-0.5 rounded font-bold">{(os as any).device?.serialNumber || "Sem Série"}</span></p>
+        </div>
+      </div>
+
+      {/* Symptom/Defect Section */}
+      {os.reportedDefect && (
+        <div className="space-y-1">
+          <span className="text-[8px] font-bold text-slate-450 uppercase tracking-wider block">Sintoma Relatado</span>
+          <p className="text-[10.5px] text-slate-650 bg-slate-50/30 p-2.5 border border-slate-150/50 rounded-lg italic font-semibold line-clamp-2 leading-relaxed">
+            "{os.reportedDefect}"
+          </p>
+        </div>
+      )}
+
+      {/* Technical Diagnosis Section */}
+      {os.diagnostic && (
+        <div className="space-y-1">
+          <span className="text-[8px] font-bold text-slate-450 uppercase tracking-wider block">Diagnóstico Técnico</span>
+          <p className="text-[10.5px] text-indigo-750 bg-indigo-50/20 p-2.5 border border-indigo-100/50 rounded-lg italic font-mono font-bold line-clamp-2 leading-relaxed">
+            {os.diagnostic}
+          </p>
+        </div>
+      )}
+
+      {/* Footer Row */}
+      <div className="border-t border-slate-150 pt-3 flex justify-between items-center text-[10px]">
+        <div className="flex items-center gap-1 text-slate-400 font-semibold">
+          <span className="material-symbols-outlined text-[13px]">calendar_today</span>
+          <span>{new Date(os.createdAt).toLocaleDateString()}</span>
+        </div>
+        <span className="text-slate-900 font-extrabold text-xs bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200 shadow-xs">
+          R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+        </span>
       </div>
     </div>
   );
-}, (prevProps, nextProps) => prevProps.os === nextProps.os && prevProps.hasRecurrence === nextProps.hasRecurrence);
+}, (prevProps, nextProps) => 
+  prevProps.os === nextProps.os && 
+  prevProps.hasRecurrence === nextProps.hasRecurrence && 
+  prevProps.isSelectMode === nextProps.isSelectMode && 
+  prevProps.isSelected === nextProps.isSelected
+);
 
 // Componente auxiliar para o timer do teste de estresse
 interface StressTestWidgetProps {
@@ -225,12 +346,59 @@ export default function KanbanBoard({
   userRole, 
   isOffline, 
   onRefresh,
-  onNavigateToBlingPanel
+  onNavigateToBlingPanel,
+  limit,
+  onLimitChange
 }: KanbanBoardProps) {
   const [selectedOS, setSelectedOS] = useState<OrdemServico | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [modalTab, setModalTab] = useState<"laudo" | "pecas" | "entrada" | "saida">("laudo");
+
+  // Selection states for batch deletions
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleBatchDelete = async () => {
+    if (selectedIds.length === 0) return;
+    const confirmMsg = `Atenção: Deseja realmente excluir permanentemente (Soft Delete) as ${selectedIds.length} Ordens de Serviço selecionadas?\n\nEsta ação removerá as OSs do Kanban e dos relatórios de forma definitiva.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setIsDeleting(true);
+    try {
+      const token = localStorage.getItem("mgv_token") || "";
+      const response = await fetch("/api/ordens-servico/batch", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ ids: selectedIds })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        alert(`${data.count} Ordens de Serviço excluídas com sucesso!`);
+        setSelectedIds([]);
+        setIsSelectMode(false);
+        onRefresh();
+      } else {
+        const err = await response.json();
+        alert(err.error || "Erro ao excluir ordens de serviço.");
+      }
+    } catch (err: any) {
+      alert("Erro de comunicação: " + err.message);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Search States
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const [globalSearchResults, setGlobalSearchResults] = useState<OrdemServico[] | null>(null);
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   // Checklist de Saída & Categorias
   const [deviceCategories, setDeviceCategories] = useState<{ id: string; name: string; defaultChecklist: ChecklistItem[] }[]>([]);
@@ -241,7 +409,7 @@ export default function KanbanBoard({
     const fetchCategories = async () => {
       try {
         const token = localStorage.getItem("mgv_token") || "";
-        const res = await fetch("/api/device-categories", {
+        const res = await fetch("/api/devices/categories", {
           headers: { "Authorization": `Bearer ${token}` }
         });
         if (res.ok) {
@@ -273,10 +441,15 @@ export default function KanbanBoard({
 
   // Form states
   const [diagnostic, setDiagnostic] = useState("");
+  const [laudoMacro, setLaudoMacro] = useState("");
   const [laborCost, setLaborCost] = useState(0);
   const [technicianLaborHours, setTechnicianLaborHours] = useState(0);
   const [technicianHourlyRate, setTechnicianHourlyRate] = useState(0);
   const [closingOS, setClosingOS] = useState<OrdemServico | null>(null);
+  const [showSemReparoModal, setShowSemReparoModal] = useState(false);
+  const [semReparoOS, setSemReparoOS] = useState<OrdemServico | null>(null);
+  const [selectedClosingReason, setSelectedClosingReason] = useState<any>('ORCAMENTO_RECUSADO');
+  const [semReparoNotifyWhatsapp, setSemReparoNotifyWhatsapp] = useState(true);
   const [selectedParts, setSelectedParts] = useState<UsedPart[]>([]);
   const [tempPartId, setTempPartId] = useState("");
   const [tempPartQty, setTempPartQty] = useState(1);
@@ -294,6 +467,7 @@ export default function KanbanBoard({
 
   // Form Fields - Onboarding
   const [onbType, setOnbType] = useState("Ultrassom (Fisio/Estética)");
+  const [onbExtraType, setOnbExtraType] = useState("");
   const [onbBrand, setOnbBrand] = useState("");
   const [onbModel, setOnbModel] = useState("");
   const [onbSerial, setOnbSerial] = useState("");
@@ -393,8 +567,15 @@ export default function KanbanBoard({
   };
 
   const openOSDetails = (os: OrdemServico) => {
+    // Scroll automatically to column center when opening OS
+    const colElement = document.getElementById(`kanban-col-${os.status}`);
+    if (colElement) {
+      colElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
+    
     setSelectedOS(os);
     setDiagnostic(os.diagnostic || "");
+    setLaudoMacro(os.laudoMacro || "");
     setLaborCost(os.laborCost || 0);
     setTechnicianLaborHours(os.technicianLaborHours || 0);
     setTechnicianHourlyRate(os.technicianHourlyRate || 0);
@@ -416,6 +597,24 @@ export default function KanbanBoard({
     ]);
     setEditPhotos(os.laudoFotos || []);
     setIsEditingEntrada(false);
+
+    // Carregar detalhes completos (com fotos Base64) em background
+    const loadFullDetails = async () => {
+      try {
+        const token = localStorage.getItem("mgv_token") || "";
+        const res = await fetch(`/api/ordens-servico/${os.id}`, {
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const fullOS = await res.json();
+          setSelectedOS(fullOS);
+          setEditPhotos(fullOS.laudoFotos || []);
+        }
+      } catch (err) {
+        console.error("Erro ao carregar detalhes completos da OS:", err);
+      }
+    };
+    loadFullDetails();
 
     // Inicialização do Checklist de Saída por Categoria
     const devType = (os as any).device?.type || "";
@@ -448,24 +647,14 @@ export default function KanbanBoard({
       reader.onload = (event) => {
         const img = new Image();
         img.onload = () => {
+          const targetWidth = 800;
+          const targetHeight = Math.round((img.height * targetWidth) / img.width);
           const canvas = document.createElement("canvas");
-          let width = img.width;
-          let height = img.height;
-          const maxDim = 800;
-          if (width > maxDim || height > maxDim) {
-            if (width > height) {
-              height = Math.round((height * maxDim) / width);
-              width = maxDim;
-            } else {
-              width = Math.round((width * maxDim) / height);
-              height = maxDim;
-            }
-          }
-          canvas.width = width;
-          canvas.height = height;
+          canvas.width = targetWidth;
+          canvas.height = targetHeight;
           const ctx = canvas.getContext("2d");
           if (ctx) {
-            ctx.drawImage(img, 0, 0, width, height);
+            ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
             const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
             setEditPhotos((prev) => [
               ...prev,
@@ -532,6 +721,18 @@ export default function KanbanBoard({
     if (!draggingId || isOffline) return;
 
     const osToMove = ordensServico.find(o => o.id === draggingId);
+    if (osToMove) {
+      const isOrigemSemReparo = osToMove.status === "AGUARDANDO_AVALIACAO" || osToMove.status === "AGUARDANDO_AUTORIZACAO";
+      if (targetStatus === "FINALIZADO" && isOrigemSemReparo) {
+        setSemReparoOS(osToMove);
+        setSelectedClosingReason('ORCAMENTO_RECUSADO');
+        setSemReparoNotifyWhatsapp(true);
+        setShowSemReparoModal(true);
+        setDraggingId(null);
+        return;
+      }
+    }
+
     const isProfitEnabled = isFeatureEnabled("OS_PROFITABILITY_CALC");
     if (targetStatus === "FINALIZADO" && userRole === UserRole.OWNER && isProfitEnabled && osToMove) {
       setClosingOS(osToMove);
@@ -573,6 +774,17 @@ export default function KanbanBoard({
     if (isOffline) return;
 
     const osToMove = ordensServico.find(o => o.id === id);
+    if (osToMove) {
+      const isOrigemSemReparo = osToMove.status === "AGUARDANDO_AVALIACAO" || osToMove.status === "AGUARDANDO_AUTORIZACAO";
+      if (newStatus === "FINALIZADO" && isOrigemSemReparo) {
+        setSemReparoOS(osToMove);
+        setSelectedClosingReason('ORCAMENTO_RECUSADO');
+        setSemReparoNotifyWhatsapp(true);
+        setShowSemReparoModal(true);
+        return;
+      }
+    }
+
     const isProfitEnabled = isFeatureEnabled("OS_PROFITABILITY_CALC");
     if (newStatus === "FINALIZADO" && userRole === UserRole.OWNER && isProfitEnabled && osToMove) {
       setClosingOS(osToMove);
@@ -630,7 +842,7 @@ export default function KanbanBoard({
           "Authorization": `Bearer ${token}`
         },
         body: JSON.stringify({
-          type: onbType,
+          type: onbExtraType.trim() ? `${onbType} / ${onbExtraType.trim()}` : onbType,
           brand: onbBrand,
           model: onbModel,
           serialNumber: onbSerial,
@@ -769,7 +981,7 @@ export default function KanbanBoard({
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({ diagnostic, usedParts: selectedParts, laborCost, technicianLaborHours, technicianHourlyRate })
+        body: JSON.stringify({ diagnostic, laudoMacro, usedParts: selectedParts, laborCost, technicianLaborHours, technicianHourlyRate })
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -802,6 +1014,41 @@ export default function KanbanBoard({
     } catch (err: any) { alert(err.message); }
   };
 
+  const handleAdvancedSearch = async () => {
+    if (searchTerm.trim().length < 2) return;
+    setIsSearching(true);
+    try {
+      const token = localStorage.getItem("mgv_token");
+      const res = await fetch(`/api/search?q=${encodeURIComponent(searchTerm)}&type=OS`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        // O endpoint search retorna resultados heterogêneos na estrutura { results: [...] } ou diretamente a array de OS.
+        // Vamos extrair apenas os resultados do tipo OS.
+        const osResults = data.filter((item: any) => item.type === "OS").map((item: any) => item.data as OrdemServico);
+        setGlobalSearchResults(osResults.length > 0 ? osResults : []);
+      }
+    } catch (err) {
+      console.error("Erro na busca avançada:", err);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const localFilteredOS = ordensServico.filter(os => {
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    return (
+      os.osNumber.toLowerCase().includes(term) ||
+      ((os as any).client?.name || "").toLowerCase().includes(term) ||
+      ((os as any).device?.brand || "").toLowerCase().includes(term) ||
+      ((os as any).device?.model || "").toLowerCase().includes(term)
+    );
+  });
+
+  const dataSource = globalSearchResults !== null ? globalSearchResults : localFilteredOS;
+  const canUseAdvancedSearch = ["OWNER", "ADMIN", "ATTENDANT"].includes(userRole);
 
 
   return (
@@ -813,16 +1060,165 @@ export default function KanbanBoard({
         </div>
       )}
 
-      <div className="flex overflow-x-auto lg:grid lg:grid-cols-5 gap-5 h-[calc(100vh-140px)] min-h-[500px] pb-2 snap-x snap-mandatory">
+      {/* Search Bar */}
+      <div className="flex flex-col sm:flex-row items-center gap-3 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-sm relative z-10">
+        <div className="flex-1 relative w-full group">
+          <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors">search</span>
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              if (globalSearchResults !== null) setGlobalSearchResults(null);
+            }}
+            placeholder="Pesquisar OS, Cliente ou Equipamento (Filtro Instantâneo)..."
+            className="w-full pl-12 pr-10 py-3 bg-slate-50/50 border border-slate-200 rounded-xl text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-medium text-slate-800 placeholder:text-slate-400"
+          />
+          {searchTerm && (
+            <button 
+              type="button" 
+              onClick={() => { setSearchTerm(""); setGlobalSearchResults(null); }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-full p-1 transition"
+            >
+              <span className="material-symbols-outlined text-[16px] block">close</span>
+            </button>
+          )}
+        </div>
+        
+        {canUseAdvancedSearch && searchTerm.length >= 2 && globalSearchResults === null && (
+          <button
+            onClick={handleAdvancedSearch}
+            disabled={isSearching}
+            className="w-full sm:w-auto px-5 py-3 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+          >
+            {isSearching ? (
+              <span className="material-symbols-outlined animate-spin text-[18px]">sync</span>
+            ) : (
+              <span className="material-symbols-outlined text-[18px]">travel_explore</span>
+            )}
+            {isSearching ? "Buscando..." : "Busca Avançada (Global)"}
+          </button>
+        )}
+
+        <div className="flex items-center space-x-2 shrink-0 w-full sm:w-auto">
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider hidden md:inline">Exibir Finalizadas:</label>
+          <select
+            value={limit}
+            onChange={(e) => onLimitChange(e.target.value === "all" ? "all" : Number(e.target.value))}
+            className="w-full sm:w-auto px-3.5 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all cursor-pointer font-semibold"
+          >
+            <option value="100">100 OSs</option>
+            <option value="250">250 OSs</option>
+            <option value="500">500 OSs</option>
+            <option value="all">Todas</option>
+          </select>
+        </div>
+
+        <div className="flex items-center space-x-2 shrink-0 w-full sm:w-auto">
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider hidden md:inline">Ordenação:</label>
+          <select
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value as "asc" | "desc")}
+            className="w-full sm:w-auto px-3.5 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all cursor-pointer font-semibold"
+          >
+            <option value="desc">📅 Mais Recentes Primeiro</option>
+            <option value="asc">📅 Mais Antigas Primeiro</option>
+          </select>
+        </div>
+
+        {userRole === UserRole.OWNER && (
+          <button
+            type="button"
+            onClick={() => {
+              setIsSelectMode(!isSelectMode);
+              setSelectedIds([]);
+            }}
+            className={`w-full sm:w-auto px-4 py-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 border cursor-pointer select-none ${
+              isSelectMode 
+                ? "bg-rose-600 border-rose-700 text-white shadow-md shadow-rose-900/10 hover:bg-rose-700" 
+                : "bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200"
+            }`}
+          >
+            <span className="material-symbols-outlined text-[16px]">{isSelectMode ? "cancel" : "delete_sweep"}</span>
+            <span>{isSelectMode ? "Sair da Seleção" : "Limpeza (Excluir em Lote)"}</span>
+          </button>
+        )}
+      </div>
+
+      {globalSearchResults !== null && (
+        <div className="bg-indigo-50/80 border border-indigo-200/60 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-3 text-indigo-800">
+            <span className="material-symbols-outlined text-indigo-500 text-2xl">travel_explore</span>
+            <div>
+              <p className="font-bold text-sm">Exibindo Resultados da Pesquisa Global</p>
+              <p className="text-xs text-indigo-600/80">Foram encontrados {globalSearchResults.length} registros no banco de dados para "{searchTerm}".</p>
+            </div>
+          </div>
+          <button
+            onClick={() => { setSearchTerm(""); setGlobalSearchResults(null); }}
+            className="px-4 py-2 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-lg text-xs font-bold transition flex items-center gap-1 shrink-0"
+          >
+            <span className="material-symbols-outlined text-[16px]">close</span> Limpar Pesquisa
+          </button>
+        </div>
+      )}
+
+      {isSelectMode && (
+        <div className="p-4 rounded-2xl bg-rose-500/5 border border-rose-500/10 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs anim-slideup select-none mb-4">
+          <div className="flex items-center gap-2.5 text-rose-800">
+            <span className="material-symbols-outlined text-rose-500 text-xl">delete_sweep</span>
+            <div>
+              <p className="font-bold text-xs text-rose-900">Modo de Seleção e Exclusão em Lote Ativo</p>
+              <p className="text-[10px] text-rose-700/80">Selecione os cards de testes que deseja excluir. <strong>{selectedIds.length}</strong> selecionados.</p>
+            </div>
+          </div>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => {
+                const allIds = dataSource.map(o => o.id);
+                setSelectedIds(allIds);
+              }}
+              className="px-3.5 py-2 border border-slate-250 bg-white hover:bg-slate-50 text-slate-700 text-[10px] font-bold rounded-lg transition active:scale-95 cursor-pointer"
+            >
+              Selecionar Todos
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedIds([])}
+              className="px-3.5 py-2 border border-slate-250 bg-white hover:bg-slate-50 text-slate-700 text-[10px] font-bold rounded-lg transition active:scale-95 cursor-pointer"
+            >
+              Desmarcar Todos
+            </button>
+            <button
+              type="button"
+              disabled={selectedIds.length === 0 || isDeleting}
+              onClick={handleBatchDelete}
+              className="flex items-center justify-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-[10px] font-extrabold rounded-lg shadow-md transition active:scale-95 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[14px]">delete</span>
+              <span>{isDeleting ? "Excluindo..." : "Excluir Selecionados"}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="flex overflow-x-auto gap-6 h-[calc(100vh-140px)] min-h-[500px] pb-4 snap-x snap-mandatory pr-2 custom-scrollbar-horizontal">
         {COLUMNS.map((column) => {
-          const colOS = ordensServico.filter(os => os.status === column.id);
+          const colOS = dataSource
+            .filter(os => os.status === column.id)
+            .sort((a, b) => {
+              const timeA = new Date(a.createdAt).getTime();
+              const timeB = new Date(b.createdAt).getTime();
+              return sortOrder === "asc" ? timeA - timeB : timeB - timeA;
+            });
           return (
-            <div key={column.id} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, column.id)} className={`min-w-[85vw] sm:min-w-[320px] lg:min-w-0 shrink-0 snap-center rounded-2xl border border-slate-200/85 border-t-4 p-4 flex flex-col h-full max-h-full gap-4 overflow-hidden ${column.color}`}>
+            <div id={`kanban-col-${column.id}`} key={column.id} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, column.id)} className={`w-[360px] min-w-[360px] shrink-0 snap-center rounded-2xl border border-slate-200/85 border-t-4 p-4.5 flex flex-col h-full max-h-full gap-4 overflow-hidden ${column.color}`}>
               <div className="flex items-center justify-between border-b border-slate-200/60 pb-3 shrink-0">
                 <h3 className="font-bold text-sm text-slate-900">{column.name}</h3>
                 <span className="bg-slate-900 text-white font-mono text-[10px] px-2 py-0.5 rounded-full">{colOS.length}</span>
               </div>
-              <div className="flex-1 space-y-3 overflow-y-auto pr-1 pb-2 custom-scrollbar">
+              <div className="flex-1 space-y-4 overflow-y-auto pr-1 pb-2 custom-scrollbar">
                 {colOS.map((os) => {
                   // Motor de Recorrência
                   const ninetyDaysAgo = new Date(os.createdAt);
@@ -839,6 +1235,15 @@ export default function KanbanBoard({
                       key={os.id} 
                       os={os}
                       hasRecurrence={hasRecurrence}
+                      isSelectMode={isSelectMode}
+                      isSelected={selectedIds.includes(os.id)}
+                      onSelectToggle={(e, id) => {
+                        if (selectedIds.includes(id)) {
+                          setSelectedIds(selectedIds.filter(x => x !== id));
+                        } else {
+                          setSelectedIds([...selectedIds, id]);
+                        }
+                      }}
                       onDragStart={handleDragStart} 
                       onClick={openOSDetails} 
                     />
@@ -850,9 +1255,181 @@ export default function KanbanBoard({
         })}
       </div>
 
-      {showEditModal && selectedOS && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[95vh] overflow-hidden flex flex-col anim-slideup">
+      {/* Helper functions for Pipefy Modal */}
+      {(() => {
+        if (!showEditModal || !selectedOS) return null;
+        
+        const saveAndMove = async (e: React.MouseEvent, newStatus: OSStatus) => {
+          e.preventDefault();
+          setLoading(true);
+          try {
+            const token = localStorage.getItem("mgv_token") || "";
+            const resDados = await fetch(`/api/ordens-servico/${selectedOS.id}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+              body: JSON.stringify({ diagnostic, laudoMacro, usedParts: selectedParts, laborCost, technicianLaborHours, technicianHourlyRate })
+            });
+            if (!resDados.ok) throw new Error("Erro ao gravar dados.");
+            
+            // Se o destino for FINALIZADO e a origem for um status de orçamento/avaliação,
+            // interceptamos e abrimos o modal de Motivo de Encerramento Sem Reparo.
+            const isOrigemSemReparo = selectedOS.status === "AGUARDANDO_AVALIACAO" || selectedOS.status === "AGUARDANDO_AUTORIZACAO";
+            if (newStatus === "FINALIZADO" && isOrigemSemReparo) {
+              const osUpdatedForSemReparo = {
+                ...selectedOS,
+                diagnostic,
+                laudoMacro,
+                usedParts: selectedParts,
+                laborCost: Number(laborCost) || 0,
+                technicianLaborHours: Number(technicianLaborHours) || 0,
+                technicianHourlyRate: Number(technicianHourlyRate) || 0,
+                totalCost: selectedParts.reduce((sum, item) => sum + (item.price * item.quantity), 0) + Number(laborCost)
+              };
+              setSemReparoOS(osUpdatedForSemReparo);
+              setSelectedClosingReason('ORCAMENTO_RECUSADO');
+              setSemReparoNotifyWhatsapp(true);
+              setShowEditModal(false);
+              setShowSemReparoModal(true);
+              return;
+            }
+
+            const isProfitEnabled = isFeatureEnabled("OS_PROFITABILITY_CALC");
+            if (newStatus === "FINALIZADO" && userRole === UserRole.OWNER && isProfitEnabled) {
+              const osUpdatedForClosing = {
+                ...selectedOS,
+                diagnostic,
+                laudoMacro,
+                usedParts: selectedParts,
+                laborCost: Number(laborCost) || 0,
+                technicianLaborHours: Number(technicianLaborHours) || 0,
+                technicianHourlyRate: Number(technicianHourlyRate) || 0,
+                totalCost: selectedParts.reduce((sum, item) => sum + (item.price * item.quantity), 0) + Number(laborCost)
+              };
+              setShowEditModal(false);
+              setClosingOS(osUpdatedForClosing);
+              return;
+            }
+
+            const resStatus = await fetch(`/api/ordens-servico/${selectedOS.id}/status`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+              body: JSON.stringify({ status: newStatus })
+            });
+            if (!resStatus.ok) throw new Error("Erro ao mudar fase.");
+            
+            setSuccessMsg(`Fase alterada com sucesso!`);
+            onRefresh();
+            setTimeout(() => { setShowEditModal(false); setSuccessMsg(""); }, 1000);
+          } catch (err: any) {
+            setErrorMsg(err.message);
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        const renderActionMotor = () => {
+          switch(selectedOS.status) {
+            case "AGUARDANDO_AVALIACAO":
+              return (
+                 <div className="space-y-3">
+                   <p className="text-xs text-slate-500 font-medium leading-relaxed mb-4">
+                     Avalie o equipamento e lance as peças e serviços necessários. Em seguida, envie o orçamento para aprovação do cliente.
+                   </p>
+                   <button type="button" onClick={(e) => saveAndMove(e, "AGUARDANDO_AUTORIZACAO")} className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center space-x-2 active:scale-95">
+                     <span className="material-symbols-outlined text-[18px]">send</span>
+                     <span>Enviar Orçamento p/ Aprovação</span>
+                   </button>
+                   <button type="button" onClick={(e) => saveAndMove(e, "EM_MANUTENCAO")} className="w-full py-3 bg-slate-600 hover:bg-slate-700 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center space-x-2 active:scale-95">
+                     <span className="material-symbols-outlined text-[18px]">build</span>
+                     <span>Reparo em Garantia / Iniciar Direto</span>
+                   </button>
+                 </div>
+              );
+            case "AGUARDANDO_AUTORIZACAO":
+              return (
+                 <div className="space-y-3">
+                   <p className="text-xs text-slate-500 font-medium leading-relaxed mb-4">
+                     O orçamento está sob análise do cliente. Registre a resposta da autorização abaixo:
+                   </p>
+                   <button type="button" onClick={(e) => saveAndMove(e, "EM_MANUTENCAO")} className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center space-x-2 active:scale-95">
+                     <span className="material-symbols-outlined text-[18px]">check_circle</span>
+                     <span>Cliente Aprovou (Iniciar Reparo)</span>
+                   </button>
+                   <button type="button" onClick={(e) => saveAndMove(e, "AGUARDANDO_PECA")} className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center space-x-2 active:scale-95">
+                     <span className="material-symbols-outlined text-[18px]">inventory_2</span>
+                     <span>Cliente Aprovou (Aguardar Peças)</span>
+                   </button>
+                   <button type="button" onClick={(e) => saveAndMove(e, "FINALIZADO")} className="w-full py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center space-x-2 active:scale-95">
+                     <span className="material-symbols-outlined text-[18px]">cancel</span>
+                     <span>Cliente Recusou (Devolver sem Reparo)</span>
+                   </button>
+                 </div>
+              );
+            case "AGUARDANDO_PECA":
+              return (
+                 <div className="space-y-3">
+                   <p className="text-xs text-slate-500 font-medium leading-relaxed mb-4">
+                     Equipamento parado aguardando a chegada de peças compradas ou encomendadas. Quando as peças chegarem, envie para a manutenção.
+                   </p>
+                   <button type="button" onClick={(e) => saveAndMove(e, "EM_MANUTENCAO")} className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center space-x-2 active:scale-95">
+                     <span className="material-symbols-outlined text-[18px]">build</span>
+                     <span>Peças Chegaram (Iniciar Manutenção)</span>
+                   </button>
+                 </div>
+              );
+            case "EM_MANUTENCAO":
+              return (
+                 <div className="space-y-3">
+                   <p className="text-xs text-slate-500 font-medium leading-relaxed mb-4">
+                     Equipamento atualmente em reparo na bancada. Após concluir o serviço, registre o laudo técnico e indique que está pronto.
+                   </p>
+                   <StressTestWidget os={selectedOS} onStartStress={handleStartStressTest} />
+                   <button type="button" onClick={(e) => saveAndMove(e, "PRONTO_RETIRADA")} className="w-full py-3 mt-4 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center space-x-2 active:scale-95">
+                     <span className="material-symbols-outlined text-[18px]">check_circle</span>
+                     <span>Concluir Reparo (Pronto p/ Retirada)</span>
+                   </button>
+                 </div>
+              );
+            case "PRONTO_RETIRADA":
+              return (
+                 <div className="space-y-3">
+                   <p className="text-xs text-slate-500 font-medium leading-relaxed mb-4">
+                     O equipamento está consertado e pronto! Aguardando o cliente vir retirar. Ao entregar o equipamento, você pode imprimir o recibo e fechar a OS.
+                   </p>
+                   <button type="button" onClick={() => handlePrintRecibo(selectedOS)} className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm rounded-xl transition flex items-center justify-center space-x-2 shadow-sm active:scale-95">
+                     <span className="material-symbols-outlined text-[18px]">print</span>
+                     <span>Imprimir Recibo de Entrega</span>
+                   </button>
+                   <button type="button" onClick={(e) => saveAndMove(e, "FINALIZADO")} className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center space-x-2 active:scale-95">
+                     <span className="material-symbols-outlined text-[18px]">task_alt</span>
+                     <span>Entregar ao Cliente (Finalizar OS)</span>
+                   </button>
+                 </div>
+              );
+            case "FINALIZADO":
+              return (
+                 <div className="space-y-3">
+                   <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex flex-col items-center justify-center text-center text-emerald-800 space-y-2 mb-4">
+                     <span className="material-symbols-outlined text-3xl">verified</span>
+                     <p className="text-xs font-bold">Ordem de Serviço Concluída e Fechada!</p>
+                   </div>
+                   <button type="button" onClick={() => handlePrintRecibo(selectedOS)} className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm rounded-xl transition flex items-center justify-center space-x-2 shadow-sm active:scale-95">
+                     <span className="material-symbols-outlined text-[18px]">print</span>
+                     <span>Imprimir Recibo Novamente</span>
+                   </button>
+                 </div>
+              );
+            default:
+              return null;
+          }
+        };
+
+        return (
+        <div className={`fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto ${isFeatureEnabled("PIPEFY_SPLIT_MODAL") ? "md:p-8" : ""}`}>
+          <div className={`bg-white rounded-2xl shadow-2xl border border-slate-200 w-full overflow-hidden flex anim-slideup ${isFeatureEnabled("PIPEFY_SPLIT_MODAL") ? "max-w-7xl md:h-[90vh] flex-col md:flex-row" : "max-w-2xl max-h-[95vh] flex-col"}`}>
+            
+            {/* Lado Esquerdo (Ou layout inteiro caso Pipefy inativo) */}
+            <div className={`flex flex-col h-full overflow-hidden ${isFeatureEnabled("PIPEFY_SPLIT_MODAL") ? "w-full md:w-7/12 border-r border-slate-200 bg-white" : "w-full"}`}>
             
             {/* Header */}
             <div className="px-6 py-4.5 bg-gradient-to-r from-slate-900 to-indigo-950 text-white flex items-center justify-between sticky top-0 z-15 border-b border-slate-800">
@@ -956,6 +1533,17 @@ export default function KanbanBoard({
                       placeholder="Escreva quais testes foram executados, qual a anomalia detectada fisicamente na placa ou sistema, e as ações de reparo recomendadas."
                       value={diagnostic}
                       onChange={(e) => setDiagnostic(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none transition"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">Laudo Comercial (Visível no Portal do Cliente)</label>
+                    <textarea
+                      rows={3}
+                      placeholder="Escreva um resumo simplificado do diagnóstico e reparo que será exibido publicamente para o cliente no portal de acompanhamento."
+                      value={laudoMacro}
+                      onChange={(e) => setLaudoMacro(e.target.value)}
                       className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none transition"
                     />
                   </div>
@@ -1668,9 +2256,52 @@ export default function KanbanBoard({
                 </div>
               </div>
             </form>
+            </div>
+
+            {/* Lado Direito - Motor de Ação (Apenas se Pipefy ativo) */}
+            {isFeatureEnabled("PIPEFY_SPLIT_MODAL") && (
+              <div className="w-full md:w-5/12 bg-slate-50 flex flex-col relative h-full">
+                <div className="p-4 flex justify-end absolute right-0 top-0 hidden md:block">
+                  <button type="button" onClick={() => setShowEditModal(false)} className="text-slate-450 hover:text-slate-700 transition bg-white border border-slate-200 w-8 h-8 rounded-full flex items-center justify-center shadow-sm">
+                    <span className="material-symbols-outlined text-[18px]">close</span>
+                  </button>
+                </div>
+                
+                <div className="p-6 flex-1 overflow-y-auto mt-0 md:mt-12">
+                   <div className="flex items-center space-x-3 mb-6">
+                      <span className="text-[10px] uppercase tracking-widest font-bold text-slate-500">Fase Atual</span>
+                      <span className={`text-[11px] font-bold px-3 py-1.5 rounded-md border ${selectedOS.status === 'AGUARDANDO_AVALIACAO' ? 'bg-slate-100 text-slate-800 border-slate-200' : selectedOS.status === 'AGUARDANDO_AUTORIZACAO' ? 'bg-blue-100 text-blue-800 border-blue-200' : selectedOS.status === 'AGUARDANDO_PECA' ? 'bg-amber-100 text-amber-800 border-amber-200' : selectedOS.status === 'EM_MANUTENCAO' ? 'bg-purple-100 text-purple-800 border-purple-200' : selectedOS.status === 'PRONTO_RETIRADA' ? 'bg-teal-100 text-teal-800 border-teal-200' : 'bg-emerald-100 text-emerald-800 border-emerald-200'}`}>{COLUMNS.find(c => c.id === selectedOS.status)?.name || selectedOS.status}</span>
+                   </div>
+
+                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
+                     <h3 className="font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2">Central de Ação</h3>
+                     
+                     {renderActionMotor()}
+                     
+                     <div className="mt-6 p-4 bg-indigo-50 border border-indigo-100 rounded-xl">
+                       <p className="text-[10px] uppercase font-bold tracking-wider text-indigo-500 mb-1">Custo Total Atual</p>
+                       <p className="text-xl font-bold text-indigo-700 font-mono">
+                         R$ {((selectedOS.usedParts?.reduce((s, i) => s + (i.price * i.quantity), 0) || 0) + (selectedOS.laborCost || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                       </p>
+                     </div>
+                   </div>
+                </div>
+                
+                {selectedOS.status !== "FINALIZADO" && (
+                <div className="p-6 bg-white border-t border-slate-200 flex flex-col space-y-3 z-10 shadow-up">
+                   <button type="button" onClick={(e) => { e.preventDefault(); handleSaveOSDetails(e as any); }} className="w-full py-3 bg-white border-2 border-slate-200 hover:border-blue-400 hover:bg-blue-50 text-slate-700 font-bold rounded-xl shadow-sm transition flex items-center justify-center space-x-2 cursor-pointer active:scale-95">
+                     <span className="material-symbols-outlined text-[18px]">save</span>
+                     <span>Salvar Alterações (Rascunho)</span>
+                   </button>
+                </div>
+                )}
+              </div>
+            )}
+
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Print Overrides styling */}
       <style>{`
@@ -1835,7 +2466,142 @@ export default function KanbanBoard({
         </div>
       )}
 
-      {closingOS && (
+      {/* MODAL DE ENCERRAMENTO SEM REPARO */}
+      {showSemReparoModal && semReparoOS && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-[70]">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md p-6 anim-scalein">
+            
+            {/* Header */}
+            <div className="flex items-center space-x-2.5 mb-4 text-rose-600 border-b border-slate-100 pb-3">
+              <span className="material-symbols-outlined text-[24px]">cancel</span>
+              <h3 className="font-extrabold text-lg text-slate-900 font-display">Encerrar OS sem Reparo</h3>
+            </div>
+
+            <p className="text-xs text-slate-500 mb-5 leading-relaxed">
+              Você está fechando a **OS {semReparoOS.osNumber}** do cliente **{(semReparoOS as any).client?.name}** sem a realização do conserto. Selecione o motivo operacional abaixo:
+            </p>
+
+            {/* Options list */}
+            <div className="space-y-3 mb-5">
+              {semReparoOS.status === "AGUARDANDO_AUTORIZACAO" && (
+                <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer transition select-none">
+                  <input
+                    type="radio"
+                    name="closingReason"
+                    value="ORCAMENTO_RECUSADO"
+                    checked={selectedClosingReason === 'ORCAMENTO_RECUSADO'}
+                    onChange={() => setSelectedClosingReason('ORCAMENTO_RECUSADO')}
+                    className="mt-1 text-rose-600 focus:ring-rose-500"
+                  />
+                  <div className="text-xs">
+                    <strong className="block font-bold text-slate-900">Orçamento Recusado</strong>
+                    <span className="text-slate-500">O cliente optou por não realizar o serviço. Aparelho disponível para retirada.</span>
+                  </div>
+                </label>
+              )}
+
+              <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer transition select-none">
+                <input
+                  type="radio"
+                  name="closingReason"
+                  value="DESCARTE_CLIENTE_RETIRA"
+                  checked={selectedClosingReason === 'DESCARTE_CLIENTE_RETIRA'}
+                  onChange={() => setSelectedClosingReason('DESCARTE_CLIENTE_RETIRA')}
+                  className="mt-1 text-rose-600 focus:ring-rose-500"
+                />
+                <div className="text-xs">
+                  <strong className="block font-bold text-slate-900">Descarte — Cliente Retira</strong>
+                  <span className="text-slate-500">Equipamento considerado inviável. O cliente irá recolher a sucata/aparelho.</span>
+                </div>
+              </label>
+
+              <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer transition select-none">
+                <input
+                  type="radio"
+                  name="closingReason"
+                  value="DESCARTE_OFICINA"
+                  checked={selectedClosingReason === 'DESCARTE_OFICINA'}
+                  onChange={() => setSelectedClosingReason('DESCARTE_OFICINA')}
+                  className="mt-1 text-rose-600 focus:ring-rose-500"
+                />
+                <div className="text-xs">
+                  <strong className="block font-bold text-slate-900">Descarte — Oficina Descarta</strong>
+                  <span className="text-slate-500">Equipamento considerado inviável. Cliente autorizou o descarte ecológico pela oficina.</span>
+                </div>
+              </label>
+            </div>
+
+            {/* Notification Check */}
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 mb-6">
+              <label className="flex items-center gap-2.5 text-xs font-semibold text-slate-700 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={semReparoNotifyWhatsapp}
+                  onChange={(e) => setSemReparoNotifyWhatsapp(e.target.checked)}
+                  className="rounded border-slate-350 text-rose-600 focus:ring-rose-500 cursor-pointer"
+                />
+                <span>Enviar notificação automática de encerramento via WhatsApp</span>
+              </label>
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
+              <button 
+                onClick={() => {
+                  setShowSemReparoModal(false);
+                  setSemReparoOS(null);
+                }}
+                className="px-4 py-2 border border-slate-300 rounded-xl text-slate-700 font-bold text-xs hover:bg-slate-100"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={async () => {
+                  try {
+                    const token = localStorage.getItem("mgv_token") || "";
+                    const res = await fetch(`/api/ordens-servico/${semReparoOS.id}/status`, {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                      body: JSON.stringify({ 
+                        status: "FINALIZADO",
+                        closingReason: selectedClosingReason
+                      })
+                    });
+                    if (!res.ok) {
+                      const data = await res.json();
+                      alert(data.error || "Erro ao encerrar OS.");
+                    } else {
+                      // Disparo opcional do WhatsApp para encerramento
+                      if (semReparoNotifyWhatsapp) {
+                        try {
+                          await fetch(`/api/whatsapp/notify-status`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                            body: JSON.stringify({ orderId: semReparoOS.id, status: "FINALIZADO" })
+                          });
+                        } catch (wsErr) {
+                          console.warn("Erro ao tentar disparar WhatsApp de encerramento:", wsErr);
+                        }
+                      }
+                      onRefresh();
+                    }
+                  } catch(e: any) { 
+                    alert(e.message); 
+                  }
+                  setShowSemReparoModal(false);
+                  setSemReparoOS(null);
+                }}
+                className="px-5 py-2.5 bg-rose-600 text-white rounded-xl font-bold text-xs hover:bg-rose-700 shadow-md transition active:scale-95"
+              >
+                Confirmar e Encerrar
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {closingOS && userRole === UserRole.OWNER && isFeatureEnabled("OS_PROFITABILITY_CALC") && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60]">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md p-6">
             <h3 className="font-bold text-lg mb-4 text-slate-900">Encerramento de OS (Rentabilidade)</h3>
@@ -1982,16 +2748,31 @@ export default function KanbanBoard({
 
               <div className="grid grid-cols-2 gap-3.5">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-650 mb-1 uppercase tracking-wider">Tipo</label>
+                  <label className="block text-[10px] font-bold text-slate-650 mb-1 uppercase tracking-wider">Tipo Primário</label>
                   <select
                     value={onbType}
                     onChange={(e) => setOnbType(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold"
                   >
                     <option value="Ultrassom (Fisio/Estética)">Ultrassom (Fisio/Estética)</option>
+                    <option value="Radiofrequência">Radiofrequência</option>
+                    <option value="Eletroestimulador / Correntes">Eletroestimulador / Correntes</option>
+                    <option value="Laserterapia / LED">Laserterapia / LED</option>
+                    <option value="Vapor de Ozônio">Vapor de Ozônio</option>
+                    <option value="Gerador de Ozônio">Gerador de Ozônio</option>
+                    <option value="Alta Frequência">Alta Frequência</option>
+                    <option value="Criolipólise / Estética">Criolipólise / Estética</option>
+                    <option value="Pressoterapia">Pressoterapia</option>
                     <option value="Carboxiterapia">Carboxiterapia</option>
                     <option value="Outro">Outro</option>
                   </select>
+                  <input
+                    type="text"
+                    placeholder="Função Extra (Opcional)"
+                    value={onbExtraType}
+                    onChange={(e) => setOnbExtraType(e.target.value)}
+                    className="w-full mt-2 px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold"
+                  />
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-slate-650 mb-1 uppercase tracking-wider">Marca / Fabricante</label>

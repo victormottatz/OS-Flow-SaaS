@@ -3,6 +3,8 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import prisma from "../database/prisma";
 import { UserRole } from "../types";
+import { supabaseStorageService } from "../services/supabaseStorage";
+
 
 const JWT_SECRET = process.env.JWT_SECRET || "mgv_tecnologia_super_secure_jwt_secret_key_123!";
 
@@ -41,6 +43,9 @@ export class AuthController {
         name: user.name,
         email: user.email,
         role: user.role,
+        phone: user.phone || "",
+        avatarUrl: user.avatarUrl || "",
+        bio: user.bio || "",
         createdAt: user.createdAt.toISOString()
       }
     });
@@ -100,6 +105,9 @@ export class AuthController {
         name: newUser.name,
         email: newUser.email,
         role: newUser.role,
+        phone: newUser.phone || "",
+        avatarUrl: newUser.avatarUrl || "",
+        bio: newUser.bio || "",
         createdAt: newUser.createdAt.toISOString()
       }
     });
@@ -112,11 +120,17 @@ export class AuthController {
         name: true,
         email: true,
         role: true,
+        phone: true,
+        avatarUrl: true,
+        bio: true,
         createdAt: true
       }
     });
     res.json(users.map(u => ({
       ...u,
+      phone: u.phone || "",
+      avatarUrl: u.avatarUrl || "",
+      bio: u.bio || "",
       createdAt: u.createdAt.toISOString()
     })));
   }
@@ -141,6 +155,199 @@ export class AuthController {
 
     await prisma.user.delete({ where: { id } });
     res.json({ message: "Usuário removido com sucesso." });
+  }
+
+  async getUserPermissions(req: Request, res: Response): Promise<void> {
+    const { id } = req.params;
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id },
+        select: { permissions: true }
+      });
+      if (!user) {
+        res.status(404).json({ error: "Usuário não encontrado." });
+        return;
+      }
+      res.json({ permissions: user.permissions || [] });
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao buscar permissões do usuário." });
+    }
+  }
+
+  async updateUserPermissions(req: Request, res: Response): Promise<void> {
+    const { id } = req.params;
+    const { permissions } = req.body;
+    
+    if (!Array.isArray(permissions)) {
+      res.status(400).json({ error: "O campo permissions deve ser um array." });
+      return;
+    }
+
+    try {
+      const updated = await prisma.user.update({
+        where: { id },
+        data: { permissions }
+      });
+      res.json({ message: "Permissões atualizadas com sucesso.", permissions: updated.permissions });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Erro ao atualizar permissões do usuário." });
+    }
+  }
+
+  async getProfile(req: Request, res: Response): Promise<void> {
+    const userId = req.headers["x-user-id"] as string;
+    
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          phone: true,
+          avatarUrl: true,
+          bio: true,
+          createdAt: true
+        }
+      });
+
+      if (!user) {
+        res.status(404).json({ error: "Usuário não encontrado." });
+        return;
+      }
+
+      res.json({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        phone: user.phone || "",
+        avatarUrl: user.avatarUrl || "",
+        bio: user.bio || "",
+        createdAt: user.createdAt.toISOString()
+      });
+    } catch (err) {
+      res.status(500).json({ error: "Erro ao buscar perfil." });
+    }
+  }
+
+  async updateProfile(req: Request, res: Response): Promise<void> {
+    const userId = req.headers["x-user-id"] as string;
+    const { name, email, phone, avatarUrl, bio, currentPassword, newPassword } = req.body;
+
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId }
+      });
+
+      if (!user) {
+        res.status(404).json({ error: "Usuário não encontrado." });
+        return;
+      }
+
+      const updateData: any = {};
+
+      if (name) {
+        updateData.name = name;
+      }
+
+      if (email && email.toLowerCase() !== user.email) {
+        const emailExists = await prisma.user.findUnique({
+          where: { email: email.toLowerCase() }
+        });
+        if (emailExists) {
+          res.status(409).json({ error: "Este e-mail já está sendo utilizado por outro usuário." });
+          return;
+        }
+        
+        if (!currentPassword) {
+          res.status(400).json({ error: "Para alterar o e-mail, insira sua senha atual por segurança." });
+          return;
+        }
+        const isPasswordValid = await bcrypt.compare(currentPassword, user.passwordHash);
+        if (!isPasswordValid) {
+          res.status(401).json({ error: "Senha atual incorreta." });
+          return;
+        }
+
+        updateData.email = email.toLowerCase();
+      }
+
+      if (newPassword) {
+        if (!currentPassword) {
+          res.status(400).json({ error: "Para alterar a senha, insira sua senha atual por segurança." });
+          return;
+        }
+        const isPasswordValid = await bcrypt.compare(currentPassword, user.passwordHash);
+        if (!isPasswordValid) {
+          res.status(401).json({ error: "Senha atual incorreta." });
+          return;
+        }
+
+        updateData.passwordHash = await bcrypt.hash(newPassword, 10);
+      }
+
+      updateData.phone = phone !== undefined ? phone : user.phone;
+      updateData.bio = bio !== undefined ? bio : user.bio;
+
+      let finalAvatarUrl = user.avatarUrl;
+      if (avatarUrl !== undefined) {
+        if (avatarUrl === "" || avatarUrl === null) {
+          if (user.avatarUrl) {
+            await supabaseStorageService.deleteAvatar(user.avatarUrl);
+          }
+          finalAvatarUrl = null;
+        } else if (avatarUrl.startsWith("data:image/")) {
+          if (user.avatarUrl) {
+            await supabaseStorageService.deleteAvatar(user.avatarUrl);
+          }
+          try {
+            finalAvatarUrl = await supabaseStorageService.uploadAvatar(userId, avatarUrl);
+          } catch (uploadErr: any) {
+            console.error("[Profile Update Image Upload Error]:", uploadErr);
+            res.status(400).json({ error: uploadErr.message || "Falha ao carregar a foto no Supabase." });
+            return;
+          }
+        } else {
+          finalAvatarUrl = avatarUrl;
+        }
+      }
+      updateData.avatarUrl = finalAvatarUrl;
+
+      const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: updateData,
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          phone: true,
+          avatarUrl: true,
+          bio: true,
+          createdAt: true
+        }
+      });
+
+      res.json({
+        message: "Perfil atualizado com sucesso!",
+        user: {
+          id: updatedUser.id,
+          name: updatedUser.name,
+          email: updatedUser.email,
+          role: updatedUser.role,
+          phone: updatedUser.phone || "",
+          avatarUrl: updatedUser.avatarUrl || "",
+          bio: updatedUser.bio || "",
+          createdAt: updatedUser.createdAt.toISOString()
+        }
+      });
+    } catch (err) {
+      console.error("[Profile Update Error]:", err);
+      res.status(500).json({ error: "Erro ao atualizar perfil." });
+    }
   }
 }
 

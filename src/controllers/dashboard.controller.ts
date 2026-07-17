@@ -63,10 +63,12 @@ export class DashboardController {
       });
 
       const statusCount: Record<string, number> = {
-        ORCAMENTO: 0,
+        AGUARDANDO_AVALIACAO: 0,
+        AGUARDANDO_AUTORIZACAO: 0,
         AGUARDANDO_PECA: 0,
         EM_MANUTENCAO: 0,
         PRONTO_RETIRADA: 0,
+        PAGO_PRONTO_RETIRADA: 0,
         FINALIZADO: 0
       };
 
@@ -85,10 +87,69 @@ export class DashboardController {
         select: { id: true, name: true, stock: true, stockMin: true }
       });
 
+      // Calcular TMA (Tempo Médio de Atendimento)
+      const finalizedOS = activeOS.filter((os: any) => os.status === "FINALIZADO");
+      let totalTmaDays = 0;
+      let validTmaCount = 0;
+      finalizedOS.forEach((os: any) => {
+        const start = os.createdAt;
+        const end = os.originalExitDate;
+        if (end) {
+          const diff = Math.max(0.5, (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+          totalTmaDays += diff;
+          validTmaCount++;
+        } else {
+          totalTmaDays += 2.5; // fallback
+          validTmaCount++;
+        }
+      });
+      const dbTma = validTmaCount > 0 ? (totalTmaDays / validTmaCount) : 0;
+
+      // Calcular SLA Crítico (OS ativas com mais de 15 dias)
+      const fifteenDaysAgo = new Date();
+      fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
+      const slaCriticalCount = activeOS.filter((os: any) => os.status !== "FINALIZADO" && new Date(os.createdAt) < fifteenDaysAgo).length;
+
+      // Calcular contagem de mensagens do WhatsApp
+      const messages = await prisma.messageHistory.findMany({
+        select: { status: true }
+      });
+      let whatsappSent = 0;
+      let whatsappFailed = 0;
+      messages.forEach((m: any) => {
+        if (m.status === "ENVIADO" || m.status === "ENTREGUE" || m.status === "LIDO") {
+          whatsappSent++;
+        } else if (m.status === "FALHOU") {
+          whatsappFailed++;
+        }
+      });
+
+      // Total de clientes geral no sistema
+      const totalClientsCount = await prisma.client.count({
+        where: { deletedAt: null }
+      });
+
+      // Total de OS finalizadas com faturamento pendente
+      const pendingBillingCount = await prisma.ordemServico.count({
+        where: {
+          deletedAt: null,
+          status: "FINALIZADO",
+          billingStatus: "PENDENTE"
+        }
+      });
+
       res.json({
         kanbanDistribution: statusCount,
-        totalActiveOS: activeOS.length,
-        criticalStockParts: lowStockParts
+        totalActiveOS: activeOS.length - statusCount.FINALIZADO,
+        criticalStockParts: lowStockParts,
+        tmaDays: Number(dbTma.toFixed(1)),
+        slaCriticalCount,
+        whatsappSummary: {
+          sent: whatsappSent,
+          failed: whatsappFailed
+        },
+        totalClientsCount,
+        pendingBillingCount
       });
     } catch (err: any) {
       res.status(500).json({ error: err.message });

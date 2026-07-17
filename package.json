@@ -9,8 +9,8 @@
     "start": "node dist/server.cjs",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "import:legacy": "tsx scripts/import_legacy.ts",
-    "sync:from-supabase": "tsx scripts/sync_from_supabase.ts"
+    "import:legacy": "tsx scripts/migrations/import_legacy.ts",
+    "sync:from-supabase": "tsx scripts/maintenance/sync_from_supabase.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -30,6 +30,7 @@
     "motion": "^12.23.24",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
+    "sharp": "^0.35.3",
     "tailwindcss": "^4.1.14",
     "typescript": "~5.8.2",
     "vite": "^6.2.3",
@@ -40,6 +41,7 @@
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.10",
     "autoprefixer": "^10.4.21",
+    "pdf-parse": "^2.4.5",
     "prisma": "^6.19.3",
     "tsx": "^4.21.0"
   }

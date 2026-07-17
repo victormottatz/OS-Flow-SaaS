@@ -9,6 +9,8 @@ const router = Router();
 router.use(checkRole(UserRole.OWNER, UserRole.ADMIN));
 
 router.get("/", permissionsController.listUsersWithPermissions.bind(permissionsController));
+router.get("/roles", permissionsController.getRolePermissions.bind(permissionsController));
+router.post("/roles", permissionsController.updateRolePermissions.bind(permissionsController));
 router.put("/:id", permissionsController.updateUserPermissions.bind(permissionsController));
 
 export default router;

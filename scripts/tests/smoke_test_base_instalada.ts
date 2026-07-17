@@ -137,6 +137,7 @@ async function runSmokeTest() {
     await prisma.ordemServico.update({
       where: { id: testOSId1 },
       data: { 
+        status: "PRONTO_RETIRADA",
         stressTestStartedAt: new Date(Date.now() - 40 * 60 * 1000), // Iniciou a 40min (estresse cumprido)
         diagnostic: "Laudo técnico de teste do SSD concluído com sucesso.", // Laudo técnico preenchido
         laborCost: 150.00,

@@ -164,7 +164,7 @@ function determineOSStatus(row: string[], map: Record<string, number>): OSStatus
     case "1":
     case "12":
     case "24":
-      return OSStatus.ORCAMENTO;
+      return OSStatus.AGUARDANDO_AVALIACAO;
     case "3":
     case "15":
     case "6":
@@ -330,6 +330,20 @@ async function executeMigration() {
     return;
   }
 
+  // Carrega clientes do banco em cache
+  const dbClientsByCpf = new Map<string, any>();
+  const dbClientsByEmail = new Map<string, any>();
+  if (!DRY_RUN) {
+    console.log("-> Carregando clientes existentes para cache...");
+    const allClients = await prisma.client.findMany({
+      select: { id: true, cpfCnpj: true, email: true }
+    });
+    for (const c of allClients) {
+      if (c.cpfCnpj) dbClientsByCpf.set(c.cpfCnpj, c);
+      if (c.email) dbClientsByEmail.set(c.email, c);
+    }
+  }
+
   // Simulate or write Clients
   for (let i = 1; i < parsedClients.length; i++) {
     const row = parsedClients[i];
@@ -362,14 +376,7 @@ async function executeMigration() {
 
     if (!DRY_RUN) {
       try {
-        const existing = await prisma.client.findFirst({
-          where: {
-            OR: [
-              { cpfCnpj: cpfCnpj },
-              email ? { email: email } : undefined
-            ].filter(Boolean) as any
-          }
-        });
+        const existing = dbClientsByCpf.get(cpfCnpj) || (email ? dbClientsByEmail.get(email) : null);
 
         if (existing) {
           const updated = await prisma.client.update({
@@ -378,6 +385,9 @@ async function executeMigration() {
           });
           newId = updated.id;
           stats.clients.updated++;
+          // Atualiza no cache
+          dbClientsByCpf.set(cpfCnpj, updated);
+          if (email) dbClientsByEmail.set(email, updated);
         } else {
           const created = await prisma.client.create({
             data: {
@@ -391,6 +401,9 @@ async function executeMigration() {
           });
           newId = created.id;
           stats.clients.added++;
+          // Adiciona ao cache
+          dbClientsByCpf.set(cpfCnpj, created);
+          if (email) dbClientsByEmail.set(email, created);
         }
       } catch (err: any) {
         console.error(`Erro ao salvar cliente ${name}:`, err.message);
@@ -441,6 +454,19 @@ async function executeMigration() {
     return;
   }
 
+  const dbDevicesMap = new Map<string, any>();
+  if (!DRY_RUN) {
+    console.log("-> Carregando equipamentos existentes para cache...");
+    const allDevices = await prisma.device.findMany({
+      select: { id: true, clientId: true, serialNumber: true }
+    });
+    for (const d of allDevices) {
+      if (d.serialNumber && d.serialNumber !== "Sem Série") {
+        dbDevicesMap.set(`${d.clientId}_${d.serialNumber}`, d);
+      }
+    }
+  }
+
   for (let i = 1; i < parsedDevices.length; i++) {
     const row = parsedDevices[i];
     if (row.length < deviceHeaders.length) continue;
@@ -464,12 +490,7 @@ async function executeMigration() {
 
     if (!DRY_RUN) {
       try {
-        const existing = await prisma.device.findFirst({
-          where: {
-            clientId: newClientId,
-            serialNumber: serialNumber !== "Sem Série" ? serialNumber : undefined
-          }
-        });
+        const existing = (serialNumber !== "Sem Série") ? dbDevicesMap.get(`${newClientId}_${serialNumber}`) : null;
 
         if (existing && serialNumber !== "Sem Série") {
           const updated = await prisma.device.update({
@@ -478,6 +499,7 @@ async function executeMigration() {
           });
           newDevId = updated.id;
           stats.devices.updated++;
+          dbDevicesMap.set(`${newClientId}_${serialNumber}`, updated);
         } else {
           const created = await prisma.device.create({
             data: {
@@ -492,6 +514,9 @@ async function executeMigration() {
           });
           newDevId = created.id;
           stats.devices.added++;
+          if (serialNumber !== "Sem Série") {
+            dbDevicesMap.set(`${newClientId}_${serialNumber}`, created);
+          }
         }
       } catch (err: any) {
         console.error(`Erro ao salvar aparelho ${brand} ${model}:`, err.message);
@@ -539,6 +564,17 @@ async function executeMigration() {
     return;
   }
 
+  const dbPartsMap = new Map<string, any>();
+  if (!DRY_RUN) {
+    console.log("-> Carregando peças existentes para cache...");
+    const allParts = await prisma.part.findMany({
+      select: { id: true, code: true }
+    });
+    for (const p of allParts) {
+      dbPartsMap.set(p.code, p);
+    }
+  }
+
   for (let i = 1; i < parsedParts.length; i++) {
     const row = parsedParts[i];
     if (row.length < partHeaders.length) continue;
@@ -552,21 +588,21 @@ async function executeMigration() {
 
     if (!DRY_RUN) {
       try {
-        const existing = await prisma.part.findUnique({
-          where: { code: code }
-        });
+        const existing = dbPartsMap.get(code);
 
         if (existing) {
-          await prisma.part.update({
+          const updated = await prisma.part.update({
             where: { id: existing.id },
             data: { name, stock, cost, price }
           });
           stats.parts.updated++;
+          dbPartsMap.set(code, updated);
         } else {
-          await prisma.part.create({
+          const created = await prisma.part.create({
             data: { name, code, stock, cost, price }
           });
           stats.parts.added++;
+          dbPartsMap.set(code, created);
         }
       } catch (err: any) {
         console.error(`Erro ao salvar peça ${name}:`, err.message);
@@ -591,6 +627,17 @@ async function executeMigration() {
   } catch (err: any) {
     console.error("Erro ao ler ordens de seviços.csv:", err.message);
     return;
+  }
+
+  const dbOSMap = new Map<string, any>();
+  if (!DRY_RUN) {
+    console.log("-> Carregando ordens de serviço existentes para cache...");
+    const allOS = await prisma.ordemServico.findMany({
+      select: { id: true, osNumber: true }
+    });
+    for (const os of allOS) {
+      dbOSMap.set(os.osNumber, os);
+    }
   }
 
   for (let i = 1; i < parsedOS.length; i++) {
@@ -636,12 +683,10 @@ async function executeMigration() {
 
     if (!DRY_RUN) {
       try {
-        const existing = await prisma.ordemServico.findUnique({
-          where: { osNumber: osNumber }
-        });
+        const existing = dbOSMap.get(osNumber);
 
         if (existing) {
-          await prisma.ordemServico.update({
+          const updated = await prisma.ordemServico.update({
             where: { id: existing.id },
             data: {
               clientId: newClientId,
@@ -658,8 +703,9 @@ async function executeMigration() {
             }
           });
           stats.os.updated++;
+          dbOSMap.set(osNumber, updated);
         } else {
-          await prisma.ordemServico.create({
+          const created = await prisma.ordemServico.create({
             data: {
               osNumber,
               clientId: newClientId,
@@ -680,6 +726,7 @@ async function executeMigration() {
             }
           });
           stats.os.added++;
+          dbOSMap.set(osNumber, created);
         }
       } catch (err: any) {
         console.error(`Erro ao salvar O.S. #${osNumber}:`, err.message);

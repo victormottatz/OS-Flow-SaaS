@@ -102,16 +102,16 @@ async function main() {
 
     // Status Map
     const rawStatus = String(row['SITUACAO'] || '').trim();
-    let status: OSStatus = OSStatus.ORCAMENTO;
+    let status: OSStatus = OSStatus.AGUARDANDO_AVALIACAO;
     
     if (rawStatus === '0') {
-      status = OSStatus.ORCAMENTO;
+      status = OSStatus.AGUARDANDO_AVALIACAO;
     } else if (rawStatus === '10') {
       status = OSStatus.FINALIZADO;
     } else if (rawStatus === '11') {
       status = OSStatus.PRONTO_RETIRADA;
     } else {
-      console.warn(`WARNING: OS ${osNumber} tem status desconhecido (${rawStatus}). Assumindo ORCAMENTO.`);
+      console.warn(`WARNING: OS ${osNumber} tem status desconhecido (${rawStatus}). Assumindo AGUARDANDO_AVALIACAO.`);
     }
 
     statusCounts[status] = (statusCounts[status] || 0) + 1;

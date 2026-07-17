@@ -32,11 +32,11 @@ interface OSPublicData {
 
 // ─── Configurações dos steps do stepper ──────────────────────────────────────
 const STEPS = [
-  { step: 1, key: "ORCAMENTO",       label: "Orçamento",     icon: "receipt_long" },
-  { step: 2, key: "AGUARDANDO_PECA", label: "Aguard. Peça",  icon: "inventory_2" },
-  { step: 3, key: "EM_MANUTENCAO",   label: "Em Manutenção", icon: "build" },
-  { step: 4, key: "PRONTO_RETIRADA", label: "Pronto!",       icon: "check_circle" },
-  { step: 5, key: "FINALIZADO",      label: "Finalizado",    icon: "verified" },
+  { step: 1, key: "AGUARDANDO_AVALIACAO",   label: "Avaliação",     icon: "query_stats" },
+  { step: 2, key: "AGUARDANDO_AUTORIZACAO", label: "Autorização",   icon: "receipt_long" },
+  { step: 3, key: "EM_MANUTENCAO",          label: "Manutenção",    icon: "build" },
+  { step: 4, key: "PRONTO_RETIRADA",        label: "Pronto!",       icon: "check_circle" },
+  { step: 5, key: "FINALIZADO",             label: "Finalizado",    icon: "verified" },
 ];
 
 // ─── Utilitários ─────────────────────────────────────────────────────────────
@@ -637,7 +637,7 @@ export default function PublicPortal() {
                 >Fotos ({result.laudoFotos.length})</button>
               )}
 
-              {result.status === "ORCAMENTO" && (
+              {result.status === "AGUARDANDO_AUTORIZACAO" && (
                 <button
                   onClick={() => setActiveTab("ORCAMENTO")}
                   style={{
@@ -756,7 +756,7 @@ export default function PublicPortal() {
             )}
 
             {/* ABA ORÇAMENTO / APROVAÇÃO */}
-            {activeTab === "ORCAMENTO" && result.status === "ORCAMENTO" && (
+            {activeTab === "ORCAMENTO" && result.status === "AGUARDANDO_AUTORIZACAO" && (
               <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "1rem", marginBottom: "1rem", animation: "fadeIn 0.3s" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ fontSize: 16, color: "#fdc003" }}>contract_edit</span>
@@ -831,7 +831,7 @@ export default function PublicPortal() {
 
 
             {/* Card Valor Total Global (Fica embaixo das abas se estiver pronto/finalizado) */}
-            {result.totalCost !== null && result.status !== "ORCAMENTO" && (
+            {result.totalCost !== null && result.status !== "AGUARDANDO_AVALIACAO" && result.status !== "AGUARDANDO_AUTORIZACAO" && (
               <div style={{
                 background: "rgba(16,185,129,0.08)",
                 border: "1px solid rgba(16,185,129,0.25)",

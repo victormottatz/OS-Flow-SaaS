@@ -6,6 +6,8 @@
 import React from "react";
 import { User, UserRole } from "../types";
 
+const FALLBACK_AVATAR = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200";
+
 interface NavbarProps {
   user: User;
   currentTab: string;
@@ -13,6 +15,8 @@ interface NavbarProps {
   isOffline: boolean;
   setIsOffline: (state: boolean) => void;
   onLogout: () => void;
+  isSidebarMinimized: boolean;
+  toggleSidebar: () => void;
 }
 
 export default function Navbar({
@@ -21,7 +25,9 @@ export default function Navbar({
   setCurrentTab,
   isOffline,
   setIsOffline,
-  onLogout
+  onLogout,
+  isSidebarMinimized,
+  toggleSidebar
 }: NavbarProps) {
   // Translate current tab ID to title string
   const getTabTitle = () => {
@@ -31,19 +37,19 @@ export default function Navbar({
       case "clients":
         return "Clientes & Equipamentos";
       case "os":
+        return "Listagem de OS";
+      case "os-create":
         return "Nova Ordem de Serviço";
       case "kanban":
-        return "Quadro Técnico (Kanban)";
+        return "Ordens de Serviço (Quadro)";
       case "estoque":
         return "Gestão de Estoque";
       case "bling":
         return "Integração Fiscal & Bling";
-      case "users":
-        return "Gestão de Usuários";
-      case "feature-flags":
+      case "settings":
         return "Configurações do Sistema";
-      case "skills":
-        return "Árvore de Habilidades (Roadmap)";
+      case "profile":
+        return "Meu Perfil";
       default:
         return "MGV Assistência";
     }
@@ -52,18 +58,33 @@ export default function Navbar({
   return (
     <>
       {/* 1. FIXED LEFT SIDEBAR (Desktop only: md and above) */}
-      <aside className="hidden md:flex flex-col w-[260px] h-screen fixed left-0 top-0 bg-primary-container text-white py-6 z-50 border-r border-slate-900 select-none">
+      <aside className={`hidden md:flex flex-col h-screen fixed left-0 top-0 bg-primary-container text-white py-6 z-50 border-r border-slate-900 select-none transition-all duration-300 ${
+        isSidebarMinimized ? "w-[70px]" : "w-[260px]"
+      }`}>
         {/* Brand header */}
-        <div className="px-6 mb-8 flex flex-col">
-          <div className="flex items-center space-x-2.5 cursor-pointer group" onClick={() => setCurrentTab("dashboard")}>
-            <div className="w-9 h-9 bg-secondary-container text-primary-container rounded-xl flex items-center justify-center font-bold shadow-md transition-all duration-300 group-hover:scale-105 active:scale-95">
-              <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>bolt</span>
+        <div className="px-4 mb-8 flex justify-center items-center h-10">
+          {isSidebarMinimized ? (
+            <div onClick={toggleSidebar} className="w-9 h-9 bg-secondary-container text-primary-container rounded-xl flex items-center justify-center font-bold shadow-md cursor-pointer hover:scale-105 active:scale-95 transition-all" title="Expandir Menu">
+              <span className="material-symbols-outlined text-[20px] text-slate-950 font-bold" style={{ fontVariationSettings: "'FILL' 1" }}>bolt</span>
             </div>
-            <div>
-              <h1 className="font-headline font-bold text-sm tracking-tight text-white">MGV Tecnologia</h1>
-              <p className="text-[9px] text-slate-400 font-mono uppercase tracking-widest leading-none mt-0.5">Technical Ops</p>
+          ) : (
+            <div className="flex items-center justify-between w-full px-2">
+              <div className="flex items-center cursor-pointer group animate-fadein" onClick={() => setCurrentTab("dashboard")}>
+                <img 
+                  src="/logos/LOGO V3.0 (9).png" 
+                  alt="MGV Tecnologia" 
+                  className="h-10 w-auto object-contain transition-all duration-300 group-hover:scale-105 active:scale-95" 
+                />
+              </div>
+              <button 
+                onClick={toggleSidebar} 
+                className="p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition cursor-pointer"
+                title="Recolher Menu"
+              >
+                <span className="material-symbols-outlined text-[18px]">menu_open</span>
+              </button>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Sidebar Nav Links */}
@@ -71,65 +92,98 @@ export default function Navbar({
           {[
             { id: "dashboard", label: "Dashboard", icon: "dashboard" },
             { id: "clients", label: "Clientes", icon: "group" },
-            ...((user.role === UserRole.OWNER || user.role === UserRole.ATTENDANT) ? [{ id: "os", label: "Ordens de Serviço", icon: "assignment" }] : []),
-            { id: "kanban", label: "Quadro Técnico", icon: "splitscreen" },
+            ...((user.role === UserRole.OWNER || user.role === UserRole.ATTENDANT) ? [{ id: "os", label: "Listagem de OS", icon: "view_list" }] : []),
+            { id: "kanban", label: "Ordens de Serviço", icon: "assignment" },
             { id: "estoque", label: "Estoque", icon: "inventory_2" },
             ...((user.role === UserRole.OWNER || user.role === UserRole.FINANCIAL) ? [{ id: "bling", label: "Integração Fiscal", icon: "sync_alt" }] : []),
-            ...(user.role === UserRole.OWNER ? [{ id: "users", label: "Equipe", icon: "manage_accounts" }] : []),
-            ...(user.role === UserRole.OWNER ? [{ id: "feature-flags", label: "Config. Sistema", icon: "toggle_on" }] : []),
-            { id: "skills", label: "Habilidades", icon: "account_tree" }
+            ...((user.role === UserRole.OWNER || user.role === UserRole.ADMIN) ? [{ id: "settings", label: "Configurações", icon: "settings" }] : [])
           ].map((item) => {
             const active = currentTab === item.id;
             return (
               <button
                 key={item.id}
                 onClick={() => setCurrentTab(item.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-xs font-bold rounded-xl transition duration-150 cursor-pointer ${
+                title={isSidebarMinimized ? item.label : ""}
+                className={`w-full flex items-center transition duration-150 cursor-pointer ${
+                  isSidebarMinimized ? "justify-center py-3 px-0 rounded-xl" : "gap-3 px-4 py-3 rounded-xl"
+                } ${
                   active
                     ? "bg-slate-800 text-white border-l-4 border-secondary-container"
                     : "text-slate-400 hover:text-white hover:bg-slate-800/40"
                 }`}
               >
                 <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: active ? "'FILL' 1" : "'FILL' 0" }}>{item.icon}</span>
-                <span>{item.label}</span>
+                {!isSidebarMinimized && <span className="animate-fadein">{item.label}</span>}
               </button>
             );
           })}
         </nav>
 
         {/* Sidebar Bottom Controls */}
-        <div className="px-4 mt-auto space-y-4">
+        <div className="px-3 mt-auto space-y-4">
           {(user.role === UserRole.OWNER || user.role === UserRole.ATTENDANT) && (
-            <button
-              onClick={() => setCurrentTab("os")}
-              className="w-full bg-secondary-container hover:bg-secondary-container-hover text-primary-container py-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer shadow-sm"
-            >
-              <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>add</span>
-              <span>Nova Ordem</span>
-            </button>
+            isSidebarMinimized ? (
+              <button
+                onClick={() => setCurrentTab("os-create")}
+                className="w-11 h-11 mx-auto bg-secondary-container hover:bg-secondary-container-hover text-primary-container rounded-full font-bold flex items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer shadow-sm"
+                title="Nova Ordem de Serviço"
+              >
+                <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>add</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => setCurrentTab("os-create")}
+                className="w-full bg-secondary-container hover:bg-secondary-container-hover text-primary-container py-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer shadow-sm animate-fadein"
+              >
+                <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>add</span>
+                <span>Nova Ordem</span>
+              </button>
+            )
           )}
           
-          <div className="pt-4 border-t border-slate-800 space-y-1">
+          <div className={`pt-4 border-t border-slate-800 space-y-2 ${isSidebarMinimized ? "flex flex-col items-center" : ""}`}>
+            <button
+              onClick={() => setCurrentTab("profile")}
+              title={isSidebarMinimized ? "Meu Perfil" : ""}
+              className={`flex items-center text-xs font-bold transition cursor-pointer ${
+                currentTab === "profile"
+                  ? "text-white bg-slate-800 border-l-4 border-secondary-container"
+                  : "text-slate-400 hover:text-white hover:bg-slate-800/40"
+              } ${
+                isSidebarMinimized ? "justify-center p-2 rounded-xl" : "gap-3 px-4 py-2 w-full"
+              }`}
+            >
+              <span className="material-symbols-outlined text-[18px]">person</span>
+              {!isSidebarMinimized && <span className="animate-fadein">Meu Perfil</span>}
+            </button>
             <button
               onClick={() => alert("Central de Suporte MGV: Ligue para (11) 3218-9900 ou mande e-mail para suporte@mgv.com.br")}
-              className="w-full flex items-center gap-3 px-4 py-2 text-xs font-bold text-slate-400 hover:text-white transition cursor-pointer"
+              title={isSidebarMinimized ? "Suporte" : ""}
+              className={`flex items-center text-xs font-bold text-slate-400 hover:text-white transition cursor-pointer ${
+                isSidebarMinimized ? "justify-center p-2 rounded-xl hover:bg-slate-800/40" : "gap-3 px-4 py-2 w-full"
+              }`}
             >
               <span className="material-symbols-outlined text-[18px]">help</span>
-              <span>Suporte</span>
+              {!isSidebarMinimized && <span className="animate-fadein">Suporte</span>}
             </button>
             <button
               onClick={onLogout}
-              className="w-full flex items-center gap-3 px-4 py-2 text-xs font-bold text-slate-450 hover:text-red-400 transition cursor-pointer"
+              title={isSidebarMinimized ? "Sair da Conta" : ""}
+              className={`flex items-center text-xs font-bold text-slate-450 hover:text-red-400 transition cursor-pointer ${
+                isSidebarMinimized ? "justify-center p-2 rounded-xl hover:bg-slate-800/40" : "gap-3 px-4 py-2 w-full"
+              }`}
             >
               <span className="material-symbols-outlined text-[18px]">logout</span>
-              <span>Sair da Conta</span>
+              {!isSidebarMinimized && <span className="animate-fadein">Sair da Conta</span>}
             </button>
           </div>
         </div>
       </aside>
 
-      {/* 2. STICKY TOP APP BAR (Header offset by 260px on desktop) */}
-      <header className="md:pl-[260px] h-16 w-full flex justify-between items-center px-6 border-b border-slate-200 bg-white sticky top-0 z-40 select-none">
+      {/* 2. STICKY TOP APP BAR (Header offset dynamic on desktop) */}
+      <header className={`h-16 w-full flex justify-between items-center pr-8 pl-6 border-b border-slate-200 bg-white sticky top-0 z-40 select-none transition-all duration-300 ${
+        isSidebarMinimized ? "md:pl-[102px]" : "md:pl-[292px]"
+      }`}>
         <div className="flex items-center gap-4">
           <h2 className="font-display font-bold text-base sm:text-lg text-slate-900 leading-none">{getTabTitle()}</h2>
           
@@ -156,7 +210,11 @@ export default function Navbar({
         <div className="flex items-center gap-4">
           <div className="h-8 w-[1px] bg-slate-200 hidden sm:block"></div>
           
-          <div className="flex items-center gap-2.5">
+          <div 
+            onClick={() => setCurrentTab("profile")}
+            className="flex items-center gap-2.5 cursor-pointer hover:opacity-80 transition-opacity"
+            title="Ver configurações de perfil"
+          >
             <div className="text-right hidden sm:block">
               <p className="font-bold text-xs text-slate-800 leading-none">{user.name}</p>
               <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
@@ -169,7 +227,7 @@ export default function Navbar({
             <img 
               alt="Avatar do Técnico" 
               className="w-9 h-9 rounded-xl border border-slate-200 object-cover shadow-sm bg-slate-50"
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuBIhJ_Dx_RtBiJPW6bRFpao60VHmG9Ibv3lKymUg621O1vI_0RomhbikV8aL0N4Unzm1QjYdcTgGYvx-Mo4JelnFTlgNqHleiEKe28A6CNL39AcQbsGWAIu7_Okc78IvKYnHpwW__zigbO8O4wakwZgH__78Uk-3u7nvh5cMpzYrVgVWa5fL5wpaWeKZN0v5kFEIDtQ7AwTpwP80jhKHJyqJ7YELWtngY0ukOP9nmWXO6XlVLFQbL6GYOfRE0JPHH7qtJ09xwzHodcZ"
+              src={user.avatarUrl || FALLBACK_AVATAR}
             />
           </div>
         </div>
@@ -180,13 +238,12 @@ export default function Navbar({
         {[
           { id: "dashboard", label: "Painel", icon: "dashboard" },
           { id: "clients", label: "Clientes", icon: "group" },
-          ...((user.role === UserRole.OWNER || user.role === UserRole.ATTENDANT) ? [{ id: "os", label: "Nova OS", icon: "assignment" }] : []),
-          { id: "kanban", label: "Quadro", icon: "splitscreen" },
+          ...((user.role === UserRole.OWNER || user.role === UserRole.ATTENDANT) ? [{ id: "os", label: "Listagem OS", icon: "view_list" }] : []),
+          { id: "kanban", label: "Ordens OS", icon: "assignment" },
           { id: "estoque", label: "Estoque", icon: "inventory_2" },
           ...((user.role === UserRole.OWNER || user.role === UserRole.FINANCIAL) ? [{ id: "bling", label: "Fiscal", icon: "sync_alt" }] : []),
-          ...(user.role === UserRole.OWNER ? [{ id: "users", label: "Equipe", icon: "manage_accounts" }] : []),
-          ...(user.role === UserRole.OWNER ? [{ id: "feature-flags", label: "Config", icon: "toggle_on" }] : []),
-          { id: "skills", label: "Skills", icon: "account_tree" }
+          ...((user.role === UserRole.OWNER || user.role === UserRole.ADMIN) ? [{ id: "settings", label: "Config", icon: "settings" }] : []),
+          { id: "profile", label: "Perfil", icon: "person" }
         ].map((tab) => {
           const active = currentTab === tab.id;
           return (

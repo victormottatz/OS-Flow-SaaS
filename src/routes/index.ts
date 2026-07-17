@@ -10,6 +10,8 @@ import dashboardRoutes from "./dashboard.routes";
 import permissionsRoutes from "./permissions.routes";
 import searchRoutes from "./search.routes";
 import portalRoutes from "./portal.routes";
+import conciliationRoutes from "./conciliation.routes";
+import whatsappRoutes from "./whatsapp.routes";
 
 const router = Router();
 
@@ -24,5 +26,7 @@ router.use("/dashboards", dashboardRoutes);
 router.use("/permissions", permissionsRoutes);
 router.use("/search", searchRoutes);
 router.use("/portal", portalRoutes);
+router.use("/conciliacao", conciliationRoutes);
+router.use("/whatsapp", whatsappRoutes);
 
 export default router;

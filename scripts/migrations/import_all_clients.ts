@@ -1,5 +1,5 @@
 import fs from 'fs';
-import { syncClientToBling } from '../src/services/bling';
+import { syncClientToBling } from '../../src/services/bling';
 
 // Delay function to avoid rate limits
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));

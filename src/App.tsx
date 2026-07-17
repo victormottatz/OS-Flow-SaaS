@@ -4,31 +4,32 @@
  */
 
 import { useState, useEffect } from "react";
+import axios from "axios";
 import { User, UserRole, Client, Device, OrdemServico, Part } from "./types";
 import { FeatureFlagProvider } from "./contexts/FeatureFlagContext";
 import Navbar from "./components/Navbar";
 import LoginForm from "./components/LoginForm";
 import DashboardView from "./components/DashboardView";
 import ClientManager from "./components/ClientManager";
+import OSList from "./components/OSList";
 import OSManager from "./components/OSManager";
 import KanbanBoard from "./components/KanbanBoard";
 import BlingSandbox from "./components/BlingSandbox";
 import StockManager from "./components/StockManager";
 import PublicPortal from "./components/PublicPortal";
-import UserManagement from "./components/UserManagement";
-import FeatureFlagsPanel from "./components/FeatureFlagsPanel";
-import SkillTree from "./components/SkillTree";
+import SettingsView from "./components/SettingsView";
+import ProfileSettings from "./components/ProfileSettings";
 
 const getInitialTab = () => {
   const path = window.location.pathname;
   if (path === "/clientes") return "clients";
+  if (path === "/os/nova" || path === "/os-create") return "os-create";
   if (path === "/os") return "os";
   if (path === "/kanban") return "kanban";
   if (path === "/estoque") return "estoque";
   if (path === "/bling") return "bling";
-  if (path === "/users") return "users";
-  if (path === "/feature-flags") return "feature-flags";
-  if (path === "/skills") return "skills";
+  if (path === "/settings") return "settings";
+  if (path === "/perfil") return "profile";
   return "dashboard";
 };
 
@@ -52,18 +53,29 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState<string>(getInitialTab);
   const [isOffline, setIsOffline] = useState<boolean>(false);
   const [isInitialized, setIsInitialized] = useState<boolean>(false);
+  const [isSidebarMinimized, setIsSidebarMinimized] = useState<boolean>(() => {
+    return localStorage.getItem("mgv_sidebar_minimized") === "true";
+  });
+
+  const handleToggleSidebar = () => {
+    setIsSidebarMinimized(prev => {
+      const newVal = !prev;
+      localStorage.setItem("mgv_sidebar_minimized", String(newVal));
+      return newVal;
+    });
+  };
 
   const handleTabChange = (tab: string) => {
     setCurrentTab(tab);
     let path = "/dashboard";
     if (tab === "clients") path = "/clientes";
     else if (tab === "os") path = "/os";
+    else if (tab === "os-create") path = "/os/nova";
     else if (tab === "kanban") path = "/kanban";
     else if (tab === "estoque") path = "/estoque";
     else if (tab === "bling") path = "/bling";
-    else if (tab === "users") path = "/users";
-    else if (tab === "feature-flags") path = "/feature-flags";
-    else if (tab === "skills") path = "/skills";
+    else if (tab === "settings") path = "/settings";
+    else if (tab === "profile") path = "/perfil";
     
     window.history.pushState(null, "", path);
   };
@@ -84,12 +96,18 @@ export default function App() {
     if (savedUser && savedToken) {
       setUser(JSON.parse(savedUser));
       setToken(savedToken);
+      // Configura Axios globalmente
+      axios.defaults.headers.common['Authorization'] = `Bearer ${savedToken}`;
     }
     setIsInitialized(true);
   }, []);
 
+  const [osLimit, setOsLimit] = useState<number | "all">(100);
+  const [clientLimit, setClientLimit] = useState<number | "all">(100);
+  const [partLimit, setPartLimit] = useState<number | "all">(100);
+
   // Fetch core models from express server API
-  const loadDatabase = async () => {
+  const loadDatabase = async (currentOsLimit = osLimit, currentClientLimit = clientLimit, currentPartLimit = partLimit) => {
     if (isOffline) return; // Freeze API calls if offline
 
     const activeToken = localStorage.getItem("mgv_token") || token || "";
@@ -97,9 +115,9 @@ export default function App() {
 
     try {
       const [clientsRes, osRes, partsRes] = await Promise.all([
-        fetch("/api/clients", { headers }),
-        fetch("/api/ordens-servico", { headers }),
-        fetch("/api/parts", { headers })
+        fetch(`/api/clients?limit=${currentClientLimit}`, { headers }),
+        fetch(`/api/ordens-servico?limit=${currentOsLimit}`, { headers }),
+        fetch(`/api/parts?limit=${currentPartLimit}`, { headers })
       ]);
 
       if (clientsRes.ok && osRes.ok && partsRes.ok) {
@@ -118,15 +136,17 @@ export default function App() {
 
   useEffect(() => {
     if (user) {
-      loadDatabase();
+      loadDatabase(osLimit, clientLimit, partLimit);
     }
-  }, [user, isOffline]);
+  }, [user, isOffline, osLimit, clientLimit, partLimit]);
 
   const handleLoginSuccess = (loggedInUser: User, sessionToken: string) => {
     setUser(loggedInUser);
     setToken(sessionToken);
     localStorage.setItem("mgv_user", JSON.stringify(loggedInUser));
     localStorage.setItem("mgv_token", sessionToken);
+    // Configura Axios globalmente
+    axios.defaults.headers.common['Authorization'] = `Bearer ${sessionToken}`;
     handleTabChange("dashboard");
   };
 
@@ -135,6 +155,8 @@ export default function App() {
     setToken(null);
     localStorage.removeItem("mgv_user");
     localStorage.removeItem("mgv_token");
+    // Remove cabeçalho global do Axios
+    delete axios.defaults.headers.common['Authorization'];
   };
 
 
@@ -163,11 +185,18 @@ export default function App() {
         isOffline={isOffline}
         setIsOffline={setIsOffline}
         onLogout={handleLogout}
+        isSidebarMinimized={isSidebarMinimized}
+        toggleSidebar={handleToggleSidebar}
       />
 
-      <main className="flex-1 md:ml-[260px] p-4 sm:p-6 lg:p-8 pb-28 transition-all">
+      <main className={`flex-1 pb-28 transition-all duration-300 ${
+        isSidebarMinimized 
+          ? "md:ml-[70px] pt-6 pb-6 pr-6 pl-8 md:pl-10 lg:pl-12" 
+          : "md:ml-[260px] pt-6 pb-6 pr-6 pl-6 md:pl-8 lg:pl-10"
+      }`}>
         {currentTab === "dashboard" && (
           <DashboardView
+            user={user}
             clients={clients}
             devices={clients.flatMap(c => c.devices || [])}
             ordensServico={ordensServico}
@@ -184,16 +213,31 @@ export default function App() {
             userRole={user.role}
             isOffline={isOffline}
             onRefresh={loadDatabase}
+            limit={clientLimit}
+            onLimitChange={setClientLimit}
           />
         )}
 
         {currentTab === "os" && (
+          <OSList
+            clients={clients}
+            ordensServico={ordensServico}
+            isOffline={isOffline}
+            onRefresh={loadDatabase}
+            userRole={user.role}
+            limit={osLimit}
+            onLimitChange={setOsLimit}
+          />
+        )}
+
+        {currentTab === "os-create" && (
           <OSManager
             clients={clients}
             ordensServico={ordensServico}
             isOffline={isOffline}
             onRefresh={loadDatabase}
             userRole={user.role}
+            onOSCreated={() => handleTabChange("os")}
           />
         )}
 
@@ -205,6 +249,8 @@ export default function App() {
             isOffline={isOffline}
             onRefresh={loadDatabase}
             onNavigateToBlingPanel={() => handleTabChange("bling")}
+            limit={osLimit}
+            onLimitChange={setOsLimit}
           />
         )}
 
@@ -214,6 +260,8 @@ export default function App() {
             userRole={user.role}
             isOffline={isOffline}
             onRefresh={loadDatabase}
+            limit={partLimit}
+            onLimitChange={setPartLimit}
           />
         )}
 
@@ -226,30 +274,26 @@ export default function App() {
           />
         )}
 
-        {currentTab === "users" && (
-          <UserManagement
-            userRole={user.role}
+        {currentTab === "settings" && (
+          <SettingsView userRole={user.role} isOffline={isOffline} />
+        )}
+
+        {currentTab === "profile" && (
+          <ProfileSettings
+            user={user}
+            onProfileUpdated={(updatedUser) => {
+              setUser(updatedUser);
+              localStorage.setItem("mgv_user", JSON.stringify(updatedUser));
+            }}
             isOffline={isOffline}
-          />
-        )}
-
-        {currentTab === "feature-flags" && (
-          <FeatureFlagsPanel
-            userRole={user.role}
-          />
-        )}
-
-        {currentTab === "skills" && (
-          <SkillTree
-            userRole={user.role}
           />
         )}
       </main>
 
       {/* Floating Action Button (FAB) for OS Creation (hidden when already on OS view) */}
-      {currentTab !== "os" && (
+      {currentTab !== "os-create" && (
         <button 
-          onClick={() => handleTabChange("os")} 
+          onClick={() => handleTabChange("os-create")} 
           className="fixed bottom-8 right-8 w-14 h-14 bg-secondary-container text-primary-container rounded-full shadow-lg flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50 cursor-pointer"
           title="Nova Ordem de Serviço"
         >
@@ -257,7 +301,9 @@ export default function App() {
         </button>
       )}
 
-      <footer className="md:ml-[260px] bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-400 font-mono select-none">
+      <footer className={`bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-400 font-mono select-none transition-all duration-300 ${
+        isSidebarMinimized ? "md:ml-[70px]" : "md:ml-[260px]"
+      }`}>
         <p>MGV Tecnologia & Assistência Técnica © {new Date().getFullYear()} – Centralized ERP Workspace</p>
       </footer>
     </div>

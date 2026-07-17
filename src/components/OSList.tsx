@@ -1,0 +1,737 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState, useMemo } from "react";
+import { OrdemServico, Client, Device, OSStatus, UsedPart, ChecklistItem, EntradaFoto } from "../types";
+
+interface OSListProps {
+  clients: (Client & { devices: Device[] })[];
+  ordensServico: OrdemServico[];
+  isOffline: boolean;
+  onRefresh: () => void;
+  userRole: string;
+  limit: number | "all";
+  onLimitChange: (limit: number | "all") => void;
+}
+
+const getStatusBadgeClass = (status: OSStatus, closingReason?: string | null) => {
+  if (status === "FINALIZADO") {
+    if (closingReason === "ORCAMENTO_RECUSADO") {
+      return "bg-amber-50 text-amber-700 border-amber-200";
+    }
+    if (closingReason === "DESCARTE_CLIENTE_RETIRA" || closingReason === "DESCARTE_OFICINA") {
+      return "bg-slate-100 text-slate-650 border-slate-300";
+    }
+  }
+  switch (status) {
+    case "AGUARDANDO_AVALIACAO":
+      return "bg-slate-50 text-slate-700 border-slate-200";
+    case "AGUARDANDO_AUTORIZACAO":
+      return "bg-blue-50 text-blue-750 border-blue-200";
+    case "AGUARDANDO_PECA":
+      return "bg-amber-50 text-amber-800 border-amber-200";
+    case "EM_MANUTENCAO":
+      return "bg-purple-50 text-purple-750 border-purple-200";
+    case "PRONTO_RETIRADA":
+      return "bg-teal-50 text-teal-800 border-teal-200";
+    case "PAGO_PRONTO_RETIRADA":
+      return "bg-cyan-50 text-cyan-800 border-cyan-200";
+    case "FINALIZADO":
+      return "bg-emerald-50 text-emerald-800 border-emerald-200";
+    default:
+      return "bg-slate-50 text-slate-700 border-slate-200";
+  }
+};
+
+const getStatusName = (status: OSStatus, closingReason?: string | null) => {
+  if (status === "FINALIZADO") {
+    if (closingReason === "ORCAMENTO_RECUSADO") return "Sem Reparo (Recusado)";
+    if (closingReason === "DESCARTE_CLIENTE_RETIRA") return "Descarte (Cliente Retira)";
+    if (closingReason === "DESCARTE_OFICINA") return "Descarte (Oficina)";
+  }
+  switch (status) {
+    case "AGUARDANDO_AVALIACAO": return "Aguardando Avaliação";
+    case "AGUARDANDO_AUTORIZACAO": return "Aguardando Autorização";
+    case "AGUARDANDO_PECA": return "Aguardando Peça";
+    case "EM_MANUTENCAO": return "Em Manutenção";
+    case "PRONTO_RETIRADA": return "Pronto p/ Retirada";
+    case "PAGO_PRONTO_RETIRADA": return "Pago Pronto p/ Retirada";
+    case "FINALIZADO": return "Finalizado";
+    default: return status;
+  }
+};
+
+export default function OSList({ clients, ordensServico, isOffline, onRefresh, userRole, limit, onLimitChange }: OSListProps) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<OSStatus | "ALL">("ALL");
+  const [selectedOS, setSelectedOS] = useState<OrdemServico | null>(null);
+  const [activePrintOS, setActivePrintOS] = useState<OrdemServico | null>(null);
+  const [lightboxPhoto, setLightboxPhoto] = useState<EntradaFoto | null>(null);
+  const [modalTab, setModalTab] = useState<"laudo" | "pecas" | "entrada" | "saida">("laudo");
+
+  // Helper map for fast lookup of clients and devices
+  const clientMap = useMemo(() => new Map(clients.map(c => [c.id, c])), [clients]);
+  const deviceMap = useMemo(() => {
+    const map = new Map<string, Device>();
+    clients.forEach(c => {
+      c.devices?.forEach(d => {
+        map.set(d.id, d);
+      });
+    });
+    return map;
+  }, [clients]);
+
+  // Enrich OS records with client and device data for search and display
+  const enrichedOSs = useMemo(() => {
+    return ordensServico.map(os => {
+      const client = clientMap.get(os.clientId);
+      const device = deviceMap.get(os.deviceId);
+      return {
+        ...os,
+        client: client || os.client,
+        device: device || os.device
+      };
+    });
+  }, [ordensServico, clientMap, deviceMap]);
+
+  // Filter and Search logic
+  const filteredOSs = useMemo(() => {
+    return enrichedOSs.filter(os => {
+      // 1. Status Filter
+      if (statusFilter !== "ALL" && os.status !== statusFilter) {
+        return false;
+      }
+
+      // 2. Search Term Filter
+      if (!searchTerm.trim()) return true;
+      const term = searchTerm.toLowerCase();
+      
+      const clientName = os.client?.name || "";
+      const deviceBrand = os.device?.brand || "";
+      const deviceModel = os.device?.model || "";
+      const deviceType = os.device?.type || "";
+      const defect = os.reportedDefect || "";
+      const diag = os.diagnostic || "";
+
+      return (
+        os.osNumber.toLowerCase().includes(term) ||
+        clientName.toLowerCase().includes(term) ||
+        deviceBrand.toLowerCase().includes(term) ||
+        deviceModel.toLowerCase().includes(term) ||
+        deviceType.toLowerCase().includes(term) ||
+        defect.toLowerCase().includes(term) ||
+        diag.toLowerCase().includes(term)
+      );
+    }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()); // Newest first
+  }, [enrichedOSs, statusFilter, searchTerm]);
+
+  const handlePrintReceipt = (os: OrdemServico) => {
+    // Enrich print OS with client and device
+    const client = clientMap.get(os.clientId);
+    const device = deviceMap.get(os.deviceId);
+    setActivePrintOS({
+      ...os,
+      client: client || os.client,
+      device: device || os.device
+    } as any);
+
+    setTimeout(() => {
+      window.print();
+    }, 150);
+  };
+
+  const getOSTotal = (os: OrdemServico) => {
+    const partsTotal = os.usedParts?.reduce((s, i) => s + (i.price * i.quantity), 0) || 0;
+    return partsTotal + (os.laborCost || 0);
+  };
+
+  const handleOpenDetails = async (os: OrdemServico) => {
+    setSelectedOS(os);
+    setModalTab("laudo");
+    try {
+      const token = localStorage.getItem("mgv_token") || "";
+      const res = await fetch(`/api/ordens-servico/${os.id}`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const fullOS = await res.json();
+        setSelectedOS(fullOS);
+      }
+    } catch (err) {
+      console.error("Erro ao carregar detalhes completos da OS:", err);
+    }
+  };
+
+  return (
+    <div className="space-y-6 anim-fadein select-none">
+      {/* Print styles override */}
+      <style>{`
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          #printable-recibo, #printable-recibo * {
+            visibility: visible;
+          }
+          #printable-recibo {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+        }
+      `}</style>
+
+      {/* Page Header */}
+      <div className="border-b border-slate-200 pb-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Listagem de OS</h2>
+          <p className="text-slate-500 text-sm">Visualização, busca rápida e auditoria geral de todas as Ordens de Serviço</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2 shadow-sm">
+            <span className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Exibir Finalizadas:</span>
+            <select
+              value={limit}
+              onChange={(e) => onLimitChange(e.target.value === "all" ? "all" : Number(e.target.value))}
+              className="bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer"
+            >
+              <option value="100">100 OSs</option>
+              <option value="250">250 OSs</option>
+              <option value="500">500 OSs</option>
+              <option value="all">Todas</option>
+            </select>
+          </div>
+          <button
+            onClick={onRefresh}
+            className="px-4 py-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl text-xs font-bold text-slate-700 transition flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[16px]">sync</span> Sincronizar Base
+          </button>
+        </div>
+      </div>
+
+      {/* Control Panel (Search + Status Filter) */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col lg:flex-row items-center gap-4">
+        {/* Search Field */}
+        <div className="flex-1 relative w-full group">
+          <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors">search</span>
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Pesquisar por OS, cliente, aparelho, laudo ou sintomas..."
+            className="w-full pl-12 pr-10 py-3 bg-slate-50/50 border border-slate-200 rounded-xl text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-medium text-slate-800 placeholder:text-slate-400"
+          />
+          {searchTerm && (
+            <button 
+              type="button" 
+              onClick={() => setSearchTerm("")}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-750 bg-slate-100 hover:bg-slate-200 rounded-full p-1 transition"
+            >
+              <span className="material-symbols-outlined text-[16px] block">close</span>
+            </button>
+          )}
+        </div>
+
+        {/* Filter Buttons */}
+        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto shrink-0 border-t lg:border-t-0 pt-3 lg:pt-0">
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-2 hidden xl:inline">Status:</label>
+          <button
+            onClick={() => setStatusFilter("ALL")}
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer border ${
+              statusFilter === "ALL" 
+                ? "bg-slate-900 text-white border-slate-900 shadow-sm" 
+                : "bg-slate-50 text-slate-650 border-slate-200 hover:bg-slate-100"
+            }`}
+          >
+            Todas ({ordensServico.length})
+          </button>
+          {(["AGUARDANDO_AVALIACAO", "AGUARDANDO_AUTORIZACAO", "AGUARDANDO_PECA", "EM_MANUTENCAO", "PRONTO_RETIRADA", "PAGO_PRONTO_RETIRADA", "FINALIZADO"] as OSStatus[]).map((status) => {
+            const count = ordensServico.filter(os => os.status === status).length;
+            const active = statusFilter === status;
+            return (
+              <button
+                key={status}
+                onClick={() => setStatusFilter(status)}
+                className={`px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer border ${
+                  active 
+                    ? "bg-indigo-650 text-white border-indigo-650 shadow-sm" 
+                    : "bg-slate-50 text-slate-650 border-slate-200 hover:bg-slate-100"
+                }`}
+              >
+                {getStatusName(status)} ({count})
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* OS Data Table */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+        {filteredOSs.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-50/70 border-b border-slate-200 text-slate-450 font-bold uppercase text-[9px] tracking-wider">
+                  <th className="px-6 py-4 font-bold">Nº OS</th>
+                  <th className="px-6 py-4 font-bold">Cliente</th>
+                  <th className="px-6 py-4 font-bold">Equipamento</th>
+                  <th className="px-6 py-4 font-bold">Data de Abertura</th>
+                  <th className="px-6 py-4 font-bold">Fase / Status</th>
+                  <th className="px-6 py-4 font-bold text-right">Valor Total</th>
+                  <th className="px-6 py-4 font-bold text-center">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-150">
+                {filteredOSs.map((os) => {
+                  const total = getOSTotal(os);
+                  return (
+                    <tr key={os.id} className="hover:bg-slate-50/40 text-slate-700 transition">
+                      <td className="px-6 py-4 font-bold font-mono text-slate-900">
+                        <span className="bg-slate-100 text-slate-800 px-2 py-1 rounded border border-slate-200/60">{os.osNumber}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="font-extrabold text-slate-900 text-[13px]">{os.client?.name || "Cliente Desconhecido"}</p>
+                        <p className="text-[10px] text-slate-400 font-mono mt-0.5">{os.client?.phone || "Telefone não cadastrado"}</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="font-bold text-slate-850">{os.device?.type || "Aparelho"} {os.device?.brand || ""}</p>
+                        <p className="text-[10px] text-slate-500 font-semibold mt-0.5">Modelo: {os.device?.model || "N/D"}</p>
+                      </td>
+                      <td className="px-6 py-4 font-medium text-slate-500">
+                        {new Date(os.createdAt).toLocaleDateString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold border ${getStatusBadgeClass(os.status, os.closingReason)}`}>
+                          {getStatusName(os.status, os.closingReason)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 font-mono font-bold text-slate-900 text-right text-[13px]">
+                        R$ {total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => handleOpenDetails(os)}
+                            className="p-1.5 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-650 border border-slate-200 hover:border-indigo-200 rounded-lg text-slate-500 transition cursor-pointer"
+                            title="Visualizar laudo técnico"
+                          >
+                            <span className="material-symbols-outlined text-[16px] block">visibility</span>
+                          </button>
+                          <button
+                            onClick={() => handlePrintReceipt(os)}
+                            className="p-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg text-slate-650 transition cursor-pointer"
+                            title="Imprimir recibo / termo"
+                          >
+                            <span className="material-symbols-outlined text-[16px] block">print</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-16 text-slate-400 bg-white">
+            <span className="material-symbols-outlined text-[48px] text-slate-300 mx-auto mb-2 block">assignment_late</span>
+            <p className="text-sm font-bold text-slate-800">Nenhuma Ordem de Serviço encontrada</p>
+            <p className="text-xs text-slate-500 mt-1">Experimente limpar os filtros ou digitar termos de busca mais simples.</p>
+          </div>
+        )}
+      </div>
+
+      {/* DETAIL MODAL VIEWER */}
+      {selectedOS && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden anim-slideup">
+            
+            {/* Modal Header */}
+            <div className="px-6 py-4 bg-gradient-to-r from-slate-900 to-indigo-950 text-white flex items-center justify-between sticky top-0 z-15 border-b border-slate-800">
+              <div className="flex items-center space-x-2.5">
+                <span className="material-symbols-outlined text-[20px] text-teal-400 shrink-0">inventory_2</span>
+                <h3 className="font-bold text-base font-display">Consulta de OS - {selectedOS.osNumber}</h3>
+              </div>
+              <button onClick={() => setSelectedOS(null)} className="text-slate-450 hover:text-white transition cursor-pointer">
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            {/* Modal Tabs */}
+            <div className="flex border-b border-slate-200 bg-slate-50 px-6 py-2 gap-2 select-none">
+              <button 
+                type="button" 
+                onClick={() => setModalTab("laudo")}
+                className={`px-3 py-1.5 text-xs font-extrabold rounded-lg transition-all duration-200 active:scale-95 ${
+                  modalTab === "laudo" ? "bg-slate-900 text-white shadow-sm" : "text-slate-650 hover:bg-slate-200/60"
+                }`}
+              >
+                1. Laudo & Custos
+              </button>
+              <button 
+                type="button" 
+                onClick={() => setModalTab("pecas")}
+                className={`px-3 py-1.5 text-xs font-extrabold rounded-lg transition-all duration-200 active:scale-95 ${
+                  modalTab === "pecas" ? "bg-slate-900 text-white shadow-sm" : "text-slate-650 hover:bg-slate-200/60"
+                }`}
+              >
+                2. Peças Aplicadas
+              </button>
+              <button 
+                type="button" 
+                onClick={() => setModalTab("entrada")}
+                className={`px-3 py-1.5 text-xs font-extrabold rounded-lg transition-all duration-200 active:scale-95 ${
+                  modalTab === "entrada" ? "bg-slate-900 text-white shadow-sm" : "text-slate-650 hover:bg-slate-200/60"
+                }`}
+              >
+                3. Checklist de Entrada
+              </button>
+              {selectedOS.checklistSaida && selectedOS.checklistSaida.length > 0 && (
+                <button 
+                  type="button" 
+                  onClick={() => setModalTab("saida")}
+                  className={`px-3 py-1.5 text-xs font-extrabold rounded-lg transition-all duration-200 active:scale-95 ${
+                    modalTab === "saida" ? "bg-slate-900 text-white shadow-sm" : "text-slate-650 hover:bg-slate-200/60"
+                  }`}
+                >
+                  4. Checklist de Saída
+                </button>
+              )}
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-6 flex-1 overflow-y-auto bg-slate-50/30">
+              
+              {/* Client & Device Card Banner */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200/80 grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs">
+                <p>
+                  <span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block">Cliente</span> 
+                  <strong className="text-slate-800 text-sm mt-0.5 block">{selectedOS.client?.name || "Desconhecido"}</strong>
+                  <span className="text-slate-500 block font-mono text-[10px] mt-0.5">TEL: {selectedOS.client?.phone || "N/A"}</span>
+                </p>
+                <p>
+                  <span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block">Dispositivo</span> 
+                  <strong className="text-slate-800 text-sm mt-0.5 block">{selectedOS.device?.type} {selectedOS.device?.brand}</strong>
+                  <span className="text-slate-500 block font-semibold text-[10px] mt-0.5">MODELO: {selectedOS.device?.model} | SÉRIE: {selectedOS.device?.serialNumber}</span>
+                </p>
+                <p className="sm:col-span-2 border-t border-slate-100 pt-2">
+                  <span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block">Defeito Relatado</span> 
+                  <span className="text-slate-650 italic block mt-1">"{selectedOS.reportedDefect || "N/A"}"</span>
+                </p>
+              </div>
+
+              {/* TAB 1: LAUDO & CUSTOS */}
+              {modalTab === "laudo" && (
+                <div className="space-y-5 anim-fadein">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Laudo Técnico da OS (Interno)</label>
+                    <div className="p-3.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 font-semibold font-mono leading-relaxed min-h-[100px] whitespace-pre-wrap">
+                      {selectedOS.diagnostic || "Ainda sem laudo técnico emitido."}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Laudo Comercial (Visível no Portal do Cliente)</label>
+                    <div className="p-3.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 font-semibold font-mono leading-relaxed min-h-[70px] whitespace-pre-wrap">
+                      {selectedOS.laudoMacro || "Ainda sem laudo comercial emitido."}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4 text-xs font-semibold select-none">
+                    <div className="bg-white p-3 border border-slate-200 rounded-xl">
+                      <span className="text-[9px] text-slate-400 uppercase block tracking-wider font-bold">Mão de Obra</span>
+                      <span className="text-slate-900 font-bold font-mono text-sm block mt-1">R$ {selectedOS.laborCost?.toFixed(2) || "0.00"}</span>
+                    </div>
+                    <div className="bg-white p-3 border border-slate-200 rounded-xl">
+                      <span className="text-[9px] text-slate-400 uppercase block tracking-wider font-bold">Horas Alocadas</span>
+                      <span className="text-slate-900 font-bold font-mono text-sm block mt-1">{selectedOS.technicianLaborHours || "0"}h</span>
+                    </div>
+                    <div className="bg-white p-3 border border-slate-200 rounded-xl bg-slate-950 border-slate-950 text-white">
+                      <span className="text-[9px] text-slate-400 uppercase block tracking-wider font-bold">Total Faturado</span>
+                      <span className="text-emerald-400 font-extrabold font-mono text-sm block mt-1">R$ {getOSTotal(selectedOS).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 2: USED PARTS */}
+              {modalTab === "pecas" && (
+                <div className="space-y-4 anim-fadein">
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Histórico de Insumos da OS</h4>
+                  {!selectedOS.usedParts || selectedOS.usedParts.length === 0 ? (
+                    <div className="p-8 text-center text-slate-450 italic bg-white border border-slate-200 rounded-xl text-xs">
+                      Nenhuma peça alocada a esta Ordem de Serviço.
+                    </div>
+                  ) : (
+                    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200 text-slate-400 font-bold uppercase text-[9px] tracking-wider">
+                            <th className="px-4 py-2.5 font-bold">Descrição da Peça</th>
+                            <th className="px-4 py-2.5 font-bold text-center">Quantidade</th>
+                            <th className="px-4 py-2.5 font-bold text-right">Preço Un. (R$)</th>
+                            <th className="px-4 py-2.5 font-bold text-right">Total (R$)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-150">
+                          {selectedOS.usedParts.map((item, idx) => (
+                            <tr key={idx} className="text-slate-700">
+                              <td className="px-4 py-3 font-semibold">
+                                <p className="font-bold text-slate-900">{item.name}</p>
+                                {item.serialNumber && (
+                                  <p className="text-[10px] text-slate-500 font-mono mt-0.5">N/S: <span className="bg-slate-100 px-1 py-0.5 rounded border">{item.serialNumber}</span></p>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-center font-mono font-bold">{item.quantity}</td>
+                              <td className="px-4 py-3 text-right font-mono font-semibold">R$ {item.price.toFixed(2)}</td>
+                              <td className="px-4 py-3 text-right font-mono font-bold text-slate-900">R$ {(item.price * item.quantity).toFixed(2)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 3: CHECKLIST ENTRADA */}
+              {modalTab === "entrada" && (
+                <div className="space-y-6 anim-fadein">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Checklist */}
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Condições de Recepção do Aparelho</h4>
+                      <div className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-2 max-h-[300px] overflow-y-auto">
+                        {selectedOS.checklistEntrada && selectedOS.checklistEntrada.length > 0 ? (
+                          selectedOS.checklistEntrada.map((item) => (
+                            <div key={item.id} className="flex justify-between items-center text-xs py-1 border-b last:border-b-0 border-slate-100">
+                              <span className="font-semibold text-slate-700">{item.label}</span>
+                              <div className="flex items-center gap-2">
+                                <span className={`px-2 py-0.5 rounded-full font-bold text-[9px] border ${
+                                  item.status === "OK" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                                  item.status === "AVARIA" ? "bg-rose-50 text-rose-700 border-rose-200" :
+                                  "bg-slate-50 text-slate-500 border-slate-200"
+                                }`}>
+                                  {item.status === "OK" ? "✓ OK" : item.status === "AVARIA" ? "✗ Avaria" : "N/A"}
+                                </span>
+                                {item.observacao && (
+                                  <span className="text-[10px] text-slate-450 italic">({item.observacao})</span>
+                                )}
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-slate-400 italic text-center text-xs py-8">Nenhum checklist de entrada registrado.</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Photos */}
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Laudo Fotográfico de Entrada</h4>
+                      {selectedOS.laudoFotos && selectedOS.laudoFotos.length > 0 ? (
+                        <div className="grid grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-1">
+                          {selectedOS.laudoFotos.map((photo) => (
+                            <div 
+                              key={photo.id} 
+                              onClick={() => setLightboxPhoto(photo)}
+                              className="bg-white border border-slate-200 rounded-xl p-1.5 cursor-pointer hover:shadow-sm transition"
+                            >
+                              <img src={photo.dataUrl} alt="Laudo entrada" className="w-full h-24 object-cover rounded-lg" />
+                              {photo.legenda && (
+                                <p className="text-[9px] text-slate-550 font-medium truncate mt-1.5 px-1">{photo.legenda}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="p-8 text-center text-slate-400 italic bg-white border border-dashed border-slate-200 rounded-xl text-xs py-16">
+                          Sem anexos fotográficos.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 4: CHECKLIST SAIDA */}
+              {modalTab === "saida" && selectedOS.checklistSaida && (
+                <div className="space-y-3 anim-fadein">
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Checklist de Liberação Técnica (Saída)</h4>
+                  <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-2.5 max-w-xl">
+                    {selectedOS.checklistSaida.map((item) => (
+                      <div key={item.id} className="flex justify-between items-center text-xs py-1.5 border-b last:border-b-0 border-slate-150">
+                        <span className="font-semibold text-slate-700">{item.label}</span>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded-full font-bold text-[9px] border ${
+                            item.status === "OK" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                            item.status === "AVARIA" ? "bg-rose-50 text-rose-700 border-rose-200" :
+                            "bg-slate-50 text-slate-500 border-slate-200"
+                          }`}>
+                            {item.status === "OK" ? "✓ Aprovado" : item.status === "AVARIA" ? "✗ Reprovado" : "N/A"}
+                          </span>
+                          {item.observacao && (
+                            <span className="text-[10px] text-slate-450 italic">({item.observacao})</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center select-none">
+              <button
+                onClick={() => handlePrintReceipt(selectedOS)}
+                className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-sm"
+              >
+                <span className="material-symbols-outlined text-[16px]">print</span> Imprimir Termo/Recibo
+              </button>
+              <button
+                onClick={() => setSelectedOS(null)}
+                className="px-5 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-100 transition cursor-pointer"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox for large photo viewing */}
+      {lightboxPhoto && (
+        <div 
+          className="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-4 z-[60]"
+          onClick={() => setLightboxPhoto(null)}
+        >
+          <div className="max-w-3xl w-full max-h-[85vh] flex items-center justify-center relative select-none">
+            <img src={lightboxPhoto.dataUrl} alt="Visualização em tamanho real" className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl border border-slate-800" />
+            <button 
+              onClick={() => setLightboxPhoto(null)} 
+              className="absolute top-4 right-4 bg-slate-900/60 hover:bg-slate-900 text-white w-10 h-10 rounded-full flex items-center justify-center transition border border-slate-700 cursor-pointer"
+            >
+              <span className="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          {lightboxPhoto.legenda && (
+            <p className="mt-4 text-white font-medium text-sm bg-slate-900/60 px-4 py-2 rounded-xl border border-slate-800 select-none">{lightboxPhoto.legenda}</p>
+          )}
+        </div>
+      )}
+
+      {/* HIDDEN PRINTABLE CONTAINER */}
+      {activePrintOS && (
+        <div id="printable-recibo" className="hidden print:block bg-white p-8 font-sans text-[11px] text-slate-900">
+          <div className="flex justify-between items-start border-b border-slate-300 pb-5 gap-4">
+            <div>
+              <img 
+                src="/logos/LOGO V3.0 (2).png" 
+                alt="MGV Tecnologia" 
+                className="h-10 w-auto object-contain mb-3"
+              />
+              <p className="text-[9px] text-slate-500 font-mono mt-0.5">MGV TECNOLOGIA E ASSISTÊNCIA TÉCNICA LTDA</p>
+              <p className="text-[9px] text-slate-500 font-mono mt-0.5">CNPJ: 18.291.554/0001-90 | IE: 109.283.412.110</p>
+              <p className="text-[9px] text-slate-500 mt-0.5">Av. Tiradentes, 850, Ribeirão Preto - SP | Tel: (11) 3218-9900</p>
+            </div>
+            <div className="text-right">
+              <span className="text-[9px] font-bold uppercase text-slate-700 border border-slate-300 px-2 py-0.5 rounded font-mono">
+                RECIBO DE ORDEM DE SERVIÇO
+              </span>
+              <p className="text-2xl font-mono font-bold mt-2 text-slate-950">{activePrintOS.osNumber}</p>
+              <p className="text-[9px] text-slate-500 font-mono mt-0.5">
+                Emissão: {new Date(activePrintOS.createdAt).toLocaleString("pt-BR")}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 mt-6 border-b border-slate-200 pb-5">
+            <div>
+              <h4 className="font-bold text-slate-800 uppercase text-[9px] tracking-wider mb-1.5">Cliente Proprietário</h4>
+              <p className="font-bold text-slate-950 text-sm">{(activePrintOS as any).client?.name || "N/D"}</p>
+              <p className="mt-1 font-medium text-slate-700 font-mono">CPF/CNPJ: {(activePrintOS as any).client?.cpfCnpj || "N/D"}</p>
+              <p className="font-medium text-slate-700">Contato: <span className="font-mono">{(activePrintOS as any).client?.phone || "N/D"}</span></p>
+            </div>
+            <div>
+              <h4 className="font-bold text-slate-800 uppercase text-[9px] tracking-wider mb-1.5">Equipamento em Assistência</h4>
+              <p className="font-bold text-slate-950 text-sm">{(activePrintOS as any).device?.type || "Aparelho"} {(activePrintOS as any).device?.brand || ""}</p>
+              <p className="mt-1 font-medium text-slate-700">Modelo: {(activePrintOS as any).device?.model || "N/D"}</p>
+              <p className="font-medium text-slate-700 font-mono">Série: {(activePrintOS as any).device?.serialNumber || "Sem Série"}</p>
+            </div>
+          </div>
+
+          <div className="space-y-4 mt-5">
+            <div>
+              <h4 className="font-bold text-slate-800 uppercase text-[9px] tracking-wider mb-1">Sintoma Relatado</h4>
+              <p className="p-2.5 bg-slate-50 border border-slate-200 rounded text-slate-800 leading-relaxed font-medium italic">
+                "{activePrintOS.reportedDefect || "N/D"}"
+              </p>
+            </div>
+            {activePrintOS.diagnostic && (
+              <div>
+                <h4 className="font-bold text-slate-800 uppercase text-[9px] tracking-wider mb-1">Laudo e Ações Técnicas</h4>
+                <p className="p-2.5 bg-slate-50 border border-slate-200 rounded text-slate-800 leading-relaxed font-medium font-mono whitespace-pre-wrap">
+                  {activePrintOS.diagnostic}
+                </p>
+              </div>
+            )}
+            
+            {activePrintOS.usedParts && activePrintOS.usedParts.length > 0 && (
+              <div>
+                <h4 className="font-bold text-slate-800 uppercase text-[9px] tracking-wider mb-2">Insumos e Peças Aplicadas</h4>
+                <table className="w-full text-left text-[10px] border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-300 text-slate-500 font-bold uppercase text-[8px] tracking-wider">
+                      <th className="py-1.5 font-bold">Descrição da Peça</th>
+                      <th className="py-1.5 text-center font-bold">Qtd</th>
+                      <th className="py-1.5 text-right font-bold">Preço Un.</th>
+                      <th className="py-1.5 text-right font-bold">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activePrintOS.usedParts.map((item, idx) => (
+                      <tr key={idx} className="border-b border-slate-100 text-slate-700">
+                        <td className="py-2 font-semibold">
+                          {item.name} {item.serialNumber && `(N/S: ${item.serialNumber})`}
+                        </td>
+                        <td className="py-2 text-center font-mono font-bold">{item.quantity}</td>
+                        <td className="py-2 text-right font-mono">R$ {item.price.toFixed(2)}</td>
+                        <td className="py-2 text-right font-mono font-bold text-slate-900">R$ {(item.price * item.quantity).toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="p-3 bg-slate-950 text-white rounded flex justify-between items-center mt-6">
+              <span className="text-[8px] uppercase tracking-wider font-bold">Resumo Financeiro da OS</span>
+              <span className="font-mono font-bold text-sm text-emerald-450">
+                Total: R$ {getOSTotal(activePrintOS).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+
+            <div className="mt-14 grid grid-cols-2 gap-12 text-center text-[10px]">
+              <div className="border-t border-slate-350 pt-2">
+                <p className="font-bold text-slate-800">Técnico MGV Responsável</p>
+              </div>
+              <div className="border-t border-slate-350 pt-2">
+                <p className="font-bold text-slate-800">Assinatura do Cliente</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

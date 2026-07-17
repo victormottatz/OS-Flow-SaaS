@@ -97,6 +97,14 @@ async function runSmokeTest() {
     if (!updateRes.ok) throw new Error(`Falha ao atualizar OS: ${JSON.stringify(updateRes.data)}`);
     console.log("✅ OS atualizada com laudo e peças.");
 
+    // 5.5️⃣ Mover para EM_MANUTENCAO
+    console.log("5️⃣.5️⃣ Movendo OS para EM_MANUTENCAO...");
+    const manutencaoRes = await api(`/ordens-servico/${osId}/status`, "PUT", {
+      status: "EM_MANUTENCAO"
+    });
+    if (!manutencaoRes.ok) throw new Error(`Falha ao mover status para EM_MANUTENCAO: ${JSON.stringify(manutencaoRes.data)}`);
+    console.log("✅ OS marcada como Em Manutenção.");
+
     // 6. Mover para PRONTO_RETIRADA
     console.log("6️⃣ Movendo OS para PRONTO_RETIRADA...");
     const prontoRes = await api(`/ordens-servico/${osId}/status`, "PUT", {

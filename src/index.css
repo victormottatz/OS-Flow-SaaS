@@ -1,15 +1,15 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&family=Poppins:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-sans: "Lato", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", monospace;
-  --font-display: "Space Grotesk", sans-serif;
+  --font-display: "Poppins", sans-serif;
   
   /* Stitch Visual Identity Colors */
-  --color-primary-container: #1c1b1b;
-  --color-secondary-container: #fdc003;
-  --color-secondary-container-hover: #e5ac00;
+  --color-primary-container: #111111;
+  --color-secondary-container: #fbbb18;
+  --color-secondary-container-hover: #e5aa0d;
   --color-surface-white: #ffffff;
   --color-status-success: #10b981;
   --color-status-warning: #f59e0b;
@@ -25,6 +25,7 @@
   --color-emerald-500: #10b981;
   --color-slate-150: #e2e8f0;
   --color-slate-250: #cbd5e1;
+  --color-slate-medium: #828383;
   
   /* Premium Shadow System */
   --shadow-premium: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
@@ -173,3 +174,20 @@
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background-color: var(--color-indigo-600);
 }
+
+/* Custom Thin Horizontal Scrollbar for Kanban container */
+.custom-scrollbar-horizontal::-webkit-scrollbar {
+  height: 6px;
+}
+.custom-scrollbar-horizontal::-webkit-scrollbar-track {
+  background: rgba(226, 232, 240, 0.3);
+  border-radius: 10px;
+}
+.custom-scrollbar-horizontal::-webkit-scrollbar-thumb {
+  background-color: var(--color-slate-250);
+  border-radius: 10px;
+}
+.custom-scrollbar-horizontal::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-indigo-600);
+}
+

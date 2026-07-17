@@ -88,9 +88,10 @@ interface OSManagerProps {
   isOffline: boolean;
   userRole: UserRole;
   onRefresh: () => void;
+  onOSCreated?: () => void;
 }
 
-export default function OSManager({ clients, ordensServico, isOffline, userRole, onRefresh }: OSManagerProps) {
+export default function OSManager({ clients, ordensServico, isOffline, userRole, onRefresh, onOSCreated }: OSManagerProps) {
   // Wizard steps
   const [activeStep, setActiveStep] = useState(1);
   const [selectedClientId, setSelectedClientId] = useState("");
@@ -110,6 +111,7 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
   // New Device / Avulso fields
   const [isCreatingDevice, setIsCreatingDevice] = useState(false);
   const [devType, setDevType] = useState("Ultrassom (Fisio/Estética)");
+  const [devExtraType, setDevExtraType] = useState("");
   const [devBrand, setDevBrand] = useState("");
   const [devModel, setDevModel] = useState("");
   const [devSerial, setDevSerial] = useState("");
@@ -148,24 +150,14 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
       reader.onload = (event) => {
         const img = new Image();
         img.onload = () => {
+          const targetWidth = 800;
+          const targetHeight = Math.round((img.height * targetWidth) / img.width);
           const canvas = document.createElement("canvas");
-          let width = img.width;
-          let height = img.height;
-          const maxDim = 800;
-          if (width > maxDim || height > maxDim) {
-            if (width > height) {
-              height = Math.round((height * maxDim) / width);
-              width = maxDim;
-            } else {
-              width = Math.round((width * maxDim) / height);
-              height = maxDim;
-            }
-          }
-          canvas.width = width;
-          canvas.height = height;
+          canvas.width = targetWidth;
+          canvas.height = targetHeight;
           const ctx = canvas.getContext("2d");
           if (ctx) {
-            ctx.drawImage(img, 0, 0, width, height);
+            ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
             const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
             setPhotos((prev) => [
               ...prev,
@@ -214,7 +206,7 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
           body: JSON.stringify({
             clientId: selectedClientId,
-            type: devType,
+            type: devExtraType.trim() ? `${devType} / ${devExtraType.trim()}` : devType,
             brand: devBrand,
             model: devModel,
             serialNumber: devSerial,
@@ -405,6 +397,16 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
                 >
                   Abrir Nova OS
                 </button>
+                <button
+                  onClick={() => {
+                    setCreatedOS(null);
+                    setClientSearch("");
+                    if (onOSCreated) onOSCreated();
+                  }}
+                  className="bg-indigo-650 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition hover-premium active-premium cursor-pointer"
+                >
+                  Concluir e Ver Listagem
+                </button>
               </div>
             </div>
           </div>
@@ -412,20 +414,21 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
           {/* Printable visual client voucher */}
           <div id="printable-termo" className="bg-white border border-slate-200 rounded-2xl p-8 shadow-premium text-slate-900 max-w-3xl mx-auto print:border-none print:shadow-none font-sans relative overflow-hidden">
             {/* Watermark/Accent lines */}
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-indigo-600" />
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-secondary-container" />
             
             <div className="flex flex-col sm:flex-row justify-between items-start border-b border-slate-200 pb-6 gap-4">
               <div>
-                <h1 className="text-xl font-bold uppercase tracking-wide text-indigo-950 flex items-center">
-                  <span className="material-symbols-outlined text-[20px] mr-1.5 text-indigo-600">workspace_premium</span>
-                  MGV Tecnologia
-                </h1>
+                <img 
+                  src="/logos/LOGO V3.0 (2).png" 
+                  alt="MGV Tecnologia" 
+                  className="h-10 w-auto object-contain mb-3"
+                />
                 <p className="text-[10px] text-slate-400 mt-1 uppercase font-mono tracking-wider font-semibold">MGV TECNOLOGIA E ASSISTÊNCIA TÉCNICA LTDA</p>
                 <p className="text-[11px] text-slate-500 font-mono mt-0.5">CNPJ: 18.291.554/0001-90 | IE: 109.283.412.110</p>
                 <p className="text-[11px] text-slate-500 mt-0.5">Av. Tiradentes, 850, Ribeirão Preto - SP | Tel: (11) 3218-9900</p>
               </div>
               <div className="flex flex-col items-end text-right w-full sm:w-auto">
-                <span className="text-[10px] font-bold uppercase text-indigo-700 bg-indigo-50 border border-indigo-100 px-3 py-1 rounded-full font-mono">
+                <span className="text-[10px] font-bold uppercase text-slate-950 bg-secondary-container/10 border border-secondary-container/30 px-3 py-1 rounded-full font-mono">
                   TERMO DE RECEBIMENTO
                 </span>
                 <p className="text-3xl font-mono font-bold mt-3 text-slate-950 tracking-tight">{createdOS.osNumber}</p>
@@ -792,19 +795,21 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Tipo</label>
+                      <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Tipo Primário</label>
                       <select value={devType} onChange={(e) => setDevType(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none bg-white">
                         <option value="Ultrassom (Fisio/Estética)">Ultrassom (Fisio/Estética)</option>
                         <option value="Radiofrequência">Radiofrequência</option>
                         <option value="Eletroestimulador / Correntes">Eletroestimulador / Correntes</option>
                         <option value="Laserterapia / LED">Laserterapia / LED</option>
                         <option value="Vapor de Ozônio">Vapor de Ozônio</option>
+                        <option value="Gerador de Ozônio">Gerador de Ozônio</option>
                         <option value="Alta Frequência">Alta Frequência</option>
                         <option value="Criolipólise / Estética">Criolipólise / Estética</option>
                         <option value="Pressoterapia">Pressoterapia</option>
                         <option value="Carboxiterapia">Carboxiterapia</option>
                         <option value="Outro">Outro</option>
                       </select>
+                      <input type="text" placeholder="Função Extra (Ex: + Gerador...)" value={devExtraType} onChange={(e) => setDevExtraType(e.target.value)} className="w-full mt-2 px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none bg-white" />
                     </div>
                     <div>
                       <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Marca</label>
