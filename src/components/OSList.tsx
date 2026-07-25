@@ -3,17 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from "react";
-import { OrdemServico, Client, Device, OSStatus, UsedPart, ChecklistItem, EntradaFoto } from "../types";
+import React, { useState, useEffect } from "react";
+import { OrdemServico, OSStatus, EntradaFoto } from "../types";
+import { useOSList } from "../hooks/useOSList";
 
 interface OSListProps {
-  clients: (Client & { devices: Device[] })[];
-  ordensServico: OrdemServico[];
+  userRole: string;
   isOffline: boolean;
   onRefresh: () => void;
-  userRole: string;
-  limit: number | "all";
-  onLimitChange: (limit: number | "all") => void;
 }
 
 const getStatusBadgeClass = (status: OSStatus, closingReason?: string | null) => {
@@ -63,80 +60,48 @@ const getStatusName = (status: OSStatus, closingReason?: string | null) => {
   }
 };
 
-export default function OSList({ clients, ordensServico, isOffline, onRefresh, userRole, limit, onLimitChange }: OSListProps) {
+export default function OSList({ isOffline, onRefresh, userRole }: OSListProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<OSStatus | "ALL">("ALL");
+  const [page, setPage] = useState(1);
   const [selectedOS, setSelectedOS] = useState<OrdemServico | null>(null);
   const [activePrintOS, setActivePrintOS] = useState<OrdemServico | null>(null);
   const [lightboxPhoto, setLightboxPhoto] = useState<EntradaFoto | null>(null);
   const [modalTab, setModalTab] = useState<"laudo" | "pecas" | "entrada" | "saida">("laudo");
 
-  // Helper map for fast lookup of clients and devices
-  const clientMap = useMemo(() => new Map(clients.map(c => [c.id, c])), [clients]);
-  const deviceMap = useMemo(() => {
-    const map = new Map<string, Device>();
-    clients.forEach(c => {
-      c.devices?.forEach(d => {
-        map.set(d.id, d);
-      });
-    });
-    return map;
-  }, [clients]);
+  const pageSize = 50;
 
-  // Enrich OS records with client and device data for search and display
-  const enrichedOSs = useMemo(() => {
-    return ordensServico.map(os => {
-      const client = clientMap.get(os.clientId);
-      const device = deviceMap.get(os.deviceId);
-      return {
-        ...os,
-        client: client || os.client,
-        device: device || os.device
-      };
-    });
-  }, [ordensServico, clientMap, deviceMap]);
+  // Reset to page 1 when search or status filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, statusFilter]);
 
-  // Filter and Search logic
-  const filteredOSs = useMemo(() => {
-    return enrichedOSs.filter(os => {
-      // 1. Status Filter
-      if (statusFilter !== "ALL" && os.status !== statusFilter) {
-        return false;
-      }
+  const {
+    data: ordensServico,
+    total,
+    page: currentPage,
+    totalPages,
+    hasMore,
+    loading,
+    error,
+    countsByStatus,
+    refetch,
+  } = useOSList({
+    page,
+    pageSize,
+    search: searchTerm || undefined,
+    status: statusFilter === "ALL" ? undefined : statusFilter,
+    sortBy: "createdAt",
+    sortOrder: "desc",
+  });
 
-      // 2. Search Term Filter
-      if (!searchTerm.trim()) return true;
-      const term = searchTerm.toLowerCase();
-      
-      const clientName = os.client?.name || "";
-      const deviceBrand = os.device?.brand || "";
-      const deviceModel = os.device?.model || "";
-      const deviceType = os.device?.type || "";
-      const defect = os.reportedDefect || "";
-      const diag = os.diagnostic || "";
-
-      return (
-        os.osNumber.toLowerCase().includes(term) ||
-        clientName.toLowerCase().includes(term) ||
-        deviceBrand.toLowerCase().includes(term) ||
-        deviceModel.toLowerCase().includes(term) ||
-        deviceType.toLowerCase().includes(term) ||
-        defect.toLowerCase().includes(term) ||
-        diag.toLowerCase().includes(term)
-      );
-    }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()); // Newest first
-  }, [enrichedOSs, statusFilter, searchTerm]);
+  const handleRefresh = () => {
+    refetch();
+    onRefresh();
+  };
 
   const handlePrintReceipt = (os: OrdemServico) => {
-    // Enrich print OS with client and device
-    const client = clientMap.get(os.clientId);
-    const device = deviceMap.get(os.deviceId);
-    setActivePrintOS({
-      ...os,
-      client: client || os.client,
-      device: device || os.device
-    } as any);
-
+    setActivePrintOS(os);
     setTimeout(() => {
       window.print();
     }, 150);
@@ -145,6 +110,35 @@ export default function OSList({ clients, ordensServico, isOffline, onRefresh, u
   const getOSTotal = (os: OrdemServico) => {
     const partsTotal = os.usedParts?.reduce((s, i) => s + (i.price * i.quantity), 0) || 0;
     return partsTotal + (os.laborCost || 0);
+  };
+
+  const renderPageNumbers = (current: number, total: number, goTo: (p: number) => void) => {
+    const pages: (number | string)[] = [];
+    const delta = 2;
+    const start = Math.max(2, current - delta);
+    const end = Math.min(total - 1, current + delta);
+    pages.push(1);
+    if (start > 2) pages.push('...');
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (end < total - 1) pages.push('...');
+    if (total > 1) pages.push(total);
+    return pages.map((p, i) =>
+      typeof p === 'string' ? (
+        <span key={`e${i}`} className="px-1 text-slate-300 text-xs">…</span>
+      ) : (
+        <button
+          key={p}
+          onClick={() => goTo(p)}
+          className={`min-w-[32px] h-8 rounded-lg text-xs font-bold transition cursor-pointer ${
+            p === current
+              ? 'bg-indigo-650 text-white shadow-sm'
+              : 'text-slate-600 hover:bg-slate-100 border border-slate-200'
+          }`}
+        >
+          {p}
+        </button>
+      )
+    );
   };
 
   const handleOpenDetails = async (os: OrdemServico) => {
@@ -195,24 +189,24 @@ export default function OSList({ clients, ordensServico, isOffline, onRefresh, u
           <p className="text-slate-500 text-sm">Visualização, busca rápida e auditoria geral de todas as Ordens de Serviço</p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2 shadow-sm">
-            <span className="text-[10px] font-bold text-slate-450 uppercase tracking-wider">Exibir Finalizadas:</span>
-            <select
-              value={limit}
-              onChange={(e) => onLimitChange(e.target.value === "all" ? "all" : Number(e.target.value))}
-              className="bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer"
-            >
-              <option value="100">100 OSs</option>
-              <option value="250">250 OSs</option>
-              <option value="500">500 OSs</option>
-              <option value="all">Todas</option>
-            </select>
+          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2 shadow-sm text-xs text-slate-500">
+            <span className="material-symbols-outlined text-[16px] text-slate-400">database</span>
+            <span className="font-semibold">{total} OS{total !== 1 ? 's' : ''}</span>
+            {total > 0 && (
+              <span className="text-slate-300 mx-0.5">·</span>
+            )}
+            {total > 0 && (
+              <span className="text-slate-400">Página {currentPage} de {totalPages}</span>
+            )}
           </div>
           <button
-            onClick={onRefresh}
-            className="px-4 py-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl text-xs font-bold text-slate-700 transition flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+            onClick={handleRefresh}
+            disabled={loading}
+            className="px-4 py-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl text-xs font-bold text-slate-700 transition flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer disabled:opacity-50"
           >
-            <span className="material-symbols-outlined text-[16px]">sync</span> Sincronizar Base
+            <span className={`material-symbols-outlined text-[16px] ${loading ? 'animate-spin' : ''}`}>
+              {loading ? 'progress_activity' : 'sync'}
+            </span> {loading ? 'Carregando...' : 'Recarregar'}
           </button>
         </div>
       </div>
@@ -243,39 +237,71 @@ export default function OSList({ clients, ordensServico, isOffline, onRefresh, u
         {/* Filter Buttons */}
         <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto shrink-0 border-t lg:border-t-0 pt-3 lg:pt-0">
           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-2 hidden xl:inline">Status:</label>
-          <button
-            onClick={() => setStatusFilter("ALL")}
-            className={`px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer border ${
-              statusFilter === "ALL" 
-                ? "bg-slate-900 text-white border-slate-900 shadow-sm" 
-                : "bg-slate-50 text-slate-650 border-slate-200 hover:bg-slate-100"
-            }`}
-          >
-            Todas ({ordensServico.length})
-          </button>
-          {(["AGUARDANDO_AVALIACAO", "AGUARDANDO_AUTORIZACAO", "AGUARDANDO_PECA", "EM_MANUTENCAO", "PRONTO_RETIRADA", "PAGO_PRONTO_RETIRADA", "FINALIZADO"] as OSStatus[]).map((status) => {
-            const count = ordensServico.filter(os => os.status === status).length;
-            const active = statusFilter === status;
+          {(() => {
+            const totalAllOS = countsByStatus ? Object.values(countsByStatus).reduce((a, b) => a + b, 0) : total;
             return (
+            <>
               <button
-                key={status}
-                onClick={() => setStatusFilter(status)}
+                onClick={() => setStatusFilter("ALL")}
                 className={`px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer border ${
-                  active 
-                    ? "bg-indigo-650 text-white border-indigo-650 shadow-sm" 
+                  statusFilter === "ALL" 
+                    ? "bg-slate-900 text-white border-slate-900 shadow-sm" 
                     : "bg-slate-50 text-slate-650 border-slate-200 hover:bg-slate-100"
                 }`}
               >
-                {getStatusName(status)} ({count})
+                Todas {totalAllOS > 0 && `(${totalAllOS})`}
               </button>
-            );
-          })}
+              {(["AGUARDANDO_AVALIACAO", "AGUARDANDO_AUTORIZACAO", "AGUARDANDO_PECA", "EM_MANUTENCAO", "PRONTO_RETIRADA", "PAGO_PRONTO_RETIRADA", "FINALIZADO"] as OSStatus[]).map((status) => {
+                const active = statusFilter === status;
+                const count = countsByStatus ? countsByStatus[status] : 0;
+                return (
+                  <button
+                    key={status}
+                    onClick={() => setStatusFilter(status)}
+                    className={`px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer border ${
+                      active 
+                        ? "bg-indigo-650 text-white border-indigo-650 shadow-sm" 
+                        : "bg-slate-50 text-slate-650 border-slate-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    {getStatusName(status)} {count !== undefined && count > 0 ? `(${count})` : "(0)"}
+                  </button>
+                );
+              })}
+            </>
+          );
+        })()}
         </div>
       </div>
 
+      {/* Loading State */}
+      {loading && !error && (
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm">
+          <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+            <span className="material-symbols-outlined text-[48px] text-slate-300 mx-auto mb-2 block animate-spin">progress_activity</span>
+            <p className="text-sm font-bold text-slate-600">Carregando ordens de serviço...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && !loading && (
+        <div className="bg-white rounded-2xl border border-red-200 shadow-sm">
+          <div className="flex flex-col items-center justify-center py-16 text-red-400">
+            <span className="material-symbols-outlined text-[48px] text-red-300 mx-auto mb-2 block">error_outline</span>
+            <p className="text-sm font-bold text-red-600">Erro ao carregar OSs</p>
+            <p className="text-xs text-red-500 mt-1">{error}</p>
+            <button onClick={handleRefresh} className="mt-4 px-4 py-2 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl text-xs font-bold text-red-700 transition cursor-pointer">
+              Tentar novamente
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* OS Data Table */}
+      {!loading && !error && (
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
-        {filteredOSs.length > 0 ? (
+        {ordensServico.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
@@ -290,7 +316,7 @@ export default function OSList({ clients, ordensServico, isOffline, onRefresh, u
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-150">
-                {filteredOSs.map((os) => {
+                {ordensServico.map((os) => {
                   const total = getOSTotal(os);
                   return (
                     <tr key={os.id} className="hover:bg-slate-50/40 text-slate-700 transition">
@@ -306,12 +332,36 @@ export default function OSList({ clients, ordensServico, isOffline, onRefresh, u
                         <p className="text-[10px] text-slate-500 font-semibold mt-0.5">Modelo: {os.device?.model || "N/D"}</p>
                       </td>
                       <td className="px-6 py-4 font-medium text-slate-500">
-                        {new Date(os.createdAt).toLocaleDateString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                        {new Date(os.createdAt).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" })}
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold border ${getStatusBadgeClass(os.status, os.closingReason)}`}>
-                          {getStatusName(os.status, os.closingReason)}
-                        </span>
+                        <div className="flex flex-col items-start gap-1">
+                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold border ${getStatusBadgeClass(os.status, os.closingReason)}`}>
+                            {getStatusName(os.status, os.closingReason)}
+                          </span>
+                          <div className="flex flex-wrap gap-1">
+                            {[13, 16, 18, 23].includes(os.statusCode) && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8.5px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                Garantia
+                              </span>
+                            )}
+                            {[15, 17].includes(os.statusCode) && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8.5px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200 animate-pulse">
+                                Pagamento Pendente
+                              </span>
+                            )}
+                            {os.statusCode === 9 && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8.5px] font-extrabold bg-slate-100 text-slate-700 border border-slate-350">
+                                Sem Conserto
+                              </span>
+                            )}
+                            {os.statusCode === 25 && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8.5px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200">
+                                Conferência Manual
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </td>
                       <td className="px-6 py-4 font-mono font-bold text-slate-900 text-right text-[13px]">
                         R$ {total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
@@ -348,6 +398,30 @@ export default function OSList({ clients, ordensServico, isOffline, onRefresh, u
           </div>
         )}
       </div>
+      )}
+
+      {/* Pagination Controls */}
+      {!loading && !error && totalPages > 1 && (
+        <div className="flex items-center justify-between bg-white rounded-2xl border border-slate-200/80 shadow-sm px-6 py-3 mt-4">
+          <button
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={currentPage <= 1}
+            className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+          >
+            ← Anterior
+          </button>
+          <div className="flex items-center gap-2">
+            {renderPageNumbers(currentPage, totalPages, setPage)}
+          </div>
+          <button
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={currentPage >= totalPages}
+            className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+          >
+            Próxima →
+          </button>
+        </div>
+      )}
 
       {/* DETAIL MODAL VIEWER */}
       {selectedOS && (
@@ -426,6 +500,18 @@ export default function OSList({ clients, ordensServico, isOffline, onRefresh, u
                   <span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block">Defeito Relatado</span> 
                   <span className="text-slate-650 italic block mt-1">"{selectedOS.reportedDefect || "N/A"}"</span>
                 </p>
+                {selectedOS.accessoriesLeft && (
+                  <p className="border-t border-slate-100 pt-2">
+                    <span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block">Acessórios Deixados</span> 
+                    <span className="text-slate-700 font-semibold block mt-0.5 font-mono">{selectedOS.accessoriesLeft}</span>
+                  </p>
+                )}
+                {selectedOS.physicalState && (
+                  <p className="border-t border-slate-100 pt-2">
+                    <span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block">Estado Físico / Balcão</span> 
+                    <span className="text-slate-700 font-semibold block mt-0.5 font-mono">{selectedOS.physicalState}</span>
+                  </p>
+                )}
               </div>
 
               {/* TAB 1: LAUDO & CUSTOS */}
@@ -640,9 +726,9 @@ export default function OSList({ clients, ordensServico, isOffline, onRefresh, u
                 alt="MGV Tecnologia" 
                 className="h-10 w-auto object-contain mb-3"
               />
-              <p className="text-[9px] text-slate-500 font-mono mt-0.5">MGV TECNOLOGIA E ASSISTÊNCIA TÉCNICA LTDA</p>
-              <p className="text-[9px] text-slate-500 font-mono mt-0.5">CNPJ: 18.291.554/0001-90 | IE: 109.283.412.110</p>
-              <p className="text-[9px] text-slate-500 mt-0.5">Av. Tiradentes, 850, Ribeirão Preto - SP | Tel: (11) 3218-9900</p>
+              <p className="text-[9px] text-slate-500 font-mono mt-0.5">MOSAIAS LUIZ TEODORO LTDA</p>
+              <p className="text-[9px] text-slate-500 font-mono mt-0.5">CNPJ: 24.181.336/0001-66 | IE: 797.187.310.116</p>
+              <p className="text-[9px] text-slate-500 mt-0.5">Rua Julio Prestes, 648, Jardim Sumaré, Ribeirão Preto - SP | Tel: (16) 99104-9631</p>
             </div>
             <div className="text-right">
               <span className="text-[9px] font-bold uppercase text-slate-700 border border-slate-300 px-2 py-0.5 rounded font-mono">
@@ -650,7 +736,7 @@ export default function OSList({ clients, ordensServico, isOffline, onRefresh, u
               </span>
               <p className="text-2xl font-mono font-bold mt-2 text-slate-950">{activePrintOS.osNumber}</p>
               <p className="text-[9px] text-slate-500 font-mono mt-0.5">
-                Emissão: {new Date(activePrintOS.createdAt).toLocaleString("pt-BR")}
+                Emissão: {new Date(activePrintOS.createdAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}
               </p>
             </div>
           </div>

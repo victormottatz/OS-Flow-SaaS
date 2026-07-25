@@ -916,7 +916,7 @@ export default function PublicPortal() {
         color: "#334155",
       }}>
         <p style={{ margin: 0 }}>
-          MGV Tecnologia & Assistência Técnica © {new Date().getFullYear()} — Av. Tiradentes, 850 — (11) 3218-9900
+          MGV Assistência Técnica © {new Date().getFullYear()} — Rua Julio Prestes, 648 — (16) 99104-9631
         </p>
         <p style={{ margin: "0.25rem 0 0" }}>
           <a href="/" style={{ color: "#475569", textDecoration: "none" }}>← Acesso Restrito (Colaboradores)</a>

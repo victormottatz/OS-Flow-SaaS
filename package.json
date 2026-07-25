@@ -9,8 +9,10 @@
     "start": "node dist/server.cjs",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
+    "test": "vitest run tests/unit",
     "import:legacy": "tsx scripts/migrations/import_legacy.ts",
-    "sync:from-supabase": "tsx scripts/maintenance/sync_from_supabase.ts"
+    "sync:from-supabase": "tsx scripts/maintenance/sync_from_supabase.ts",
+    "audit": "tsx scripts/audit/run_orchestrator.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -27,7 +29,9 @@
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^0.546.0",
+    "minimist": "^1.2.8",
     "motion": "^12.23.24",
+    "node-adodb": "^5.0.3",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
     "sharp": "^0.35.3",
@@ -37,12 +41,16 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.10",
+    "@types/minimist": "^1.2.5",
     "autoprefixer": "^10.4.21",
+    "lighthouse": "^13.4.1",
     "pdf-parse": "^2.4.5",
     "prisma": "^6.19.3",
-    "tsx": "^4.21.0"
+    "tsx": "^4.21.0",
+    "vitest": "^4.1.10"
   }
 }

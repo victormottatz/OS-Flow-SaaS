@@ -121,6 +121,7 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
   const [reportedDefect, setReportedDefect] = useState("");
   const [accessoriesLeft, setAccessoriesLeft] = useState("");
   const [physicalState, setPhysicalState] = useState("");
+  const [warrantyType, setWarrantyType] = useState<'NENHUMA' | 'FABRICA' | 'MGV'>('NENHUMA');
 
   // Checklist & Photos fields
   const [checklist, setChecklist] = useState<ChecklistItem[]>(DEFAULT_CHECKLIST);
@@ -193,6 +194,7 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
     setLoading(true);
 
     try {
+      const token = localStorage.getItem("mgv_token") || "";
       let finalDeviceId = selectedDeviceId;
 
       // Se for aparelho avulso, cadastra primeiro
@@ -200,7 +202,6 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
         if (!devType || !devBrand || !devModel) {
           throw new Error("Preencha Tipo, Marca e Modelo do novo aparelho.");
         }
-        const token = localStorage.getItem("mgv_token") || "";
         const devRes = await fetch("/api/devices", {
           method: "POST",
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
@@ -225,7 +226,10 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
 
       const response = await fetch("/api/ordens-servico", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify({
           clientId: selectedClientId,
           deviceId: finalDeviceId,
@@ -233,7 +237,8 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
           accessoriesLeft,
           physicalState,
           checklistEntrada: checklist,
-          laudoFotos: photos
+          laudoFotos: photos,
+          warrantyType
         })
       });
 
@@ -423,9 +428,9 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
                   alt="MGV Tecnologia" 
                   className="h-10 w-auto object-contain mb-3"
                 />
-                <p className="text-[10px] text-slate-400 mt-1 uppercase font-mono tracking-wider font-semibold">MGV TECNOLOGIA E ASSISTÊNCIA TÉCNICA LTDA</p>
-                <p className="text-[11px] text-slate-500 font-mono mt-0.5">CNPJ: 18.291.554/0001-90 | IE: 109.283.412.110</p>
-                <p className="text-[11px] text-slate-500 mt-0.5">Av. Tiradentes, 850, Ribeirão Preto - SP | Tel: (11) 3218-9900</p>
+                <p className="text-[10px] text-slate-400 mt-1 uppercase font-mono tracking-wider font-semibold">MOSAIAS LUIZ TEODORO LTDA</p>
+                <p className="text-[11px] text-slate-500 font-mono mt-0.5">CNPJ: 24.181.336/0001-66 | IE: 797.187.310.116</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">Rua Julio Prestes, 648, Jardim Sumaré, Ribeirão Preto - SP | Tel: (16) 99104-9631</p>
               </div>
               <div className="flex flex-col items-end text-right w-full sm:w-auto">
                 <span className="text-[10px] font-bold uppercase text-slate-950 bg-secondary-container/10 border border-secondary-container/30 px-3 py-1 rounded-full font-mono">
@@ -433,7 +438,7 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
                 </span>
                 <p className="text-3xl font-mono font-bold mt-3 text-slate-950 tracking-tight">{createdOS.osNumber}</p>
                 <p className="text-[10px] text-slate-400 font-mono mt-1">
-                  Abertura: {new Date(createdOS.createdAt).toLocaleString("pt-BR")}
+                  Abertura: {new Date(createdOS.createdAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}
                 </p>
 
                 {/* Simulated Barcode */}
@@ -557,10 +562,10 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
                 1. O proprietário autoriza a abertura e desmontagem física do equipamento para diagnóstico pericial. Orçamentos têm validade legal de 10 dias corridos a partir da data de comunicação dos resultados pela equipe.
               </p>
               <p>
-                2. Equipamentos prontos não retirados em até 90 dias caracterizam abandono conforme art. 1.275, inciso III, do Código Civil, autorizando a MGV Tecnologia a vender ou descartá-los para quitação de despesas laboratoriais.
+                2. Equipamentos prontos não retirados em até 90 dias caracterizam abandono conforme art. 1.275, inciso III, do Código Civil, autorizando a MGV Assistência Técnica a vender ou descartá-los para quitação de despesas laboratoriais.
               </p>
               <p>
-                3. A MGV Tecnologia não se responsabiliza por integridade de softwares corporativos ou perda de informações de armazenamento. O backup de arquivos deve ser efetuado previamente pelo proprietário.
+                3. A MGV Assistência Técnica não se responsabiliza por integridade de softwares corporativos ou perda de informações de armazenamento. O backup de arquivos deve ser efetuado previamente pelo proprietário.
               </p>
             </div>
 
@@ -1039,6 +1044,31 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
                         onChange={(e) => setPhysicalState(e.target.value)}
                         className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 font-medium transition duration-150 text-slate-800"
                       />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Tipo de Garantia <span className="text-red-500">*</span></label>
+                    <div className="grid grid-cols-3 gap-3">
+                      {(['NENHUMA', 'FABRICA', 'MGV'] as const).map((type) => (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => setWarrantyType(type)}
+                          className={`py-3 px-4 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+                            warrantyType === type
+                              ? "bg-indigo-600 border-indigo-600 text-white shadow-premium"
+                              : "bg-white border-slate-200 text-slate-700 hover:border-slate-350 hover:bg-slate-50"
+                          }`}
+                        >
+                          <span className="material-symbols-outlined text-[16px]">
+                            {type === 'NENHUMA' ? 'block' : type === 'FABRICA' ? 'business' : 'verified_user'}
+                          </span>
+                          <span>
+                            {type === 'NENHUMA' ? 'Nenhuma' : type === 'FABRICA' ? 'Fábrica' : 'MGV'}
+                          </span>
+                        </button>
+                      ))}
                     </div>
                   </div>
                 </div>

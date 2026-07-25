@@ -4,6 +4,7 @@ import SystemConfigPanel from "./SystemConfigPanel";
 import GenericSettingsPanel from "./GenericSettingsPanel";
 import UserManagement from "./UserManagement";
 import OSConciliation from "./OSConciliation";
+import TransitionSettingsPanel from "./TransitionSettingsPanel";
 
 interface SettingsViewProps {
   userRole: UserRole;
@@ -16,6 +17,7 @@ export default function SettingsView({ userRole, isOffline = false }: SettingsVi
   const tabs = [
     { id: "general", label: "Geral", icon: "settings" },
     { id: "users", label: "Equipe e Acessos", icon: "manage_accounts" },
+    { id: "transitions", label: "Transições de Status", icon: "swap_calls" },
     { id: "finance", label: "Financeiro", icon: "payments" },
     { id: "conciliation_tool", label: "Ferramenta de Conciliação", icon: "history_toggle_off" },
     { id: "conciliation", label: "Regras de Conciliação", icon: "tune" },
@@ -58,6 +60,7 @@ export default function SettingsView({ userRole, isOffline = false }: SettingsVi
       <div className="pt-2">
         {activeTab === "general" && <GenericSettingsPanel category="GERAL" />}
         {activeTab === "users" && <UserManagement userRole={userRole} isOffline={isOffline} />}
+        {activeTab === "transitions" && <TransitionSettingsPanel />}
         {activeTab === "finance" && <GenericSettingsPanel category="FINANCEIRO" />}
         {activeTab === "conciliation_tool" && <OSConciliation />}
         {activeTab === "conciliation" && <SystemConfigPanel />}

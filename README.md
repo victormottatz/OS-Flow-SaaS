@@ -33,7 +33,7 @@ Para permitir que outros computadores da sua rede local acessem este sistema (ú
    ```
 
 2. **Descobrir o IP do Servidor:**
-   No prompt de comando do servidor, digite `ipconfig` e localize o **Endereço IPv4** (ex: `192.168.1.100`).
+   No prompt de comando do servidor, digite `ipconfig` e localize o **Endereço IPv4** (ex: `192.168.1.100`)
 
 3. **Acesso nos Clientes:**
    Em qualquer outro dispositivo na mesma rede local, acesse no navegador:

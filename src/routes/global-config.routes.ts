@@ -6,7 +6,7 @@ import { UserRole } from "../types";
 const router = Router();
 
 // GET /api/config
-router.get("/", checkRole(UserRole.ADMIN), async (req, res) => {
+router.get("/", checkRole(UserRole.OWNER, UserRole.ADMIN), async (req, res) => {
   try {
     const settings = await prisma.officeSetting.findMany();
     res.json(settings);
@@ -16,7 +16,7 @@ router.get("/", checkRole(UserRole.ADMIN), async (req, res) => {
 });
 
 // PUT /api/config/:key
-router.put("/:key", checkRole(UserRole.ADMIN), async (req, res) => {
+router.put("/:key", checkRole(UserRole.OWNER, UserRole.ADMIN), async (req, res) => {
   const { key } = req.params;
   const { value, category, description, type } = req.body;
   try {

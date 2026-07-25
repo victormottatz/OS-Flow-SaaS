@@ -12,6 +12,7 @@ import searchRoutes from "./search.routes";
 import portalRoutes from "./portal.routes";
 import conciliationRoutes from "./conciliation.routes";
 import whatsappRoutes from "./whatsapp.routes";
+import integrationRoutes from "./integration.routes";
 
 const router = Router();
 
@@ -28,5 +29,6 @@ router.use("/search", searchRoutes);
 router.use("/portal", portalRoutes);
 router.use("/conciliacao", conciliationRoutes);
 router.use("/whatsapp", whatsappRoutes);
+router.use("/integration", integrationRoutes);
 
 export default router;

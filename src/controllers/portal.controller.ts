@@ -230,7 +230,7 @@ export class PortalController {
       }
 
       // Validar transição usando a FSM estática — somente OSs em AGUARDANDO_AUTORIZACAO podem ser aprovadas pelo cliente
-      if (!OSStateMachine.canTransition(os.status as OSStatus, "EM_MANUTENCAO")) {
+      if (!await OSStateMachine.canTransition(os.status as OSStatus, "EM_MANUTENCAO")) {
         res.status(400).json({ error: "Esta OS não pode ser aprovada neste momento. Verifique se o orçamento já foi elaborado e enviado para autorização." });
         return;
       }

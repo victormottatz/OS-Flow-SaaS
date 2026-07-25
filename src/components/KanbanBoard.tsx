@@ -18,6 +18,7 @@ interface KanbanBoardProps {
   onNavigateToBlingPanel: () => void;
   limit: number | "all";
   onLimitChange: (limit: number | "all") => void;
+  countsByStatus: Record<string, number>;
 }
 
 const COLUMNS: { id: OSStatus; name: string; color: string; desc: string }[] = [
@@ -117,7 +118,7 @@ const KanbanCard = React.memo(({
             {os.osNumber}
           </span>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-wrap">
           {stressBadge}
           {hasRecurrence && (
             <span 
@@ -125,6 +126,26 @@ const KanbanCard = React.memo(({
               title={os.recurrentAlert ? `Alerta de Falha Crônica: Retornou ${os.recurrentAlert.count} vezes em 90 dias (${os.recurrentAlert.previousOsNumbers.join(", ")})` : "Recorrência: > 2 OS em 90 dias"}
             >
               <span className="material-symbols-outlined text-[11px]">warning</span> Recorrente
+            </span>
+          )}
+          {[13, 16, 18, 23].includes(os.statusCode) && (
+            <span className="text-[9px] bg-indigo-50 border border-indigo-200 text-indigo-700 px-1.5 py-0.5 rounded-lg flex items-center font-bold gap-0.5 shadow-xs">
+              <span className="material-symbols-outlined text-[11px]">verified_user</span> Garantia
+            </span>
+          )}
+          {[15, 17].includes(os.statusCode) && (
+            <span className="text-[9px] bg-amber-50 border border-amber-200 text-amber-700 px-1.5 py-0.5 rounded-lg flex items-center font-bold gap-0.5 shadow-xs animate-pulse">
+              <span className="material-symbols-outlined text-[11px]">payments</span> Pago Pendente
+            </span>
+          )}
+          {os.statusCode === 9 && (
+            <span className="text-[9px] bg-slate-100 border border-slate-350 text-slate-700 px-1.5 py-0.5 rounded-lg flex items-center font-bold gap-0.5 shadow-xs">
+              <span className="material-symbols-outlined text-[11px]">cancel</span> Sem Conserto
+            </span>
+          )}
+          {os.statusCode === 25 && (
+            <span className="text-[9px] bg-blue-50 border border-blue-200 text-blue-700 px-1.5 py-0.5 rounded-lg flex items-center font-bold gap-0.5 shadow-xs">
+              <span className="material-symbols-outlined text-[11px]">fact_check</span> Conferência
             </span>
           )}
         </div>
@@ -348,12 +369,50 @@ export default function KanbanBoard({
   onRefresh,
   onNavigateToBlingPanel,
   limit,
-  onLimitChange
+  onLimitChange,
+  countsByStatus
 }: KanbanBoardProps) {
+  console.log("[KanbanBoard] countsByStatus recebido:", countsByStatus);
+  const loadingMoreRef = React.useRef(false);
+
+  const handleColumnScroll = (e: React.UIEvent<HTMLDivElement>, status: OSStatus | string) => {
+    const target = e.currentTarget;
+    const threshold = 50; // pixels antes de atingir o fundo
+    const isAtBottom = target.scrollHeight - target.scrollTop - target.clientHeight <= threshold;
+
+    if (isAtBottom && !loadingMoreRef.current) {
+      const isFin = viewMode === "financeiro";
+      const totalInStatus = isFin ? (countsByStatus["FINALIZADO"] || 0) : (countsByStatus[status] || 0);
+      const currentLoadedInStatus = isFin 
+        ? ordensServico.filter(o => o.status === "FINALIZADO").length
+        : ordensServico.filter(o => o.status === status).length;
+
+      if (currentLoadedInStatus < totalInStatus && limit !== "all") {
+        loadingMoreRef.current = true;
+        const currentLimit = typeof limit === "number" ? limit : 100;
+        onLimitChange(currentLimit + 100); // Incrementa o limite para buscar mais itens no banco
+        
+        setTimeout(() => {
+          loadingMoreRef.current = false;
+        }, 1200); // Debounce de 1.2 segundos para requisição
+      }
+    }
+  };
   const [selectedOS, setSelectedOS] = useState<OrdemServico | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [modalTab, setModalTab] = useState<"laudo" | "pecas" | "entrada" | "saida">("laudo");
+  
+  // Alternância de Kanban Técnico vs. Financeiro
+  const [viewMode, setViewMode] = useState<"tecnico" | "financeiro">("tecnico");
+
+  const FINANCIAL_COLUMNS: { id: string; name: string; color: string; desc: string }[] = [
+    { id: "PENDENTE", name: "A Faturar", color: "border-t-indigo-400 bg-indigo-500/10", desc: "OSs pendentes de faturamento/pagamento" },
+    { id: "CREDIARIO", name: "Crediário", color: "border-t-amber-500 bg-amber-50/10", desc: "Contas de crediário a receber" },
+    { id: "PAGAR_DEPOIS", name: "Pagar Depois", color: "border-t-purple-500 bg-purple-50/10", desc: "Acordo de pagamento posterior" },
+    { id: "PAGO", name: "Pago", color: "border-t-emerald-500 bg-emerald-50/10", desc: "OSs devidamente faturadas e quitadas" },
+    { id: "INADIMPLENTE", name: "Inadimplentes", color: "border-t-rose-500 bg-rose-50/10", desc: "OSs sem registro de pagamento" }
+  ];
 
   // Selection states for batch deletions
   const [isSelectMode, setIsSelectMode] = useState(false);
@@ -442,10 +501,10 @@ export default function KanbanBoard({
   // Form states
   const [diagnostic, setDiagnostic] = useState("");
   const [laudoMacro, setLaudoMacro] = useState("");
-  const [laborCost, setLaborCost] = useState(0);
-  const [technicianLaborHours, setTechnicianLaborHours] = useState(0);
-  const [technicianHourlyRate, setTechnicianHourlyRate] = useState(0);
+  const [discount, setDiscount] = useState(0);
   const [closingOS, setClosingOS] = useState<OrdemServico | null>(null);
+  const [paymentModalOS, setPaymentModalOS] = useState<any | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState("");
   const [showSemReparoModal, setShowSemReparoModal] = useState(false);
   const [semReparoOS, setSemReparoOS] = useState<OrdemServico | null>(null);
   const [selectedClosingReason, setSelectedClosingReason] = useState<any>('ORCAMENTO_RECUSADO');
@@ -453,6 +512,16 @@ export default function KanbanBoard({
   const [selectedParts, setSelectedParts] = useState<UsedPart[]>([]);
   const [tempPartId, setTempPartId] = useState("");
   const [tempPartQty, setTempPartQty] = useState(1);
+  
+  // Modal de busca de peças do estoque
+  const [isPartSearchModalOpen, setIsPartSearchModalOpen] = useState(false);
+  const [partSearchQuery, setPartSearchQuery] = useState("");
+  const [partSearchCategory, setPartSearchCategory] = useState("");
+  const [selectedPartsInModal, setSelectedPartsInModal] = useState<Record<string, { quantity: number; selected: boolean }>>({});
+  const [apiPartsList, setApiPartsList] = useState<Part[]>([]);
+  const [isSearchingParts, setIsSearchingParts] = useState(false);
+  const [apiCategories, setApiCategories] = useState<string[]>([]);
+
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [loading, setLoading] = useState(false);
@@ -576,9 +645,7 @@ export default function KanbanBoard({
     setSelectedOS(os);
     setDiagnostic(os.diagnostic || "");
     setLaudoMacro(os.laudoMacro || "");
-    setLaborCost(os.laborCost || 0);
-    setTechnicianLaborHours(os.technicianLaborHours || 0);
-    setTechnicianHourlyRate(os.technicianHourlyRate || 0);
+    setDiscount(os.discount || 0);
     setSelectedParts(os.usedParts || []);
     setEditChecklist(os.checklistEntrada && os.checklistEntrada.length > 0 ? os.checklistEntrada : [
       { id: "tela", label: "Tela / Display", status: "NA", observacao: "" },
@@ -609,6 +676,11 @@ export default function KanbanBoard({
           const fullOS = await res.json();
           setSelectedOS(fullOS);
           setEditPhotos(fullOS.laudoFotos || []);
+          setSelectedParts(fullOS.usedParts || []);
+          setDiscount(fullOS.discount || 0);
+          setDiagnostic(fullOS.diagnostic || "");
+          setLaudoMacro(fullOS.laudoMacro || "");
+          onRefresh();
         }
       } catch (err) {
         console.error("Erro ao carregar detalhes completos da OS:", err);
@@ -716,9 +788,32 @@ export default function KanbanBoard({
 
   const handleDragOver = (e: React.DragEvent) => e.preventDefault();
 
-  const handleDrop = async (e: React.DragEvent, targetStatus: OSStatus) => {
+  const handleDrop = async (e: React.DragEvent, targetStatus: string) => {
     e.preventDefault();
     if (!draggingId || isOffline) return;
+
+    // Se estivermos no modo financeiro, atualizamos o status financeiro da OS
+    if (viewMode === "financeiro") {
+      try {
+        const token = localStorage.getItem("mgv_token") || "";
+        const response = await fetch(`/api/ordens-servico/${draggingId}/financial-status`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+          body: JSON.stringify({ financialStatus: targetStatus })
+        });
+        if (!response.ok) {
+          const errData = await response.json();
+          alert(errData.error || "Erro ao atualizar status financeiro.");
+        } else {
+          onRefresh();
+        }
+      } catch (err: any) {
+        alert(err.message);
+      } finally {
+        setDraggingId(null);
+      }
+      return;
+    }
 
     const osToMove = ordensServico.find(o => o.id === draggingId);
     if (osToMove) {
@@ -752,7 +847,7 @@ export default function KanbanBoard({
         if (errData.code === "DEVICE_INCOMPLETE") {
           setOnboardingOS(osToMove || null);
           setOnboardingDevice(errData.device);
-          setOnboardingTargetStatus(targetStatus);
+          setOnboardingTargetStatus(targetStatus as OSStatus);
           setOnbType(errData.device.type || "Ultrassom (Fisio/Estética)");
           setOnbBrand(errData.device.brand === "Indefinido" ? "" : errData.device.brand);
           setOnbModel(errData.device.model === "Indefinido" ? "" : errData.device.model);
@@ -912,6 +1007,72 @@ export default function KanbanBoard({
     setTempPartQty(1);
   };
 
+  const handleOpenPartSearchModal = async () => {
+    // Inicializar o objeto temporário de seleção com as peças já selecionadas atualmente na OS
+    const initialSelection: Record<string, { quantity: number; selected: boolean }> = {};
+    selectedParts.forEach(p => {
+      if (p.partId && !p.isAvulso) {
+        initialSelection[p.partId] = {
+          quantity: p.quantity,
+          selected: true
+        };
+      }
+    });
+    setSelectedPartsInModal(initialSelection);
+    setPartSearchQuery("");
+    setPartSearchCategory("");
+    setIsPartSearchModalOpen(true);
+    setIsSearchingParts(true);
+
+    try {
+      const token = localStorage.getItem("mgv_token") || "";
+      const res = await fetch("/api/parts?limit=1000", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const resultData = await res.json();
+        const loadedParts = resultData.data || [];
+        setApiPartsList(loadedParts);
+        // Extrai categorias de todas as peças carregadas da API
+        const cats = Array.from(new Set(loadedParts.map((p: any) => p.category || "Sem Categoria"))) as string[];
+        setApiCategories(cats);
+      }
+    } catch (err) {
+      console.error("Erro ao carregar peças para o modal:", err);
+    } finally {
+      setIsSearchingParts(false);
+    }
+  };
+
+  const handleConfirmModalParts = () => {
+    const newSelectedParts = [...selectedParts.filter(p => p.isAvulso)]; // Mantém itens avulsos intactos
+
+    // Iterar pelas peças selecionadas na modal e construir a lista final
+    Object.entries(selectedPartsInModal).forEach(([partId, info]) => {
+      const selection = info as { selected: boolean; quantity: number };
+      if (selection.selected && selection.quantity > 0) {
+        const part = apiPartsList.find(p => p.id === partId) || parts.find(p => p.id === partId);
+        if (part) {
+          // Garante que respeita o limite de estoque disponível
+          const finalQty = Math.min(selection.quantity, part.stock);
+          if (finalQty > 0) {
+            newSelectedParts.push({
+              partId: part.id,
+              name: part.name,
+              quantity: finalQty,
+              price: part.price,
+              costSnapshot: part.cost,
+              serialNumber: selectedParts.find(sp => sp.partId === partId)?.serialNumber || ""
+            });
+          }
+        }
+      }
+    });
+
+    setSelectedParts(newSelectedParts);
+    setIsPartSearchModalOpen(false);
+  };
+
   const handleAddAvulsoToOS = (e: React.FormEvent) => {
     e.preventDefault();
     if (!avulsoName.trim() || avulsoQty < 1 || avulsoPrice < 0) return;
@@ -964,10 +1125,17 @@ export default function KanbanBoard({
     }
   };
 
-  const handleRemovePartFromOS = (partId: string) => setSelectedParts(selectedParts.filter(item => item.partId !== partId));
+  const handleRemovePartFromOS = (partIdOrId: string) => setSelectedParts(selectedParts.filter(item => item.partId !== partIdOrId && item.id !== partIdOrId));
 
-  const partsTotal = selectedParts.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const computedTotal = partsTotal + Number(laborCost);
+  const computedPartsCost = selectedParts
+    .filter(p => p.category !== "SERVICO")
+    .reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+  const computedLaborCost = selectedParts
+    .filter(p => p.category === "SERVICO")
+    .reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+  const computedTotal = Math.max(0, computedPartsCost + computedLaborCost - Number(discount));
 
   const handleSaveOSDetails = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -981,7 +1149,7 @@ export default function KanbanBoard({
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({ diagnostic, laudoMacro, usedParts: selectedParts, laborCost, technicianLaborHours, technicianHourlyRate })
+        body: JSON.stringify({ diagnostic, laudoMacro, usedParts: selectedParts, discount })
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -1100,19 +1268,7 @@ export default function KanbanBoard({
           </button>
         )}
 
-        <div className="flex items-center space-x-2 shrink-0 w-full sm:w-auto">
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider hidden md:inline">Exibir Finalizadas:</label>
-          <select
-            value={limit}
-            onChange={(e) => onLimitChange(e.target.value === "all" ? "all" : Number(e.target.value))}
-            className="w-full sm:w-auto px-3.5 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all cursor-pointer font-semibold"
-          >
-            <option value="100">100 OSs</option>
-            <option value="250">250 OSs</option>
-            <option value="500">500 OSs</option>
-            <option value="all">Todas</option>
-          </select>
-        </div>
+
 
         <div className="flex items-center space-x-2 shrink-0 w-full sm:w-auto">
           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider hidden md:inline">Ordenação:</label>
@@ -1143,6 +1299,32 @@ export default function KanbanBoard({
             <span>{isSelectMode ? "Sair da Seleção" : "Limpeza (Excluir em Lote)"}</span>
           </button>
         )}
+      </div>
+
+      {/* Seletor de Visão (Técnico / Financeiro) */}
+      <div className="flex bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/50 max-w-md shadow-sm">
+        <button
+          onClick={() => setViewMode("tecnico")}
+          className={`flex-1 py-2.5 px-4 text-xs font-extrabold rounded-xl transition flex items-center justify-center gap-2 cursor-pointer ${
+            viewMode === "tecnico"
+              ? "bg-white text-slate-900 shadow-sm border border-slate-200/50"
+              : "text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          <span className="material-symbols-outlined text-[18px]">build</span>
+          <span>Fluxo Técnico</span>
+        </button>
+        <button
+          onClick={() => setViewMode("financeiro")}
+          className={`flex-1 py-2.5 px-4 text-xs font-extrabold rounded-xl transition flex items-center justify-center gap-2 cursor-pointer ${
+            viewMode === "financeiro"
+              ? "bg-white text-slate-900 shadow-sm border border-slate-200/50"
+              : "text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          <span className="material-symbols-outlined text-[18px]">payments</span>
+          <span>Painel Financeiro</span>
+        </button>
       </div>
 
       {globalSearchResults !== null && (
@@ -1204,21 +1386,40 @@ export default function KanbanBoard({
       )}
 
       <div className="flex overflow-x-auto gap-6 h-[calc(100vh-140px)] min-h-[500px] pb-4 snap-x snap-mandatory pr-2 custom-scrollbar-horizontal">
-        {COLUMNS.map((column) => {
+        {(viewMode === "tecnico" ? COLUMNS : FINANCIAL_COLUMNS).map((column) => {
+          // No modo financeiro, listamos apenas OSs FINALIZADO. No modo técnico, filtramos pelo status operacional da coluna.
           const colOS = dataSource
-            .filter(os => os.status === column.id)
+            .filter(os => {
+              if (viewMode === "financeiro") {
+                // Exibe no financeiro se estiver finalizada ou faturada, distribuída pelo status financeiro correspondente.
+                // Se a OS não tiver status financeiro definido, assume-se "PENDENTE" (A Faturar).
+                const osFinStatus = os.financialStatus || "PENDENTE";
+                return os.status === "FINALIZADO" && osFinStatus === column.id;
+              } else {
+                return os.status === column.id;
+              }
+            })
             .sort((a, b) => {
               const timeA = new Date(a.createdAt).getTime();
               const timeB = new Date(b.createdAt).getTime();
               return sortOrder === "asc" ? timeA - timeB : timeB - timeA;
             });
+
+          // Contagem de cards na coluna
+          const colCount = viewMode === "financeiro"
+            ? dataSource.filter(os => os.status === "FINALIZADO" && (os.financialStatus || "PENDENTE") === column.id).length
+            : (countsByStatus[column.id] || 0);
+
           return (
             <div id={`kanban-col-${column.id}`} key={column.id} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, column.id)} className={`w-[360px] min-w-[360px] shrink-0 snap-center rounded-2xl border border-slate-200/85 border-t-4 p-4.5 flex flex-col h-full max-h-full gap-4 overflow-hidden ${column.color}`}>
               <div className="flex items-center justify-between border-b border-slate-200/60 pb-3 shrink-0">
                 <h3 className="font-bold text-sm text-slate-900">{column.name}</h3>
-                <span className="bg-slate-900 text-white font-mono text-[10px] px-2 py-0.5 rounded-full">{colOS.length}</span>
+                <span className="bg-slate-900 text-white font-mono text-[10px] px-2 py-0.5 rounded-full">{colCount}</span>
               </div>
-              <div className="flex-1 space-y-4 overflow-y-auto pr-1 pb-2 custom-scrollbar">
+              <div 
+                onScroll={(e) => handleColumnScroll(e, column.id as any)}
+                className="flex-1 space-y-4 overflow-y-auto pr-1 pb-2 custom-scrollbar"
+              >
                 {colOS.map((os) => {
                   // Motor de Recorrência
                   const ninetyDaysAgo = new Date(os.createdAt);
@@ -1267,7 +1468,7 @@ export default function KanbanBoard({
             const resDados = await fetch(`/api/ordens-servico/${selectedOS.id}`, {
               method: "PUT",
               headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-              body: JSON.stringify({ diagnostic, laudoMacro, usedParts: selectedParts, laborCost, technicianLaborHours, technicianHourlyRate })
+              body: JSON.stringify({ diagnostic, laudoMacro, usedParts: selectedParts, discount })
             });
             if (!resDados.ok) throw new Error("Erro ao gravar dados.");
             
@@ -1280,10 +1481,11 @@ export default function KanbanBoard({
                 diagnostic,
                 laudoMacro,
                 usedParts: selectedParts,
-                laborCost: Number(laborCost) || 0,
-                technicianLaborHours: Number(technicianLaborHours) || 0,
-                technicianHourlyRate: Number(technicianHourlyRate) || 0,
-                totalCost: selectedParts.reduce((sum, item) => sum + (item.price * item.quantity), 0) + Number(laborCost)
+                laborCost: computedLaborCost,
+                discount: Number(discount) || 0,
+                technicianLaborHours: selectedOS.technicianLaborHours || 0,
+                technicianHourlyRate: selectedOS.technicianHourlyRate || 0,
+                totalCost: computedTotal
               };
               setSemReparoOS(osUpdatedForSemReparo);
               setSelectedClosingReason('ORCAMENTO_RECUSADO');
@@ -1300,13 +1502,19 @@ export default function KanbanBoard({
                 diagnostic,
                 laudoMacro,
                 usedParts: selectedParts,
-                laborCost: Number(laborCost) || 0,
-                technicianLaborHours: Number(technicianLaborHours) || 0,
-                technicianHourlyRate: Number(technicianHourlyRate) || 0,
-                totalCost: selectedParts.reduce((sum, item) => sum + (item.price * item.quantity), 0) + Number(laborCost)
+                laborCost: computedLaborCost,
+                discount: Number(discount) || 0,
+                technicianLaborHours: selectedOS.technicianLaborHours || 0,
+                technicianHourlyRate: selectedOS.technicianHourlyRate || 0,
+                totalCost: computedTotal
               };
               setShowEditModal(false);
               setClosingOS(osUpdatedForClosing);
+              return;
+            }
+            if (newStatus === "FINALIZADO") {
+              setPaymentModalOS({ id: selectedOS.id, targetStatus: newStatus });
+              setShowEditModal(false);
               return;
             }
 
@@ -1514,6 +1722,12 @@ export default function KanbanBoard({
                 <p><span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block">Cliente proprietário</span> <strong className="text-slate-800 text-sm mt-0.5 block">{(selectedOS as any).client?.name}</strong></p>
                 <p><span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block">Dispositivo em conserto</span> <strong className="text-slate-800 text-sm mt-0.5 block">{(selectedOS as any).device?.type} {(selectedOS as any).device?.brand} ({(selectedOS as any).device?.model})</strong></p>
                 <p className="sm:col-span-2 border-t border-slate-100 pt-2"><span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block">Sintoma Narrado pelo Solicitante</span> <span className="text-slate-600 italic block mt-1 font-mono">"{(selectedOS as any).reportedDefect}"</span></p>
+                {(selectedOS as any).accessoriesLeft && (
+                  <p className="border-t border-slate-100 pt-2"><span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block">Acessórios Deixados</span> <span className="text-slate-700 font-semibold block mt-0.5 font-mono">{(selectedOS as any).accessoriesLeft}</span></p>
+                )}
+                {(selectedOS as any).physicalState && (
+                  <p className="border-t border-slate-100 pt-2"><span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block">Estado Físico / Balcão</span> <span className="text-slate-700 font-semibold block mt-0.5 font-mono">{(selectedOS as any).physicalState}</span></p>
+                )}
               </div>
 
               {/* Widget de Teste de Estresse para Garantia */}
@@ -1551,45 +1765,62 @@ export default function KanbanBoard({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 items-center">
                     <div>
                       <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">Valor da Mão de Obra (R$)</label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={laborCost}
-                        onChange={(e) => setLaborCost(Math.max(0, Number(e.target.value)))}
-                        className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 font-mono font-bold focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none transition"
-                      />
-                      <p className="text-[10px] text-slate-450 mt-1.5 font-semibold">Valor do serviço técnico especializado da MGV.</p>
+                      <div className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-650 font-mono font-bold select-none shadow-inner">
+                        R$ {computedLaborCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </div>
+                      <p className="text-[10px] text-slate-450 mt-1.5 font-semibold">Calculado automaticamente a partir dos serviços lançados.</p>
                     </div>
 
                     <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">Horas do Técnico</label>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">Desconto Aplicado (R$)</label>
                       <input
                         type="number"
                         min={0}
-                        step="0.5"
-                        value={technicianLaborHours}
-                        onChange={(e) => setTechnicianLaborHours(Math.max(0, Number(e.target.value)))}
-                        className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">Custo/Hora Técnico (R$)</label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={technicianHourlyRate}
-                        onChange={(e) => setTechnicianHourlyRate(Math.max(0, Number(e.target.value)))}
-                        className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none"
+                        value={discount}
+                        onChange={(e) => setDiscount(Math.max(0, Number(e.target.value)))}
+                        className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-mono font-bold text-red-600 focus:ring-2 focus:ring-red-500/10 focus:border-red-500 focus:outline-none transition"
                       />
                     </div>
 
-                    <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-2xl p-4 flex flex-col justify-center items-end text-right border border-slate-850 shadow-md select-none">
+                    <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-2xl p-4 flex flex-col justify-center items-end text-right border border-slate-850 shadow-md select-none sm:col-span-2">
                       <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-indigo-300">Total do Conserto</span>
                       <p className="text-2xl font-mono font-bold text-white mt-1">
                         R$ {computedTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                       </p>
-                      <span className="text-[10px] text-slate-400 mt-1 font-semibold">Mão de Obra + Peças</span>
+                      <span className="text-[10px] text-slate-400 mt-1 font-semibold">Mão de Obra + Peças - Desconto</span>
                     </div>
+                  </div>
+
+                  {/* Resumo de Peças e Serviços Lançados */}
+                  <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4.5 space-y-3 shadow-xs mt-4">
+                    <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-200/60 pb-2 flex items-center space-x-1.5">
+                      <span className="material-symbols-outlined text-[18px] text-indigo-600 shrink-0">handyman</span>
+                      <span>Resumo de Itens Lançados (Peças e Serviços)</span>
+                    </h4>
+                    {selectedParts.length === 0 ? (
+                      <p className="text-[11px] text-slate-400 italic">Nenhum item (peça ou serviço) lançado para esta OS.</p>
+                    ) : (
+                      <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                        {selectedParts.map((item) => (
+                          <div key={item.id || item.partId} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-150 text-[11px]">
+                            <div className="flex items-center space-x-2.5">
+                              <span className={`px-2 py-0.5 rounded text-[8px] font-extrabold uppercase border ${
+                                item.category === "SERVICO" 
+                                  ? "bg-purple-50 text-purple-700 border-purple-200" 
+                                  : "bg-slate-100 text-slate-700 border-slate-200"
+                              }`}>
+                                {item.category === "SERVICO" ? "Serviço" : "Peça"}
+                              </span>
+                              <span className="font-bold text-slate-800">{item.name}</span>
+                              <span className="text-slate-450 font-semibold">({item.quantity}x)</span>
+                            </div>
+                            <span className="font-mono font-bold text-slate-900">
+                              R$ {(item.price * item.quantity).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -1603,58 +1834,32 @@ export default function KanbanBoard({
                       <span>Substituição de Peças & Peças Utilizadas</span>
                     </h4>
 
-                    <div className="flex flex-col sm:flex-row items-end gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                      <div className="flex-1">
-                        <label className="block text-[10px] font-bold text-slate-600 mb-1 uppercase tracking-wider">Pesquisar Peça em Estoque:</label>
-                        <select
-                          value={tempPartId}
-                          onChange={(e) => setTempPartId(e.target.value)}
-                          className="w-full px-2.5 py-1.8 border border-slate-200 rounded-lg text-xs text-slate-800 bg-white"
-                        >
-                          <option value="">-- Escolher Peça --</option>
-                          {parts.map(p => (
-                            <option key={p.id} value={p.id}>
-                              {p.name} ({p.code}) [Qtd: {p.stock} | R$ {p.price.toFixed(2)}]
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="w-24">
-                        <label className="block text-[10px] font-bold text-slate-600 mb-1 uppercase tracking-wider">Qtd:</label>
-                        <input
-                          type="number"
-                          min={1}
-                          value={tempPartQty}
-                          onChange={(e) => setTempPartQty(Math.max(1, Number(e.target.value)))}
-                          className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
-                        />
-                      </div>
-
+                    <div className="flex flex-wrap items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
                       <button
                         type="button"
-                        onClick={handleAddPartToOS}
-                        className="bg-slate-900 text-white font-extrabold text-[10px] uppercase tracking-wider px-4 py-1.8 h-[34px] rounded-lg hover:bg-slate-800 active:bg-slate-950 transition duration-150 shrink-0 hover-premium active-premium"
+                        onClick={handleOpenPartSearchModal}
+                        className="bg-blue-600 text-white font-extrabold text-[11px] uppercase tracking-wider px-5 py-2.5 h-[38px] rounded-lg hover:bg-blue-500 active:bg-blue-700 transition duration-150 shrink-0 flex items-center gap-1.5 shadow-sm hover:shadow active:scale-[0.98]"
                       >
-                        Lançar Peça
+                        <span className="material-symbols-outlined text-[18px]">search</span>
+                        <span>Adicionar Item do Estoque</span>
                       </button>
 
                       {isAvulsoEnabled && (
                         <button
                           type="button"
                           onClick={() => setIsAddingAvulso(true)}
-                          className="bg-indigo-50 border border-indigo-200 text-indigo-700 font-extrabold text-[10px] uppercase tracking-wider px-4 py-1.8 h-[34px] rounded-lg hover:bg-indigo-100 transition duration-150 shrink-0 flex items-center gap-1"
+                          className="bg-indigo-50 border border-indigo-200 text-indigo-700 font-extrabold text-[11px] uppercase tracking-wider px-4 py-2.5 h-[38px] rounded-lg hover:bg-indigo-100 transition duration-150 shrink-0 flex items-center gap-1"
                         >
-                          <span className="material-symbols-outlined text-[16px]">add</span> Item Avulso
+                          <span className="material-symbols-outlined text-[18px]">add</span> Item Avulso
                         </button>
                       )}
                     </div>
 
                     {isAvulsoEnabled && isAddingAvulso && (
-                      <form onSubmit={handleAddAvulsoToOS} className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-200 space-y-3 mt-3 anim-fadein shadow-inner">
+                      <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-200 space-y-3 mt-3 anim-fadein shadow-inner">
                         <div className="flex justify-between items-center border-b border-indigo-100 pb-2">
                           <h5 className="text-[11px] font-bold text-indigo-800 uppercase flex items-center gap-1">
-                            <span className="material-symbols-outlined text-[16px]">sparkles</span> Novo Item Avulso (Apenas nesta OS)
+                            <span className="material-symbols-outlined text-[16px]">auto_awesome</span> Novo Item Avulso (Apenas nesta OS)
                           </h5>
                           <button type="button" onClick={() => setIsAddingAvulso(false)} className="text-slate-400 hover:text-slate-600">
                             <span className="material-symbols-outlined text-[18px]">close</span>
@@ -1698,9 +1903,9 @@ export default function KanbanBoard({
                         </div>
                         
                         <div className="flex justify-end pt-2">
-                          <button type="submit" className="bg-indigo-600 text-white font-bold text-xs px-4 py-2 rounded-lg hover:bg-indigo-700 transition">Adicionar Item à OS</button>
+                          <button type="button" onClick={(e) => handleAddAvulsoToOS(e as any)} className="bg-indigo-600 text-white font-bold text-xs px-4 py-2 rounded-lg hover:bg-indigo-700 transition">Adicionar Item à OS</button>
                         </div>
-                      </form>
+                      </div>
                     )}
 
                     {/* Used pieces summary list */}
@@ -1712,11 +1917,11 @@ export default function KanbanBoard({
                           const partDef = parts.find(pd => pd.id === p.partId);
                           const needsSerial = partDef?.requiresSerial;
                           return (
-                            <div key={p.partId} className={`text-xs bg-slate-50 p-2.5 rounded-lg border transition duration-150 ${needsSerial && (!p.serialNumber || p.serialNumber.trim() === "") ? "border-violet-400 bg-violet-50/30" : "border-slate-200 hover:border-slate-350"}`}>
+                            <div key={p.partId || p.id} className={`text-xs bg-slate-50 p-2.5 rounded-lg border transition duration-150 ${needsSerial && (!p.serialNumber || p.serialNumber.trim() === "") ? "border-violet-400 bg-violet-50/30" : "border-slate-200 hover:border-slate-350"}`}>
                               <div className="flex items-center justify-between">
                                 <div>
                                   {p.isAvulso ? (
-                                    <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded-md mr-2 uppercase tracking-wider inline-flex items-center" title="Item existe apenas nesta OS"><span className="material-symbols-outlined text-[10px] mr-0.5">sparkles</span> Avulso</span>
+                                    <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded-md mr-2 uppercase tracking-wider inline-flex items-center" title="Item existe apenas nesta OS"><span className="material-symbols-outlined text-[10px] mr-0.5">auto_awesome</span> Avulso</span>
                                   ) : (
                                     <span className="text-[9px] bg-slate-200 text-slate-700 font-bold px-1.5 py-0.5 rounded-md mr-2 uppercase tracking-wider inline-flex items-center" title="Baixa no estoque automático"><span className="material-symbols-outlined text-[10px] mr-0.5">inventory_2</span> Estoque</span>
                                   )}
@@ -2131,6 +2336,7 @@ export default function KanbanBoard({
                   deviceModel={(selectedOS as any).device?.model || ""}
                   deviceBrand={(selectedOS as any).device?.brand || ""}
                   totalCost={computedTotal}
+                  onPrintPDF={() => handlePrintRecibo(selectedOS)}
                 />
               )}
 
@@ -2303,6 +2509,202 @@ export default function KanbanBoard({
         );
       })()}
 
+      {/* MODAL DE BUSCA AVANÇADA DE PEÇAS NO ESTOQUE */}
+      {isPartSearchModalOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm anim-fadein">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden border border-slate-200">
+            {/* Cabeçalho */}
+            <div className="px-6 py-4 bg-slate-900 text-white flex justify-between items-center">
+              <div className="flex items-center space-x-2">
+                <span className="material-symbols-outlined text-[22px] text-blue-400">inventory_2</span>
+                <h3 className="font-bold text-base">Adicionar Peças do Estoque</h3>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setIsPartSearchModalOpen(false)}
+                className="text-slate-400 hover:text-white transition"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            {/* Filtros de Pesquisa */}
+            <div className="p-4 bg-slate-50 border-b border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Pesquisar por Nome ou Código:</label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
+                    <span className="material-symbols-outlined text-[18px]">search</span>
+                  </span>
+                  <input
+                    type="text"
+                    value={partSearchQuery}
+                    onChange={(e) => setPartSearchQuery(e.target.value)}
+                    placeholder="Ex: Teclado, HD, 1024..."
+                    className="w-full pl-9 pr-3 py-1.8 text-xs border border-slate-250 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 bg-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Filtrar por Categoria:</label>
+                <select
+                  value={partSearchCategory}
+                  onChange={(e) => setPartSearchCategory(e.target.value)}
+                  className="w-full px-3 py-1.8 text-xs border border-slate-250 rounded-lg text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                >
+                  <option value="">Todas as Categorias</option>
+                  {apiCategories.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Tabela de Resultados */}
+            <div className="flex-1 overflow-y-auto p-4 min-h-[250px] relative">
+              {isSearchingParts ? (
+                <div className="absolute inset-0 bg-white/70 flex flex-col items-center justify-center z-10">
+                  <span className="material-symbols-outlined animate-spin text-[32px] text-blue-600 mb-2">sync</span>
+                  <span className="text-xs font-semibold text-slate-600">Buscando peças no estoque completo...</span>
+                </div>
+              ) : null}
+
+              {(() => {
+                const filtered = apiPartsList.filter(p => {
+                  const matchesSearch = 
+                    p.name.toLowerCase().includes(partSearchQuery.toLowerCase()) ||
+                    (p.code && p.code.toLowerCase().includes(partSearchQuery.toLowerCase()));
+                  const matchesCategory = !partSearchCategory || (p as any).category === partSearchCategory;
+                  return matchesSearch && matchesCategory;
+                });
+
+                if (filtered.length === 0) {
+                  return (
+                    <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                      <span className="material-symbols-outlined text-[48px] mb-2 text-slate-300">inventory</span>
+                      <p className="text-sm font-semibold">Nenhuma peça encontrada no estoque</p>
+                      <p className="text-[11px] mt-0.5">Tente ajustar seus termos de busca ou categoria</p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-slate-500 text-[10px] font-bold uppercase tracking-wider">
+                        <th className="py-2 px-3 w-12 text-center">Sel.</th>
+                        <th className="py-2 px-3">Peça / Produto</th>
+                        <th className="py-2 px-3">Código</th>
+                        <th className="py-2 px-3 text-center">Estoque</th>
+                        <th className="py-2 px-3 text-right">Valor Venda</th>
+                        <th className="py-2 px-3 text-center w-24">Qtd. Adicionar</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                      {filtered.map(p => {
+                        const selInfo = selectedPartsInModal[p.id] || { quantity: 1, selected: false };
+                        const isSelected = selInfo.selected;
+                        const qty = selInfo.quantity;
+                        const isOutOfStock = p.stock <= 0;
+
+                        const handleRowCheckbox = (checked: boolean) => {
+                          setSelectedPartsInModal(prev => ({
+                            ...prev,
+                            [p.id]: {
+                              selected: checked,
+                              quantity: checked ? (prev[p.id]?.quantity || 1) : (prev[p.id]?.quantity || 1)
+                            }
+                          }));
+                        };
+
+                        const handleRowQuantity = (value: number) => {
+                          const safeVal = Math.max(1, Math.min(value, p.stock));
+                          setSelectedPartsInModal(prev => ({
+                            ...prev,
+                            [p.id]: {
+                              selected: prev[p.id]?.selected || false,
+                              quantity: safeVal
+                            }
+                          }));
+                        };
+
+                        return (
+                          <tr key={p.id} className={`hover:bg-slate-50/50 transition-colors ${isSelected ? 'bg-blue-50/30' : ''}`}>
+                            <td className="py-2.5 px-3 text-center">
+                              <input
+                                type="checkbox"
+                                disabled={isOutOfStock}
+                                checked={isSelected}
+                                onChange={(e) => handleRowCheckbox(e.target.checked)}
+                                className="w-4.5 h-4.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 focus:ring-2 disabled:opacity-50"
+                              />
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <div className="font-semibold text-slate-800">{p.name}</div>
+                              {(p as any).category && <span className="text-[10px] text-slate-400 bg-slate-100 px-1 py-0.5 rounded font-mono">{(p as any).category}</span>}
+                            </td>
+                            <td className="py-2.5 px-3 font-mono text-[11px] text-slate-500">
+                              {p.code || "---"}
+                            </td>
+                            <td className="py-2.5 px-3 text-center">
+                              {isOutOfStock ? (
+                                <span className="text-[9px] bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded-full">Sem estoque</span>
+                              ) : p.stock <= 2 ? (
+                                <span className="text-[9px] bg-amber-100 text-amber-700 font-bold px-2 py-0.5 rounded-full">{p.stock} un (Baixo)</span>
+                              ) : (
+                                <span className="text-[10px] text-slate-600 font-bold">{p.stock} un</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
+                              R$ {p.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </td>
+                            <td className="py-2.5 px-3 text-center">
+                              <input
+                                type="number"
+                                min={1}
+                                max={p.stock}
+                                disabled={isOutOfStock || !isSelected}
+                                value={qty}
+                                onChange={(e) => handleRowQuantity(Number(e.target.value))}
+                                className="w-full px-2 py-1 border border-slate-200 rounded text-center text-xs disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                );
+              })()}
+            </div>
+
+            {/* Rodapé de Ações */}
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center">
+              <span className="text-[11px] text-slate-500 font-semibold font-mono">
+                {Object.values(selectedPartsInModal).filter(v => (v as any).selected).length} item(ns) selecionado(s)
+              </span>
+              <div className="flex space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setIsPartSearchModalOpen(false)}
+                  className="px-4 py-2 border border-slate-350 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-lg transition"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmModalParts}
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg transition shadow-sm"
+                >
+                  Confirmar e Adicionar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Print Overrides styling */}
       <style>{`
         @media print {
@@ -2342,9 +2744,9 @@ export default function KanbanBoard({
                   <span className="material-symbols-outlined text-[20px] mr-1.5 text-emerald-650">workspace_premium</span>
                   MGV Tecnologia
                 </h1>
-                <p className="text-[10px] text-slate-400 mt-1 uppercase font-mono tracking-wider font-semibold">MGV TECNOLOGIA E ASSISTÊNCIA TÉCNICA LTDA</p>
-                <p className="text-[11px] text-slate-500 font-mono mt-0.5">CNPJ: 18.291.554/0001-90 | IE: 109.283.412.110</p>
-                <p className="text-[11px] text-slate-500 mt-0.5">Av. Tiradentes, 850, Ribeirão Preto - SP | Tel: (11) 3218-9900</p>
+                <p className="text-[10px] text-slate-400 mt-1 uppercase font-mono tracking-wider font-semibold">MOSAIAS LUIZ TEODORO LTDA</p>
+                <p className="text-[11px] text-slate-500 font-mono mt-0.5">CNPJ: 24.181.336/0001-66 | IE: 797.187.310.116</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">Rua Julio Prestes, 648, Jardim Sumaré, Ribeirão Preto - SP | Tel: (16) 99104-9631</p>
               </div>
               <div className="flex flex-col items-end text-right w-full sm:w-auto">
                 <span className="text-[10px] font-bold uppercase text-emerald-700 bg-emerald-50 border border-emerald-100 px-3 py-1 rounded-full font-mono">
@@ -2352,7 +2754,7 @@ export default function KanbanBoard({
                 </span>
                 <p className="text-3xl font-mono font-bold mt-3 text-slate-950 tracking-tight">{activePrintOS.osNumber}</p>
                 <p className="text-[10px] text-slate-400 font-mono mt-1">
-                  Conclusão: {new Date().toLocaleString("pt-BR")}
+                  Conclusão: {new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}
                 </p>
               </div>
             </div>
@@ -2443,7 +2845,7 @@ export default function KanbanBoard({
               <div className="mt-8 border-t border-slate-200 pt-5 text-[10px] text-slate-500 leading-relaxed space-y-2 select-none">
                 <p className="font-bold text-slate-700 uppercase tracking-wider text-[11px] mb-1">Termo de Entrega e Garantia de Assistência:</p>
                 <p>
-                  1. A MGV Tecnologia declara garantia legal de 90 dias (conforme art. 26 do Código de Defesa do Consumidor - CDC) para todas as peças físicas substituídas e serviços discriminados neste laudo técnico, a contar da data de retirada descrita.
+                  1. A MGV Assistência Técnica declara garantia legal de 90 dias (conforme art. 26 do Código de Defesa do Consumidor - CDC) para todas as peças físicas substituídas e serviços discriminados neste laudo técnico, a contar da data de retirada descrita.
                 </p>
                 <p>
                   2. A garantia aplica-se exclusivamente a falhas espontâneas das peças novas fornecidas. Estão integralmente excluídos da garantia danos causados por quedas, sobretensões elétricas na rede externa, oxidação por umidade local ou intervenções técnicas executadas por terceiros.
@@ -2640,26 +3042,110 @@ export default function KanbanBoard({
                 Cancelar
               </button>
               <button 
+                onClick={() => {
+                  setPaymentModalOS({ id: closingOS.id, targetStatus: "FINALIZADO" });
+                  setClosingOS(null);
+                }}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow-md transition active:scale-95 hover-premium"
+              >
+                Confirmar Fechamento
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {paymentModalOS && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60] animate-fadeIn">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md p-6 space-y-5">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
+                <span className="material-symbols-outlined text-[20px] text-emerald-600">payments</span>
+                <span>Selecione a Forma de Pagamento</span>
+              </h3>
+              <button onClick={() => { setPaymentModalOS(null); setPaymentMethod(""); }} className="text-slate-400 hover:text-slate-650 cursor-pointer">
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            <div className="space-y-2.5">
+              {[
+                { id: "CARTAO_CREDITO", label: "Cartão de Crédito", icon: "credit_card" },
+                { id: "CARTAO_DEBITO", label: "Cartão de Débito", icon: "credit_card" },
+                { id: "DINHEIRO", label: "Dinheiro", icon: "payments" },
+                { id: "PIX", label: "Pix", icon: "qr_code_2" },
+                { id: "BOLETO", label: "Boleto Bancário", icon: "description" }
+              ].map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setPaymentMethod(opt.id)}
+                  className={`w-full flex items-center justify-between p-3.5 rounded-xl border text-xs font-bold transition duration-150 cursor-pointer text-left hover:bg-slate-50 ${
+                    paymentMethod === opt.id 
+                      ? "border-emerald-500 bg-emerald-500/5 text-emerald-800 shadow-sm" 
+                      : "border-slate-200 text-slate-700"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className={`material-symbols-outlined text-[18px] ${
+                      paymentMethod === opt.id ? "text-emerald-600" : "text-slate-400"
+                    }`}>{opt.icon}</span>
+                    <span>{opt.label}</span>
+                  </div>
+                  {paymentMethod === opt.id && (
+                    <span className="material-symbols-outlined text-[18px] text-emerald-600">check_circle</span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-3 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => { setPaymentModalOS(null); setPaymentMethod(""); }}
+                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-3 rounded-xl transition cursor-pointer text-xs"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
                 onClick={async () => {
+                  if (!paymentMethod) {
+                    alert("Por favor, selecione uma forma de pagamento.");
+                    return;
+                  }
+                  setLoading(true);
                   try {
                     const token = localStorage.getItem("mgv_token") || "";
-                    const res = await fetch(`/api/ordens-servico/${closingOS.id}/status`, {
+                    const res = await fetch(`/api/ordens-servico/${paymentModalOS.id}/status`, {
                       method: "PUT",
                       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-                      body: JSON.stringify({ status: "FINALIZADO" })
+                      body: JSON.stringify({ 
+                        status: paymentModalOS.targetStatus,
+                        paymentMethod: paymentMethod
+                      })
                     });
                     if (!res.ok) {
                       const data = await res.json();
                       alert(data.error || "Erro.");
                     } else {
+                      setSuccessMsg("OS encerrada e pagamento registrado com sucesso!");
                       onRefresh();
+                      setTimeout(() => setSuccessMsg(""), 1500);
                     }
-                  } catch(e: any) { alert(e.message); }
-                  setClosingOS(null);
+                  } catch (e: any) {
+                    alert(e.message);
+                  } finally {
+                    setLoading(false);
+                    setPaymentModalOS(null);
+                    setPaymentMethod("");
+                  }
                 }}
-                className="px-4 py-2 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 shadow-md"
+                disabled={!paymentMethod}
+                className="flex-1 bg-emerald-650 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition cursor-pointer text-xs shadow-sm flex items-center justify-center gap-1.5 disabled:bg-slate-200 disabled:text-slate-400"
               >
-                Confirmar Fechamento
+                <span className="material-symbols-outlined text-[16px]">task_alt</span>
+                <span>Finalizar OS</span>
               </button>
             </div>
           </div>

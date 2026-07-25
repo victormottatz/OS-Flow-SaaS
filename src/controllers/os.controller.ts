@@ -79,7 +79,6 @@ export function isDeviceIncomplete(device: any): boolean {
     !model ||
     model === "indefinido" ||
     !serial ||
-    serial === "Sem Série" ||
     serial === ""
   );
 }
@@ -147,48 +146,195 @@ export async function getRecurrentAlert(os: any): Promise<any | null> {
 export class OSController {
   async getAll(req: Request, res: Response) {
     try {
-      const limitParam = req.query.limit as string;
-      const limit = limitParam === "all" ? undefined : (Number(limitParam) || 100);
+      // Parse query parameters for pagination, filtering, sorting
+      const page = Math.max(1, Number(req.query.page) || 1);
+      const pageSize = Math.min(5000, Math.max(1, Number(req.query.pageSize) || 100));
+      const cursor = req.query.cursor as string | undefined;
+      const status = req.query.status as string;
+      const search = (req.query.search as string)?.trim().toLowerCase() || "";
+      const sortBy = (req.query.sortBy as string) || "createdAt";
+      const sortOrder = (req.query.sortOrder as string) === "asc" ? "asc" : "desc";
+      const includeRelations = req.query.includeRelations === "true";
 
       const userRole = req.headers["x-user-role"] as string;
       const isProfitEnabled = await featureFlags.isEnabled("OS_PROFITABILITY_CALC");
       const showProfit = userRole === "OWNER" && isProfitEnabled;
 
-      // Fetch active (non-finalized) OSs (all of them)
-      const activeOS = await prisma.ordemServico.findMany({
-        where: { 
-          deletedAt: null,
-          status: { not: "FINALIZADO" }
-        },
-        include: {
-          client: true,
-          device: true
-        },
-        orderBy: {
-          createdAt: "desc"
+      // Build where clause
+      const where: any = { deletedAt: null };
+
+      if (status && status !== "ALL") {
+        where.status = status;
+      }
+
+      if (search) {
+        where.OR = [
+          { osNumber: { contains: search, mode: "insensitive" } },
+          { reportedDefect: { contains: search, mode: "insensitive" } },
+          { diagnostic: { contains: search, mode: "insensitive" } },
+          { client: { name: { contains: search, mode: "insensitive" } } },
+          { device: { brand: { contains: search, mode: "insensitive" } } },
+          { device: { model: { contains: search, mode: "insensitive" } } },
+          { device: { type: { contains: search, mode: "insensitive" } } },
+        ];
+      }
+
+      // Build orderBy
+      const orderBy: any = {};
+      const allowedSortFields = ["createdAt", "osNumber", "status", "updatedAt"];
+      const safeSortBy = allowedSortFields.includes(sortBy) ? sortBy : "createdAt";
+      orderBy[safeSortBy] = sortOrder;
+
+      // Cursor-based pagination support
+      if (cursor) {
+        where.id = { lt: cursor }; // cursor is the last seen ID
+      }
+
+      // Select minimal fields for list view (projection)
+      const select = {
+        id: true,
+        osNumber: true,
+        clientId: true,
+        deviceId: true,
+        reportedDefect: true,
+        accessoriesLeft: true,
+        physicalState: true,
+        status: true,
+        diagnostic: true,
+        laudoMacro: true,
+        usedParts: true,
+        laborCost: true,
+        discount: true,
+        paymentMethod: true,
+        totalCost: true,
+        billingStatus: true,
+        blingId: true,
+        blingKey: true,
+        sefazErrorMessage: true,
+        pdfUrl: true,
+        billingLogs: true,
+        checklistEntrada: true,
+        checklistSaida: true,
+        laudoFotos: true,
+        createdAt: true,
+        originalExitDate: true,
+        closingReason: true,
+        recurrent: true,
+        technicianLaborHours: true,
+        technicianHourlyRate: true,
+        partsCost: true,
+        travelCost: true,
+        thirdPartyCost: true,
+        otherCost: true,
+        warrantyType: true,
+        financialStatus: true,
+        financialDueDate: true,
+        ...(includeRelations && {
+          client: {
+            select: { id: true, name: true, cpfCnpj: true, phone: true, phone2: true, email: true, address: true }
+          },
+          device: {
+            select: { id: true, type: true, brand: true, model: true, serialNumber: true, description: true }
+          }
+        })
+      };
+
+      // Fetch total count (for pagination UI)
+      const total = await prisma.ordemServico.count({ where });
+
+      // Fetch paginated data
+      let data: any[] = [];
+      let hasMore = false;
+      let nextCursor: string | undefined = undefined;
+
+      if (!status || status === "ALL") {
+        const operationalStatuses = ["ORCAMENTO", "AGUARDANDO_AVALIACAO", "AGUARDANDO_AUTORIZACAO", "AGUARDANDO_PECA", "EM_MANUTENCAO", "PRONTO_RETIRADA", "PAGO_PRONTO_RETIRADA"];
+        const opQueries = operationalStatuses.map(s => 
+          prisma.ordemServico.findMany({
+            where: { ...where, status: s as any },
+            select,
+            orderBy,
+            take: pageSize
+          })
+        );
+
+        // Subdivide o status FINALIZADO pelos status financeiros para garantir 100 (pageSize) cards por coluna do pipe financeiro
+        const financialStatuses = ["PENDENTE", "CREDIARIO", "PAGAR_DEPOIS", "PAGO", "INADIMPLENTE"];
+        const finQueries = financialStatuses.map(fs => {
+          const finWhere = { ...where, status: "FINALIZADO" as any };
+          return prisma.ordemServico.findMany({
+            where: {
+              ...finWhere,
+              financialStatus: fs as any
+            },
+            select,
+            orderBy,
+            take: pageSize
+          });
+        });
+
+        const results = await Promise.all([...opQueries, ...finQueries]);
+        data = results.flat();
+      } else {
+        const osList = await prisma.ordemServico.findMany({
+          where,
+          select,
+          orderBy,
+          take: pageSize + 1,
+          skip: cursor ? 1 : (page - 1) * pageSize,
+        });
+        hasMore = osList.length > pageSize;
+        data = hasMore ? osList.slice(0, pageSize) : osList;
+        nextCursor = hasMore ? data[data.length - 1].id : undefined;
+      }
+
+      // Batch fetch recurrent alerts for all OS in single query (avoid N+1)
+      const recurrentOsIds = data.filter((os: any) => os.recurrent).map((os: any) => os.id);
+      const recurrentAlertsMap = new Map<string, any>();
+      
+      if (recurrentOsIds.length > 0) {
+        // Get all related OS for recurrent devices in one query
+        const recurrentData = await prisma.ordemServico.findMany({
+          where: {
+            id: { in: recurrentOsIds },
+            deletedAt: null
+          },
+          select: {
+            id: true,
+            deviceId: true,
+            createdAt: true,
+            osNumber: true
+          }
+        });
+
+        // For each recurrent OS, fetch its related OS within 90 days
+        for (const os of recurrentData) {
+          const ninetyDaysAgo = new Date(os.createdAt);
+          ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+          const ninetyDaysAfter = new Date(os.createdAt);
+          ninetyDaysAfter.setDate(ninetyDaysAfter.getDate() + 90);
+
+          const relatedOS = await prisma.ordemServico.findMany({
+            where: {
+              deviceId: os.deviceId,
+              deletedAt: null,
+              createdAt: { gte: ninetyDaysAgo, lte: ninetyDaysAfter }
+            },
+            select: { osNumber: true, createdAt: true },
+            orderBy: { createdAt: "asc" }
+          });
+
+          if (relatedOS.length >= 3) {
+            recurrentAlertsMap.set(os.id, {
+              count: relatedOS.length,
+              previousOsNumbers: relatedOS.map((o: any) => o.osNumber)
+            });
+          }
         }
-      });
+      }
 
-      // Fetch finalized OSs (limited by default)
-      const finalizedOS = await prisma.ordemServico.findMany({
-        where: { 
-          deletedAt: null,
-          status: "FINALIZADO"
-        },
-        include: {
-          client: true,
-          device: true
-        },
-        orderBy: {
-          createdAt: "desc"
-        },
-        take: limit
-      });
-
-      const combined = [...activeOS, ...finalizedOS];
-
-      const responseData = await Promise.all(combined.map(async (os: any) => {
-        const recurrentAlert = await getRecurrentAlert(os);
+      // Transform response
+      const responseData = data.map((os: any) => {
         const rawOS = {
           id: os.id,
           osNumber: os.osNumber,
@@ -220,15 +366,66 @@ export class OSController {
           createdAt: os.createdAt.toISOString(),
           deletedAt: null,
           originalExitDate: os.originalExitDate ? os.originalExitDate.toISOString() : null,
-          client: os.client ? { id: os.client.id, name: os.client.name, cpfCnpj: os.client.cpfCnpj, phone: os.client.phone, email: os.client.email, address: os.client.address } : null,
+          closingReason: os.closingReason,
+          warrantyType: os.warrantyType,
+          financialStatus: os.financialStatus,
+          financialDueDate: os.financialDueDate ? os.financialDueDate.toISOString() : null,
+          client: os.client ? { id: os.client.id, name: os.client.name, cpfCnpj: os.client.cpfCnpj, phone: os.client.phone, phone2: os.client.phone2, email: os.client.email, address: os.client.address } : null,
           device: os.device ? { id: os.device.id, type: os.device.type, brand: os.device.brand, model: os.device.model, serialNumber: os.device.serialNumber, description: os.device.description } : null,
           recurrent: os.recurrent,
-          recurrentAlert
+          recurrentAlert: recurrentAlertsMap.get(os.id) || null,
+          technicianLaborHours: os.technicianLaborHours,
+          technicianHourlyRate: os.technicianHourlyRate,
+          partsCost: os.partsCost,
+          travelCost: os.travelCost,
+          thirdPartyCost: os.thirdPartyCost,
+          otherCost: os.otherCost,
+          discount: os.discount,
+          paymentMethod: os.paymentMethod,
         };
         return sanitizeOSData(rawOS, showProfit);
-      }));
+      });
 
-      res.json(responseData);
+      // Fetch status counts matching the current search criteria but ignoring current status/pagination filters
+      const whereForCounts = { ...where };
+      delete whereForCounts.status;
+      delete whereForCounts.id;
+
+      const statusCounts = await prisma.ordemServico.groupBy({
+        by: ['status'],
+        where: whereForCounts,
+        _count: {
+          id: true
+        }
+      });
+
+      const countsByStatus = {
+        ORCAMENTO: 0,
+        AGUARDANDO_AVALIACAO: 0,
+        AGUARDANDO_AUTORIZACAO: 0,
+        AGUARDANDO_PECA: 0,
+        EM_MANUTENCAO: 0,
+        PRONTO_RETIRADA: 0,
+        PAGO_PRONTO_RETIRADA: 0,
+        FINALIZADO: 0
+      };
+
+      statusCounts.forEach((item) => {
+        if (item.status in countsByStatus) {
+          countsByStatus[item.status as keyof typeof countsByStatus] = item._count.id;
+        }
+      });
+
+      res.json({
+        data: responseData,
+        total,
+        page,
+        pageSize,
+        hasMore,
+        nextCursor,
+        totalPages: Math.ceil(total / pageSize),
+        countsByStatus
+      });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -247,6 +444,90 @@ export class OSController {
       if (!os || os.deletedAt) {
         res.status(404).json({ error: "Ordem de Serviço não encontrada." });
         return;
+      }
+
+      if (os.osNumber) {
+        // Busca as peças e serviços do MDB importados que estejam vinculados a essa OS
+        const parts = await prisma.partUsage.findMany({
+          where: { osLegacyId: os.osNumber }
+        });
+        const services = await prisma.serviceItem.findMany({
+          where: { osLegacyId: os.osNumber }
+        });
+
+        const currentParts = typeof os.usedParts === "string"
+          ? JSON.parse(os.usedParts)
+          : (os.usedParts || []) as any[];
+
+        let changed = false;
+        const updatedParts = [...currentParts];
+
+        // Sincroniza peças (categoria PECA)
+        for (const part of parts) {
+          const alreadyExists = updatedParts.some(p => p.id === part.id);
+          if (!alreadyExists) {
+            const price = parseFloat(part.value || "0");
+            const cost = parseFloat(part.cost || "0");
+            updatedParts.push({
+              id: part.id,
+              name: part.description || "Peça importada",
+              quantity: part.quantity || 1,
+              price: price,
+              costSnapshot: cost,
+              isAvulso: true,
+              category: "PECA",
+              serialNumber: part.serialInfo || undefined
+            });
+            changed = true;
+          }
+        }
+
+        // Sincroniza serviços (categoria SERVICO)
+        for (const service of services) {
+          const alreadyExists = updatedParts.some(s => s.id === service.id);
+          if (!alreadyExists) {
+            const total = parseFloat(service.total || "0");
+            const cost = parseFloat(service.cost || "0");
+            const qty = parseFloat(service.quantity || "1");
+            updatedParts.push({
+              id: service.id,
+              name: service.description || "Serviço importado",
+              quantity: qty,
+              price: qty > 0 ? (total / qty) : total,
+              costSnapshot: cost,
+              isAvulso: true,
+              category: "SERVICO"
+            });
+            changed = true;
+          }
+        }
+
+        if (changed) {
+          const computedPartsCost = updatedParts
+            .filter(p => p.category === "PECA")
+            .reduce((sum, p) => sum + (p.price * p.quantity), 0);
+
+          const computedLaborCost = updatedParts
+            .filter(s => s.category === "SERVICO")
+            .reduce((sum, s) => sum + (s.price * s.quantity), 0);
+
+          const computedTotalCost = computedPartsCost + computedLaborCost;
+
+          await prisma.ordemServico.update({
+            where: { id: os.id },
+            data: {
+              usedParts: updatedParts as any,
+              partsCost: computedPartsCost,
+              laborCost: computedLaborCost,
+              totalCost: computedTotalCost
+            }
+          });
+
+          os.usedParts = updatedParts as any;
+          os.partsCost = computedPartsCost;
+          os.laborCost = computedLaborCost;
+          os.totalCost = computedTotalCost;
+        }
       }
 
       const userRole = req.headers["x-user-role"] as string;
@@ -280,10 +561,16 @@ export class OSController {
         createdAt: os.createdAt.toISOString(),
         deletedAt: null,
         originalExitDate: os.originalExitDate ? os.originalExitDate.toISOString() : null,
-        client: os.client ? { id: os.client.id, name: os.client.name, cpfCnpj: os.client.cpfCnpj, phone: os.client.phone, email: os.client.email, address: os.client.address } : null,
+        closingReason: os.closingReason,
+        warrantyType: os.warrantyType,
+        financialStatus: os.financialStatus,
+        financialDueDate: os.financialDueDate ? os.financialDueDate.toISOString() : null,
+        client: os.client ? { id: os.client.id, name: os.client.name, cpfCnpj: os.client.cpfCnpj, phone: os.client.phone, phone2: os.client.phone2, email: os.client.email, address: os.client.address } : null,
         device: os.device ? { id: os.device.id, type: os.device.type, brand: os.device.brand, model: os.device.model, serialNumber: os.device.serialNumber, description: os.device.description } : null,
         recurrent: os.recurrent,
-        recurrentAlert
+        recurrentAlert,
+        discount: os.discount,
+        paymentMethod: os.paymentMethod
       };
 
       res.json(sanitizeOSData(rawOS, showProfit));
@@ -293,7 +580,7 @@ export class OSController {
   }
 
   async create(req: Request, res: Response) {
-    const { clientId, deviceId, reportedDefect, accessoriesLeft, physicalState, checklistEntrada, laudoFotos } = req.body;
+    const { clientId, deviceId, reportedDefect, accessoriesLeft, physicalState, checklistEntrada, laudoFotos, warrantyType } = req.body;
     
     if (!clientId || !deviceId || !reportedDefect) {
       res.status(422).json({ error: "O preenchimento do Cliente, Dispositivo e Defeito Relatado é estritamente obrigatório." });
@@ -302,8 +589,14 @@ export class OSController {
 
     try {
       const processedPhotos = await processLaudoFotos(laudoFotos);
-      const osCount = await prisma.ordemServico.count();
-      const nextSeq = osCount + 1;
+      
+      // Busca o maior número sequencial numérico ativo na tabela de OSs
+      const lastOS = await prisma.$queryRaw<{ max_os: number }[]>`
+        SELECT COALESCE(MAX(CAST(NULLIF(regexp_replace("osNumber", '[^0-9]', '', 'g'), '') AS INTEGER)), 0) as max_os 
+        FROM ordem_servicos
+      `;
+      
+      const nextSeq = (lastOS[0]?.max_os || 0) + 1;
       const osNumber = `OS-${String(nextSeq).padStart(4, "0")}`;
 
       const newOS = await prisma.ordemServico.create({
@@ -323,7 +616,8 @@ export class OSController {
           checklistEntrada: checklistEntrada || [],
           laudoFotos: processedPhotos,
           billingStatus: "PENDENTE",
-          billingLogs: []
+          billingLogs: [],
+          warrantyType: warrantyType || "NENHUMA"
         }
       });
 
@@ -354,6 +648,9 @@ export class OSController {
         laudoFotos: newOS.laudoFotos || [],
         createdAt: newOS.createdAt.toISOString(),
         recurrent: newOS.recurrent,
+        warrantyType: newOS.warrantyType,
+        financialStatus: newOS.financialStatus,
+        financialDueDate: newOS.financialDueDate ? newOS.financialDueDate.toISOString() : null,
         recurrentAlert: isRecurrent ? await getRecurrentAlert(newOS) : null
       });
     } catch (err: any) {
@@ -367,7 +664,7 @@ export class OSController {
 
   async update(req: Request, res: Response) {
     const { id } = req.params;
-    const { diagnostic, laudoMacro, usedParts, laborCost, technicianLaborHours, technicianHourlyRate, checklistEntrada, laudoFotos } = req.body;
+    const { diagnostic, laudoMacro, usedParts, laborCost, technicianLaborHours, technicianHourlyRate, checklistEntrada, laudoFotos, warrantyType, financialStatus, financialDueDate, discount } = req.body;
 
     try {
       const currentOS = await prisma.ordemServico.findUnique({
@@ -400,41 +697,88 @@ export class OSController {
       const processedPhotos = laudoFotos !== undefined ? await processLaudoFotos(laudoFotos) : undefined;
 
       if (usedParts && Array.isArray(usedParts)) {
-        const parts = await prisma.part.findMany();
-        
         const prevParts: any[] = typeof currentOS.usedParts === "string" ? JSON.parse(currentOS.usedParts) : currentOS.usedParts || [];
+        
+        // Identifica IDs legados que foram excluídos (garantindo formato UUID para evitar erros no banco)
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        const currentIds = new Set(usedParts.map((p: any) => p.id).filter(Boolean));
+        const deletedLegacyIds: string[] = [];
         for (const prevItem of prevParts) {
-          const part = parts.find((p: any) => p.id === prevItem.partId);
-          if (part) {
-            await prisma.part.update({
-              where: { id: part.id },
-              data: { stock: { increment: prevItem.quantity } }
-            });
+          if (prevItem.id && !currentIds.has(prevItem.id)) {
+            if (uuidRegex.test(String(prevItem.id))) {
+              deletedLegacyIds.push(prevItem.id);
+            }
           }
         }
 
-        for (const item of usedParts) {
-          const freshPart = await prisma.part.findUnique({ where: { id: item.partId } });
-          if (!freshPart) continue;
+        // Otimização e Concorrência (Rule 02 & Rule 03): Transação atômica e busca filtrada por IDs
+        const partIdsToFetch = Array.from(new Set([
+          ...prevParts.filter((p: any) => !p.isAvulso && p.partId).map((p: any) => p.partId),
+          ...usedParts.filter((p: any) => !p.isAvulso && p.partId).map((p: any) => p.partId)
+        ]));
 
-          if (freshPart.stock < item.quantity) {
-            res.status(400).json({ error: `Estoque insuficiente para a peça '${freshPart.name}'. Estoque disponível: ${freshPart.stock}` });
-            return;
-          }
-          await prisma.part.update({
-            where: { id: freshPart.id },
-            data: { stock: { decrement: item.quantity } }
+        try {
+          await prisma.$transaction(async (tx) => {
+            if (deletedLegacyIds.length > 0) {
+              await tx.partUsage.deleteMany({
+                where: { id: { in: deletedLegacyIds } }
+              });
+              await tx.serviceItem.deleteMany({
+                where: { id: { in: deletedLegacyIds } }
+              });
+            }
+
+            const targetParts = partIdsToFetch.length > 0
+              ? await tx.part.findMany({ where: { id: { in: partIdsToFetch } } })
+              : [];
+
+            for (const prevItem of prevParts) {
+              if (prevItem.isAvulso || !prevItem.partId) continue;
+              const part = targetParts.find((p: any) => p.id === prevItem.partId);
+              if (part) {
+                await tx.part.update({
+                  where: { id: part.id },
+                  data: { stock: { increment: prevItem.quantity } }
+                });
+              }
+            }
+
+            for (const item of usedParts) {
+              if (item.isAvulso || !item.partId) continue;
+              const freshPart = await tx.part.findUnique({ where: { id: item.partId } });
+              if (!freshPart) continue;
+
+              if (freshPart.stock < item.quantity) {
+                throw new Error(`Estoque insuficiente para a peça '${freshPart.name}'. Estoque disponível: ${freshPart.stock}`);
+              }
+              await tx.part.update({
+                where: { id: freshPart.id },
+                data: { stock: { decrement: item.quantity } }
+              });
+              
+              if (item.costSnapshot === undefined) {
+                item.costSnapshot = freshPart.cost || 0;
+              }
+            }
           });
-          
-          if (item.costSnapshot === undefined) {
-            item.costSnapshot = freshPart.cost || 0;
-          }
+        } catch (txError: any) {
+          res.status(400).json({ error: txError.message || "Erro de validação ao atualizar estoque" });
+          return;
         }
       }
 
-      const partsTotal = (usedParts || []).reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
-      const resolvedLaborCost = Number(laborCost) || 0;
-      const resolvedTotal = partsTotal + resolvedLaborCost;
+      const partsList = usedParts !== undefined ? usedParts : (typeof currentOS.usedParts === "string" ? JSON.parse(currentOS.usedParts) : currentOS.usedParts || []);
+      
+      const computedPartsCost = (partsList || [])
+        .filter((p: any) => p.category !== "SERVICO")
+        .reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
+
+      const computedLaborCost = (partsList || [])
+        .filter((p: any) => p.category === "SERVICO")
+        .reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
+
+      const resolvedDiscount = discount !== undefined ? Number(discount) : currentOS.discount;
+      const resolvedTotal = Math.max(0, computedPartsCost + computedLaborCost - resolvedDiscount);
 
       const updated = await prisma.ordemServico.update({
         where: { id },
@@ -442,12 +786,17 @@ export class OSController {
           diagnostic: diagnostic !== undefined ? diagnostic : currentOS.diagnostic,
           laudoMacro: laudoMacro !== undefined ? laudoMacro : currentOS.laudoMacro,
           usedParts: usedParts !== undefined ? usedParts : currentOS.usedParts,
-          laborCost: resolvedLaborCost,
-          technicianLaborHours: technicianLaborHours !== undefined ? Number(technicianLaborHours) : currentOS.technicianLaborHours,
-          technicianHourlyRate: technicianHourlyRate !== undefined ? Number(technicianHourlyRate) : currentOS.technicianHourlyRate,
+          partsCost: computedPartsCost,
+          laborCost: computedLaborCost,
+          technicianLaborHours: currentOS.technicianLaborHours,
+          technicianHourlyRate: currentOS.technicianHourlyRate,
+          discount: resolvedDiscount,
           totalCost: resolvedTotal,
           checklistEntrada: checklistEntrada !== undefined ? checklistEntrada : currentOS.checklistEntrada,
-          laudoFotos: processedPhotos !== undefined ? processedPhotos : currentOS.laudoFotos
+          laudoFotos: processedPhotos !== undefined ? processedPhotos : currentOS.laudoFotos,
+          warrantyType: warrantyType !== undefined ? warrantyType : currentOS.warrantyType,
+          financialStatus: financialStatus !== undefined ? financialStatus : currentOS.financialStatus,
+          financialDueDate: financialDueDate !== undefined ? (financialDueDate ? new Date(financialDueDate) : null) : currentOS.financialDueDate
         }
       });
 
@@ -476,6 +825,9 @@ export class OSController {
         laudoFotos: typeof updated.laudoFotos === "string" ? JSON.parse(updated.laudoFotos || "[]") : updated.laudoFotos || [],
         createdAt: updated.createdAt.toISOString(),
         recurrent: updated.recurrent,
+        warrantyType: updated.warrantyType,
+        financialStatus: updated.financialStatus,
+        financialDueDate: updated.financialDueDate ? updated.financialDueDate.toISOString() : null,
         recurrentAlert: await getRecurrentAlert(updated)
       };
 
@@ -613,7 +965,7 @@ export class OSController {
 
   async updateStatus(req: Request, res: Response) {
     const { id } = req.params;
-    const { status, closingReason } = req.body;
+    const { status, closingReason, paymentMethod } = req.body;
 
     if (!status) {
       res.status(400).json({ error: "Status é obrigatório." });
@@ -648,7 +1000,7 @@ export class OSController {
       }
 
       // DDD: Validação de Máquina de Estados Finita (FSM)
-      if (!OSStateMachine.canTransition(previousStatus, targetStatus)) {
+      if (!await OSStateMachine.canTransition(previousStatus, targetStatus)) {
         res.status(422).json({
           error: `Transição de status inválida: Não é permitido mover de '${previousStatus}' para '${targetStatus}'.`,
           code: "INVALID_STATE_TRANSITION"
@@ -660,6 +1012,7 @@ export class OSController {
 
       // Identifica se é um encerramento sem reparo
       const isSemReparo = closingReason === 'ORCAMENTO_RECUSADO'
+        || closingReason === 'SEM_CONSERTO'
         || closingReason === 'DESCARTE_CLIENTE_RETIRA'
         || closingReason === 'DESCARTE_OFICINA';
 
@@ -677,7 +1030,16 @@ export class OSController {
             return;
           }
 
-          if (!currentOS.diagnostic || currentOS.diagnostic.trim() === "") {
+          // Busca a configuração de obrigatoriedade de diagnóstico para Pronto Retirada
+          const diagnosticSetting = await prisma.officeSetting.findUnique({
+            where: { key: "DIAGNOSTIC_REQUIRED_PRONTO_RETIRADA" }
+          });
+          const isDiagnosticRequiredForPronto = diagnosticSetting ? diagnosticSetting.value === "true" : true;
+
+          // Exige diagnóstico obrigatoriamente para FINALIZADO ou se for PRONTO_RETIRADA com a config ativada
+          const needsDiagnostic = targetStatus === "FINALIZADO" || (targetStatus === "PRONTO_RETIRADA" && isDiagnosticRequiredForPronto);
+
+          if (needsDiagnostic && (!currentOS.diagnostic || currentOS.diagnostic.trim() === "")) {
             res.status(422).json({
               error: "Bloqueio: É obrigatório preencher o Laudo Técnico antes de finalizar ou disponibilizar a OS.",
               code: "DIAGNOSTIC_REQUIRED"
@@ -700,6 +1062,7 @@ export class OSController {
         where: { id },
         data: {
           status: targetStatus,
+          paymentMethod: paymentMethod !== undefined ? paymentMethod : undefined,
           ...(targetStatus === "FINALIZADO" ? { 
             originalExitDate: new Date(),
             closingReason: closingReason || 'REPARO_CONCLUIDO'

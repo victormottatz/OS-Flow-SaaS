@@ -15,10 +15,12 @@ interface ClientManagerProps {
   onRefresh: () => void;
   limit: number | "all";
   onLimitChange: (limit: number | "all") => void;
+  searchTerm: string;
+  onSearchChange: (searchTerm: string) => void;
+  totalItems?: number;
 }
 
-export default function ClientManager({ clients, userRole, isOffline, onRefresh, limit, onLimitChange }: ClientManagerProps) {
-  const [searchTerm, setSearchTerm] = useState("");
+export default function ClientManager({ clients, userRole, isOffline, onRefresh, limit, onLimitChange, searchTerm, onSearchChange, totalItems }: ClientManagerProps) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDeviceModal, setShowDeviceModal] = useState(false);
   const [activeClientForDevice, setActiveClientForDevice] = useState<string | null>(null);
@@ -55,10 +57,12 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
   const [clientName, setClientName] = useState("");
   const [clientCpfCnpj, setClientCpfCnpj] = useState("");
   const [clientPhone, setClientPhone] = useState("");
+  const [clientPhone2, setClientPhone2] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [clientAddress, setClientAddress] = useState("");
   const [clientCep, setClientCep] = useState("");
   const [isCepLoading, setIsCepLoading] = useState(false);
+  const [isCnpjLoading, setIsCnpjLoading] = useState(false);
   
   // Custom list of devices inside the Add Client modal
   const [tempDevices, setTempDevices] = useState<{ type: string; extraType?: string; brand: string; model: string; serialNumber: string; description: string }[]>([]);
@@ -101,7 +105,79 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
     } catch (err: any) {
       setErrorMsg(err.message || "Ocorreu um erro ao consultar o CEP.");
     } finally {
-      setIsHistoryLoading(false);
+      setIsCepLoading(false);
+    }
+  };
+
+  const handleCnpjLookup = async () => {
+    const cleanCnpj = clientCpfCnpj.replace(/\D/g, "");
+    if (cleanCnpj.length !== 14) {
+      setErrorMsg("Por favor, informe um CNPJ válido com 14 dígitos para a consulta.");
+      return;
+    }
+
+    setIsCnpjLoading(true);
+    setErrorMsg("");
+    setSuccessMsg("");
+
+    try {
+      const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanCnpj}`);
+      if (!response.ok) {
+        throw new Error("CNPJ não encontrado ou falha na consulta.");
+      }
+      const data = await response.json();
+      
+      if (data.razao_social || data.nome_fantasia) {
+        setClientName(data.razao_social || data.nome_fantasia);
+      }
+      
+      if (data.ddd_telefone_1) {
+        const phoneClean = data.ddd_telefone_1.replace(/\D/g, "");
+        if (phoneClean.length >= 10) {
+          const ddd = phoneClean.substring(0, 2);
+          const num = phoneClean.substring(2);
+          setClientPhone(`(${ddd}) ${num.substring(0, 5)}-${num.substring(5)}`);
+        } else {
+          setClientPhone(data.ddd_telefone_1);
+        }
+      }
+
+      if (data.ddd_telefone_2) {
+        const phone2Clean = data.ddd_telefone_2.replace(/\D/g, "");
+        if (phone2Clean.length >= 10) {
+          const ddd = phone2Clean.substring(0, 2);
+          const num = phone2Clean.substring(2);
+          setClientPhone2(`(${ddd}) ${num.substring(0, 5)}-${num.substring(5)}`);
+        } else {
+          setClientPhone2(data.ddd_telefone_2);
+        }
+      }
+
+      if (data.email) {
+        setClientEmail(data.email);
+      }
+
+      // Address pre-fill
+      const logradouro = data.logradouro || "";
+      const numero = data.numero ? `, ${data.numero}` : "";
+      const complemento = data.complemento ? ` - ${data.complemento}` : "";
+      const bairro = data.bairro ? ` - ${data.bairro}` : "";
+      const municipio = data.municipio || "";
+      const uf = data.uf || "";
+      const cep = data.cep || "";
+
+      const fullAddress = `${logradouro}${numero}${complemento}${bairro} - ${municipio} / ${uf}`;
+      setClientAddress(fullAddress);
+      
+      if (cep) {
+        setClientCep(cep.replace(/\D/g, ""));
+      }
+
+      setSuccessMsg("Dados do CNPJ importados com sucesso!");
+    } catch (err: any) {
+      setErrorMsg(err.message || "Erro ao consultar o CNPJ.");
+    } finally {
+      setIsCnpjLoading(false);
     }
   };
 
@@ -328,13 +404,18 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
     setLoading(true);
 
     try {
+      const token = localStorage.getItem("mgv_token") || "";
       const response = await fetch("/api/clients", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify({
           name: clientName,
           cpfCnpj: clientCpfCnpj,
           phone: clientPhone,
+          phone2: clientPhone2,
           email: clientEmail,
           address: clientAddress,
           devices: tempDevices.map(d => ({
@@ -362,6 +443,7 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
         setClientName("");
         setClientCpfCnpj("");
         setClientPhone("");
+        setClientPhone2("");
         setClientEmail("");
         setClientAddress("");
         setClientCep("");
@@ -395,9 +477,13 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
     setLoading(true);
 
     try {
+      const token = localStorage.getItem("mgv_token") || "";
       const response = await fetch("/api/devices", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify({
           clientId: activeClientForDevice,
           type: devExtraType.trim() ? `${devType} / ${devExtraType.trim()}` : devType,
@@ -528,22 +614,9 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
             type="text"
             placeholder="Filtrar por nome, CPF/CNPJ, e-mail, marca, modelo ou nº de série do equipamento..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => onSearchChange(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 placeholder:text-slate-400 font-semibold transition"
           />
-        </div>
-        <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2 shrink-0">
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Limite:</label>
-          <select
-            value={limit}
-            onChange={(e) => onLimitChange(e.target.value === "all" ? "all" : Number(e.target.value))}
-            className="bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer"
-          >
-            <option value="100">100 Clientes</option>
-            <option value="250">250 Clientes</option>
-            <option value="500">500 Clientes</option>
-            <option value="all">Exibir Todos</option>
-          </select>
         </div>
         {is360Enabled && (
           <button
@@ -597,7 +670,10 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
                       </td>
                       <td className="p-3.5 font-bold text-slate-900">{client.name}</td>
                       <td className="p-3.5 font-mono text-[10px]">{client.cpfCnpj}</td>
-                      <td className="p-3.5">{client.phone}</td>
+                      <td className="p-3.5">
+                        {client.phone}
+                        {client.phone2 ? ` / ${client.phone2}` : ""}
+                      </td>
                       <td className="p-3.5 text-center">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold inline-flex items-center gap-1.5 ${
                           hasIncomplete 
@@ -652,6 +728,19 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
               </tbody>
             </table>
           </div>
+          
+          <div className="border-t border-slate-200 bg-slate-50 px-5 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-2 text-[10px] text-slate-500 font-bold">
+            <span>Exibindo {filteredClients.length} de {totalItems || filteredClients.length} clientes</span>
+            {limit !== "all" && filteredClients.length >= (typeof limit === "number" ? limit : 100) && (
+              <button
+                onClick={() => onLimitChange(typeof limit === "number" ? limit + 100 : 200)}
+                className="px-6 py-2.5 bg-blue-550 hover:bg-blue-600 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl transition duration-150 cursor-pointer shadow-sm hover:shadow-md active:scale-95 flex items-center gap-1.5"
+              >
+                <span className="material-symbols-outlined text-[16px]">add</span>
+                <span>Mostrar mais (+100 clientes)</span>
+              </button>
+            )}
+          </div>
         </div>
       ) : (
         /* VISÃO CARDS TRADICIONAIS (RETROCOMPATIBILIDADE) */
@@ -666,7 +755,13 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
                 </div>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-slate-600 font-semibold">
-                  <p><span className="text-slate-400 block text-[9px] uppercase tracking-wider">Telefone</span> <span className="text-slate-800 block mt-0.5">{client.phone}</span></p>
+                  <p>
+                    <span className="text-slate-400 block text-[9px] uppercase tracking-wider">Telefone(s)</span>
+                    <span className="text-slate-800 block mt-0.5">
+                      {client.phone}
+                      {client.phone2 ? ` / ${client.phone2}` : ""}
+                    </span>
+                  </p>
                   <p><span className="text-slate-400 block text-[9px] uppercase tracking-wider">E-mail</span> <span className="text-slate-800 block mt-0.5">{client.email}</span></p>
                   <p className="sm:col-span-2"><span className="text-slate-400 block text-[9px] uppercase tracking-wider">Endereço de Entrega</span> <span className="text-slate-800 block mt-0.5">{client.address}</span></p>
                 </div>
@@ -739,6 +834,19 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
               </div>
             </div>
           ))}
+          
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-[10px] text-slate-500 font-bold bg-white border border-slate-200 rounded-2xl p-4 mt-2">
+            <span>Exibindo {filteredClients.length} de {totalItems || filteredClients.length} clientes</span>
+            {limit !== "all" && filteredClients.length >= (typeof limit === "number" ? limit : 100) && (
+              <button
+                onClick={() => onLimitChange(typeof limit === "number" ? limit + 100 : 200)}
+                className="px-6 py-2.5 bg-blue-550 hover:bg-blue-600 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl transition duration-150 cursor-pointer shadow-sm hover:shadow-md active:scale-95 flex items-center gap-1.5"
+              >
+                <span className="material-symbols-outlined text-[16px]">add</span>
+                <span>Mostrar mais (+100 clientes)</span>
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -789,14 +897,24 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">CPF / CNPJ (Somente Números)</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Ex: 14259388210"
-                      value={clientCpfCnpj}
-                      onChange={(e) => setClientCpfCnpj(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none transition"
-                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        required
+                        placeholder="Ex: 14259388210"
+                        value={clientCpfCnpj}
+                        onChange={(e) => setClientCpfCnpj(e.target.value)}
+                        className="flex-1 min-w-0 px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none transition"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleCnpjLookup}
+                        disabled={isCnpjLoading || !clientCpfCnpj}
+                        className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-[10px] uppercase tracking-wider px-3.5 rounded-lg transition disabled:bg-slate-200 disabled:text-slate-400 cursor-pointer shrink-0"
+                      >
+                        {isCnpjLoading ? "Buscando..." : "Buscar Receita"}
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Telefone / Fone Oficina</label>
@@ -806,6 +924,16 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
                       placeholder="Ex: (11) 98112-2233"
                       value={clientPhone}
                       onChange={(e) => setClientPhone(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Telefone Adicional / WhatsApp (Opcional)</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: (11) 99999-8888"
+                      value={clientPhone2}
+                      onChange={(e) => setClientPhone2(e.target.value)}
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none transition"
                     />
                   </div>

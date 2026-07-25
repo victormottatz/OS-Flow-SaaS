@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from "react";
-import { OrdemServico, Client, Device } from "../types";
-
+import React, { useState, useEffect } from "react";
+import { OrdemServico } from "../types";
+import BlingConnectionStatus from "./BlingConnectionStatus";
 
 interface BlingSandboxProps {
   ordensServico: any[];
@@ -15,6 +15,9 @@ interface BlingSandboxProps {
 }
 
 export default function BlingSandbox({ ordensServico, isOffline, onRefresh }: BlingSandboxProps) {
+  const [activeTab, setActiveTab] = useState<"billing" | "catalog" | "xml" | "logs">("billing");
+
+  // Faturamento State
   const [selectedOSId, setSelectedOSId] = useState("");
   const [forceErrorType, setForceErrorType] = useState<"" | "SEFAZ_REJECT" | "UNAUTHORIZED" | "SERVICE_DOWN" | "MOCK_TIMEOUT">("");
   const [isSyncing, setIsSyncing] = useState(false);
@@ -22,17 +25,27 @@ export default function BlingSandbox({ ordensServico, isOffline, onRefresh }: Bl
   const [syncStatusMsg, setSyncStatusMsg] = useState("");
   const [errorHeader, setErrorHeader] = useState("");
   
-  // Backoff simulation visual timers
-  const [backoffTimer, setBackoffTimer] = useState<number | null>(null);
-  
-  // Selected OS record
-  const selectedOS = ordensServico.find(o => o.id === selectedOSId);
+  // Modal de Faturamento Estratégico
+  const [isBillingModalOpen, setIsBillingModalOpen] = useState(false);
+  const [billingOSId, setBillingOSId] = useState("");
+  const [clientIcmsType, setClientIcmsType] = useState("9");
+  const [clientStateInscription, setClientStateInscription] = useState("");
+  const [natureOperation, setNatureOperation] = useState("Venda de Peças e Serviços");
 
   // DANFE view states
   const [activeDanfeOS, setActiveDanfeOS] = useState<OrdemServico | null>(null);
   const [danfeData, setDanfeData] = useState<any>(null);
 
-  // Catalog Sync State and polling
+  // Importação de XML NFe State
+  const [xmlInput, setXmlInput] = useState("");
+  const [xmlImportResult, setXmlImportResult] = useState<any>(null);
+  const [isImportingXml, setIsImportingXml] = useState(false);
+
+  // Filtro do Console de Logs
+  const [logFilter, setLogFilter] = useState("");
+  const [copiedLogs, setCopiedLogs] = useState(false);
+
+  // Catalog Sync State e polling inteligente
   const [catalogSync, setCatalogSync] = useState({
     isSyncing: false,
     total: 0,
@@ -42,6 +55,74 @@ export default function BlingSandbox({ ordensServico, isOffline, onRefresh }: Bl
     currentType: "idle",
     logs: [] as string[]
   });
+
+  // State para Auditoria e Saneamento Fiscal em Lote
+  const [auditData, setAuditData] = useState<any>(null);
+  const [isFixingBatch, setIsFixingBatch] = useState(false);
+  const [fixBatchResult, setFixBatchResult] = useState<string | null>(null);
+
+  const fetchAuditFiscal = async () => {
+    try {
+      const res = await fetch("/api/integration/audit-fiscal");
+      if (res.ok) {
+        const data = await res.json();
+        setAuditData(data);
+      }
+    } catch (e) {
+      console.error("[Audit Fiscal] Erro ao consultar auditoria:", e);
+    }
+  };
+
+  useEffect(() => {
+    fetchAuditFiscal();
+  }, []);
+
+  const handleFixBatch = async () => {
+    setIsFixingBatch(true);
+    setFixBatchResult(null);
+    try {
+      const token = localStorage.getItem("mgv_token") || "";
+      const res = await fetch("/api/integration/fix-clients-batch", {
+        method: "POST",
+        headers: { "Authorization": token ? `Bearer ${token}` : "" }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setFixBatchResult(data.message);
+        await fetchAuditFiscal();
+        await onRefresh();
+      } else {
+        alert(`Erro: ${data.message || data.error}`);
+      }
+    } catch (e) {
+      alert("Erro ao comunicar com o servidor de saneamento.");
+    } finally {
+      setIsFixingBatch(false);
+    }
+  };
+
+  const [osSearchQuery, setOsSearchQuery] = useState("");
+
+  const filteredOrdensServico = ordensServico.filter(os => {
+    if (!osSearchQuery.trim()) return true;
+    const q = osSearchQuery.toLowerCase();
+    const osNum = (os.osNumber || "").toLowerCase();
+    const clientName = (os.client?.name || "").toLowerCase();
+    const clientCpf = (os.client?.cpfCnpj || "").toLowerCase();
+    const status = (os.status || "").toLowerCase();
+    return osNum.includes(q) || clientName.includes(q) || clientCpf.includes(q) || status.includes(q);
+  });
+
+  const selectedOS = ordensServico.find(o => o.id === selectedOSId);
+
+  const handleOpenBillingModal = (osId: string) => {
+    const os = ordensServico.find(o => o.id === osId);
+    setBillingOSId(osId);
+    setClientIcmsType("9");
+    setClientStateInscription(os?.client?.stateInscription || "");
+    setNatureOperation("Venda de Peças e Serviços");
+    setIsBillingModalOpen(true);
+  };
 
   const fetchCatalogSyncProgress = async () => {
     const token = localStorage.getItem("mgv_token") || "";
@@ -66,16 +147,15 @@ export default function BlingSandbox({ ordensServico, isOffline, onRefresh }: Bl
         headers
       });
       if (res.ok) {
-        fetchCatalogSyncProgress();
+        await fetchCatalogSyncProgress();
       } else {
         const d = await res.json();
         setCatalogSync(prev => ({
           ...prev,
-          logs: [...prev.logs, `[ERRO] Não foi possível iniciar a sincronização: ${d.error || "Erro desconhecido"}`]
+          logs: [...prev.logs, `[ERRO] ${d.error || "Falha ao iniciar sincronização"}`]
         }));
       }
     } catch (err: any) {
-      console.error(err);
       setCatalogSync(prev => ({
         ...prev,
         logs: [...prev.logs, `[ERRO CONEXÃO] ${err.message || "Falha na requisição"}`]
@@ -92,14 +172,14 @@ export default function BlingSandbox({ ordensServico, isOffline, onRefresh }: Bl
         headers
       });
       if (res.ok) {
-        fetchCatalogSyncProgress();
+        await fetchCatalogSyncProgress();
       }
     } catch (err) {
       console.error(err);
     }
   };
 
-  // Set default selected OS and manage polling
+  // Preencher ID padrão e controlar polling INTELIGENTE (apenas se catalogSync.isSyncing)
   useEffect(() => {
     if (!selectedOSId && ordensServico.length > 0) {
       const finalizada = ordensServico.find(o => o.status === "FINALIZADO" || o.status === "PRONTO_RETIRADA");
@@ -110,44 +190,45 @@ export default function BlingSandbox({ ordensServico, isOffline, onRefresh }: Bl
       }
     }
 
-    // Initial fetch for progress
+    // Busca inicial rápida
     fetchCatalogSyncProgress();
-
-    // Poll every 1.5 seconds to track progress
-    const interval = setInterval(() => {
-      fetchCatalogSyncProgress();
-    }, 1500);
-
-    return () => clearInterval(interval);
   }, [ordensServico]);
 
-  const triggerBlingInvoice = async (osId: string) => {
+  // Polling ativo SOMENTE durante sincronização em andamento (Otimização de Performance)
+  useEffect(() => {
+    if (!catalogSync.isSyncing) return;
+
+    const interval = setInterval(() => {
+      fetchCatalogSyncProgress();
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [catalogSync.isSyncing]);
+
+  const triggerBlingInvoice = async (osId: string, extraOptions?: any) => {
     if (isOffline) {
-      alert("Erro fiscal: Operação offline. Imparidade física detectada.");
+      alert("Erro fiscal: Operação offline.");
       return;
     }
 
     setIsSyncing(true);
-    setSyncLogs(["Iniciando trigger de sinc de vendas no canal..."]);
+    setSyncLogs(["Iniciando disparo fiscal de vendas no canal..."]);
     setErrorHeader("");
-    setSyncStatusMsg("Conectando de forma síncrona aos servidores da Bling...");
-    setBackoffTimer(null);
-
-    const useTimeout = forceErrorType === "MOCK_TIMEOUT";
+    setSyncStatusMsg("Conectando de forma síncrona aos servidores do Bling...");
 
     try {
-      // Simulate front-end status progression as requested in Spec
-      setTimeout(() => {
-        setSyncStatusMsg("Enviando dados estruturados... Aguardando SEFAZ/Bling...");
-        setSyncLogs(prev => [...prev, "Bling API V3 Gateway: Payload validado localmente.", "Aguardando retorno síncrono da SEFAZ..."]);
-      }, 1000);
-
+      const token = localStorage.getItem("mgv_token") || "";
       const response = await fetch(`/api/integration/bling/sync/${osId}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": token ? `Bearer ${token}` : ""
+        },
         body: JSON.stringify({
           forceErrorType: forceErrorType === "MOCK_TIMEOUT" ? "" : forceErrorType,
-          simulatedTimeout: useTimeout
+          clientIcmsType: extraOptions?.clientIcmsType,
+          clientStateInscription: extraOptions?.clientStateInscription,
+          natureOperation: extraOptions?.natureOperation
         })
       });
 
@@ -157,822 +238,594 @@ export default function BlingSandbox({ ordensServico, isOffline, onRefresh }: Bl
         throw { status: response.status, data };
       }
 
-      setSyncStatusMsg("Faturamento concluído com sucesso!");
-      setSyncLogs(data.os?.billingLogs || ["Sucesso na integração de notas!"]);
-      onRefresh();
-
+      setSyncStatusMsg("Faturamento e Nota Fiscal gerados com sucesso!");
+      setSyncLogs(data.os?.billingLogs || ["Sucesso na integração fiscal!"]);
+      await onRefresh();
     } catch (err: any) {
-      const respStatus = err.status;
-      const respData = err.data;
-
-      // SPEC: Exponential Backoff retry mechanism simulation
-      if (respStatus === 503) {
-        setSyncStatusMsg("Gateway indisponível. Iniciando mecanismo de retentativas programadas...");
-        
-        // Simular Backoff Exponencial visual de 3 tentativas
-        setSyncLogs(prev => [...prev, "[FALHA 503] Ativando Backoff Exponencial de retentativas físicas..."]);
-        
-        let attempt = 1;
-        const retryTimes = [5, 10, 15]; // shorter visual times than 5s, 15s, 45s for demo responsiveness
-        
-        const runRetry = () => {
-          if (attempt > 3) {
-            setSyncStatusMsg("Sincronia falhou após 3 tentativas. Operação movida para Fila de Lote.");
-            setSyncLogs(prev => [...prev, "[EXCEDIDO] Todas as retentativas falharam. Finalizado com Erro local."]);
-            setIsSyncing(false);
-            onRefresh();
-            return;
-          }
-
-          setSyncLogs(prev => [...prev, `[BACKOFF] Preparando retentativa ${attempt}/3... aguardando.`]);
-          
-          let secondsLeft = retryTimes[attempt - 1];
-          const timerInterval = setInterval(() => {
-            secondsLeft--;
-            setSyncStatusMsg(`Retentando em ${secondsLeft}s... (Tentativa ${attempt}/3)`);
-            if (secondsLeft <= 0) {
-              clearInterval(timerInterval);
-              setSyncLogs(prev => [...prev, `[RETENTATIVA ${attempt}] Despachando nota fiscal ao Bling...`]);
-              attempt++;
-              runRetry();
-            }
-          }, 1000);
-        };
-
-        runRetry();
-        return;
-
-      } else {
-        // Handle normal errors
-        setErrorHeader(respData?.error || "Erro SEFAZ");
-        setSyncStatusMsg(respData?.feedbackMessage || "Emissão fiscal rejeitada pelas validações SEFAZ.");
-        setSyncLogs(respData?.logs || ["Erro na operação"]);
-        onRefresh();
-      }
+      const status = err.status || 500;
+      const apiError = err.data?.feedbackMessage || err.data?.error || err.message || "Erro de integração com a SEFAZ/Bling.";
+      
+      setErrorHeader(`FALHA [HTTP ${status}]`);
+      setSyncStatusMsg(`Erro: ${apiError}`);
+      setSyncLogs(prev => [...prev, `[ERRO ${status}] ${apiError}`]);
     } finally {
-      if (forceErrorType !== "MOCK_TIMEOUT" && forceErrorType !== "SERVICE_DOWN") {
-        setIsSyncing(false);
-      }
+      setIsSyncing(false);
     }
   };
 
-  const handleOpenDanfe = async (os: OrdemServico) => {
-    if (!os.pdfUrl) return;
+  const handleImportXml = async () => {
+    if (!xmlInput.trim()) {
+      alert("Por favor, cole o conteúdo XML da Nota Fiscal.");
+      return;
+    }
+
+    setIsImportingXml(true);
+    setXmlImportResult(null);
 
     try {
-      const response = await fetch(os.pdfUrl);
-      const data = await response.json();
-      setActiveDanfeOS(os);
-      setDanfeData(data);
-    } catch (err) {
-      alert("Erro ao decodificar DANFE.");
+      const token = localStorage.getItem("mgv_token") || "";
+      const res = await fetch("/api/integration/bling/import-xml", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": token ? `Bearer ${token}` : ""
+        },
+        body: JSON.stringify({ xmlData: xmlInput })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setXmlImportResult(data);
+        await onRefresh();
+      } else {
+        alert(`Erro ao importar XML: ${data.error || "Falha desconhecida"}`);
+      }
+    } catch (err: any) {
+      alert("Erro de conexão ao processar XML.");
+    } finally {
+      setIsImportingXml(false);
     }
   };
 
-  return (
-    <div className="space-y-6 anim-fadein">
-      {/* Printable Area overrides shown inside modal / container */}
-      <style>{`
-        @media print {
-          body * {
-            visibility: hidden;
-          }
-          #printable-danfe, #printable-danfe * {
-            visibility: visible;
-          }
-          #printable-danfe {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            border: none !important;
-            box-shadow: none !important;
-            padding: 0 !important;
-            margin: 0 !important;
-          }
-        }
-      `}</style>
+  const handleCopyLogs = () => {
+    const textToCopy = (catalogSync.logs || []).join("\n");
+    navigator.clipboard.writeText(textToCopy);
+    setCopiedLogs(true);
+    setTimeout(() => setCopiedLogs(false), 2000);
+  };
 
-      <div className="border-b border-slate-200 pb-5">
-        <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Painel de Integração Externa & Fiscal</h2>
-        <p className="text-slate-500 text-sm">Interface de faturamento e monitoramento fiscal integrados em tempo real via Bling API V3</p>
+  const filteredLogs = (catalogSync.logs || []).filter(l => 
+    !logFilter || l.toLowerCase().includes(logFilter.toLowerCase())
+  );
+
+  return (
+    <div className="space-y-6 pb-12">
+      {/* HEADER PRINCIPAL COM GLASSMORPHISM */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-6 sm:p-8 text-white shadow-2xl border border-slate-800">
+        <div className="absolute -right-12 -top-12 h-64 w-64 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none"></div>
+        <div className="absolute -left-12 -bottom-12 h-64 w-64 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none"></div>
+
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <span className="px-3 py-1 bg-indigo-500/20 text-indigo-300 text-xs font-bold rounded-full border border-indigo-500/30 uppercase tracking-wider">
+                Hub ERP & Fiscal
+              </span>
+              <span className="text-slate-400 text-xs font-medium">Bling V3 API</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+              Painel de Integração Bling
+            </h1>
+            <p className="mt-1 text-sm text-slate-300 max-w-xl">
+              Gerencie faturamento de Ordens de Serviço, sincronização de catálogo e entrada de XMLs fiscais com auditoria em tempo real.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <BlingConnectionStatus />
+          </div>
+        </div>
+
+        {/* NAU-BAR DE ABAS DE NAVEGAÇÃO */}
+        <div className="mt-8 flex flex-wrap gap-2 border-t border-slate-800/80 pt-4">
+          <button
+            onClick={() => setActiveTab("billing")}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeTab === "billing"
+                ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/30"
+                : "bg-slate-800/60 text-slate-300 hover:bg-slate-800 hover:text-white"
+            }`}
+          >
+            <span>📄</span>
+            <span>Faturamento & NFe</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("catalog")}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeTab === "catalog"
+                ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/30"
+                : "bg-slate-800/60 text-slate-300 hover:bg-slate-800 hover:text-white"
+            }`}
+          >
+            <span>📦</span>
+            <span>Sincronização de Catálogo</span>
+            {catalogSync.isSyncing && (
+              <span className="flex h-2 w-2 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setActiveTab("xml")}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeTab === "xml"
+                ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/30"
+                : "bg-slate-800/60 text-slate-300 hover:bg-slate-800 hover:text-white"
+            }`}
+          >
+            <span>📥</span>
+            <span>Importador de XML NFe</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("logs")}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeTab === "logs"
+                ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/30"
+                : "bg-slate-800/60 text-slate-300 hover:bg-slate-800 hover:text-white"
+            }`}
+          >
+            <span>📋</span>
+            <span>Console de Logs</span>
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left column cards stack */}
-        <div className="space-y-6">
-          {/* Simulador de Homologação */}
-          <div className="bg-white rounded-2xl border border-slate-250/70 p-6 space-y-5 shadow-premium">
-            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center space-x-2 border-b border-slate-100 pb-2.5">
-              <span className="material-symbols-outlined text-[18px] text-indigo-650">settings</span>
-              <span>Simulador de Homologação</span>
-            </h3>
+      {/* CONTEÚDO DAS ABAS */}
 
-            <p className="text-xs text-slate-500 leading-relaxed">
-              Como faturamento com a SEFAZ real possui regras restritas, use as configurações abaixo para testar o comportamento do sistema diante de falhas de comunicação e rejeições de impostos:
-            </p>
-
-            <div className="space-y-1">
-              <label className="block text-xs font-bold text-slate-700">Selecione uma Ordem de Serviço:</label>
-              <select
-                value={selectedOSId}
-                onChange={(e) => setSelectedOSId(e.target.value)}
-                className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-xs bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-650/20 focus:border-indigo-600 font-medium transition duration-150"
-              >
-                <option value="">-- Escolher OS --</option>
-                {ordensServico.map(os => (
-                  <option key={os.id} value={os.id}>
-                    {os.osNumber} - {(os as any).client?.name} (Status: {os.status})
-                  </option>
-                ))}
-              </select>
+      {/* ABA 1: FATURAMENTO & EMISSÃO DE NOTAS */}
+      {activeTab === "billing" && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* PAINEL DE DISPARO DA OS */}
+          <div className="lg:col-span-2 bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-800">Emissão de Nota Fiscal / Vendas</h3>
+                <p className="text-xs text-slate-500">Selecione uma Ordem de Serviço para faturamento síncrono no Bling.</p>
+              </div>
+              <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 font-extrabold text-[10px] rounded-lg border border-emerald-200 uppercase">
+                Pronto para Envio
+              </span>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-slate-700">Forçar tipo de Erro Fiscal SEFAZ/Bling:</label>
+            {/* CARD DE AUDITORIA FISCAL E SANAMENTO EM LOTE */}
+            <div className="p-4 rounded-xl bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 border border-amber-200 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">⚡</span>
+                  <div>
+                    <h4 className="text-xs font-bold text-amber-900 uppercase tracking-wider">Auditoria Cadastral & Saneamento Fiscal (Bling V3)</h4>
+                    <p className="text-[11px] text-amber-700">Preencha em massa UFs/Endereços ausentes e habilite fallback dinâmico de Calibragem / Mão de Obra.</p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleFixBatch}
+                  disabled={isFixingBatch}
+                  className="px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {isFixingBatch ? "Processando Saneamento..." : "⚡ Corrigir Cadastros em Lote"}
+                </button>
+              </div>
+
+              {auditData && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+                  <div className="bg-white/80 p-2 rounded-lg border border-amber-200/60 text-center">
+                    <span className="text-[10px] text-amber-700 block font-semibold">Total de Clientes</span>
+                    <span className="text-xs font-black text-amber-950">{auditData.totalClients}</span>
+                  </div>
+                  <div className="bg-white/80 p-2 rounded-lg border border-amber-200/60 text-center">
+                    <span className="text-[10px] text-amber-700 block font-semibold">Sem UF/Incompletos</span>
+                    <span className={`text-xs font-black ${auditData.incompleteClients > 0 ? "text-red-600" : "text-emerald-600"}`}>
+                      {auditData.incompleteClients}
+                    </span>
+                  </div>
+                  <div className="bg-white/80 p-2 rounded-lg border border-amber-200/60 text-center">
+                    <span className="text-[10px] text-amber-700 block font-semibold">UF Padrão da Loja</span>
+                    <span className="text-xs font-black text-indigo-700">{auditData.storeState}</span>
+                  </div>
+                </div>
+              )}
+
+              {fixBatchResult && (
+                <div className="p-2 bg-emerald-100 border border-emerald-300 text-emerald-900 rounded-lg text-xs font-semibold">
+                  ✓ {fixBatchResult}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-4">
               <div className="space-y-2">
-                {[
-                  { id: "", label: "Sucesso Absoluto (Faturamento autoriza na hora)", color: "text-emerald-700" },
-                  { id: "MOCK_TIMEOUT", label: "Timeout de Comunicação (Excede limite síncrono de 10s)", color: "text-amber-700" },
-                  { id: "SEFAZ_REJECT", label: "Rejeitado pela SEFAZ (Validações de inscrição/imposto)", color: "text-red-700" },
-                  { id: "UNAUTHORIZED", label: "Não Autorizado (Assinatura digital/Chave de API expirada)", color: "text-red-700" },
-                  { id: "SERVICE_DOWN", label: "Servidores em Manutenção (Código HTTP 503)", color: "text-purple-700" },
-                ].map(opt => (
-                  <label key={opt.id} className="flex items-start space-x-2.5 p-3 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer text-xs transition duration-150 hover-premium">
-                    <input
-                      type="radio"
-                      name="error-forced"
-                      checked={forceErrorType === opt.id}
-                      onChange={() => setForceErrorType(opt.id as any)}
-                      className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <span className={`font-semibold ${opt.color}`}>{opt.label}</span>
-                  </label>
-                ))}
+                <label className="block text-xs font-bold text-slate-700">
+                  Localizar Ordem de Serviço (OS):
+                </label>
+                
+                {/* BARRA DE PESQUISA INTELIGENTE DE OS */}
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    🔍
+                  </span>
+                  <input
+                    type="text"
+                    value={osSearchQuery}
+                    onChange={(e) => setOsSearchQuery(e.target.value)}
+                    placeholder="Pesquisar por Nº da OS, Nome do Cliente, CPF/CNPJ ou Status..."
+                    className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:bg-white transition"
+                  />
+                  {osSearchQuery && (
+                    <button
+                      onClick={() => setOsSearchQuery("")}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 text-xs font-bold"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                {/* PAINEL DE RESULTADOS SELECIONÁVEIS */}
+                <div className="max-h-48 overflow-y-auto space-y-1.5 border border-slate-200 rounded-xl p-2 bg-slate-50/50">
+                  {filteredOrdensServico.length === 0 ? (
+                    <div className="text-center py-4 text-xs text-slate-500">
+                      Nenhuma Ordem de Serviço encontrada para a busca &quot;{osSearchQuery}&quot;
+                    </div>
+                  ) : (
+                    filteredOrdensServico.map(os => {
+                      const isSelected = os.id === selectedOSId;
+                      return (
+                        <div
+                          key={os.id}
+                          onClick={() => setSelectedOSId(os.id)}
+                          className={`p-3 rounded-lg border text-xs cursor-pointer transition flex items-center justify-between ${
+                            isSelected
+                              ? "bg-indigo-50 border-indigo-300 text-indigo-900 shadow-sm"
+                              : "bg-white border-slate-200/80 hover:bg-slate-100/80 text-slate-700"
+                          }`}
+                        >
+                          <div className="space-y-0.5">
+                            <div className="font-bold text-slate-800 flex items-center gap-2">
+                              <span>{os.osNumber}</span>
+                              <span className="text-slate-400">•</span>
+                              <span className="text-slate-600">{os.client?.name || "Cliente não informado"}</span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 flex items-center gap-2">
+                              <span>CPF/CNPJ: {os.client?.cpfCnpj || "N/A"}</span>
+                              <span>•</span>
+                              <span className="uppercase font-semibold text-slate-600">{os.status}</span>
+                            </div>
+                          </div>
+
+                          <div className="text-right">
+                            <span className="font-extrabold text-emerald-600 block">R$ {(os.totalCost || 0).toFixed(2)}</span>
+                            {isSelected && <span className="text-[10px] font-bold text-indigo-600 uppercase">Selecionada ✓</span>}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {selectedOS && (
+                <div className="bg-slate-50 rounded-xl p-4 border border-slate-200/60 text-xs space-y-2">
+                  <div className="flex justify-between font-bold text-slate-800">
+                    <span>Cliente: {selectedOS.client?.name || "N/A"}</span>
+                    <span>Status Fiscal: <strong className="text-indigo-600">{selectedOS.billingStatus || "PENDENTE"}</strong></span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-slate-600 pt-2 border-t border-slate-200/60">
+                    <div>Mão de Obra: <strong className="text-slate-800">R$ {(selectedOS.laborCost || 0).toFixed(2)}</strong></div>
+                    <div>Peças: <strong className="text-slate-800">R$ {(selectedOS.partsCost || 0).toFixed(2)}</strong></div>
+                    <div>Total OS: <strong className="text-emerald-600">R$ {(selectedOS.totalCost || 0).toFixed(2)}</strong></div>
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-2 flex flex-wrap gap-3">
+                <button
+                  disabled={!selectedOSId || isSyncing}
+                  onClick={() => handleOpenBillingModal(selectedOSId)}
+                  className="flex-1 py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-600/20 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isSyncing ? (
+                    <>
+                      <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>
+                      <span>Sincronizando com Bling...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>🚀</span>
+                      <span>Emitir Nota Fiscal & Faturar OS</span>
+                    </>
+                  )}
+                </button>
               </div>
             </div>
 
-            <button
-              onClick={() => selectedOSId && triggerBlingInvoice(selectedOSId)}
-              disabled={!selectedOSId || isSyncing}
-              className="w-full bg-indigo-600 text-white font-bold text-xs py-3 rounded-xl hover:bg-indigo-700 active:bg-indigo-800 transition duration-150 flex items-center justify-center space-x-2 disabled:bg-slate-200 disabled:text-slate-450 hover-premium active-premium cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[14px]">bolt</span>
-              <span>{isSyncing ? "Processando Comunicação..." : "Faturar & Transmitir NFe"}</span>
-            </button>
-          </div>
-
-          {/* Sincronização de Cadastro (Clientes e Peças) */}
-          <div className="bg-white rounded-2xl border border-slate-250/70 p-6 space-y-4 shadow-premium">
-            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center space-x-2 border-b border-slate-100 pb-2.5">
-              <span className="material-symbols-outlined text-[18px] text-indigo-650">sync</span>
-              <span>Sincronização de Cadastro</span>
-            </h3>
-
-            <p className="text-xs text-slate-500 leading-relaxed">
-              Sincronize a base de clientes ativos e estoque local de peças de reposição com o ERP Bling V3.
-            </p>
-
-            {catalogSync.isSyncing ? (
-              <div className="space-y-3">
-                <div className="flex justify-between items-center text-[10px] font-bold text-slate-650">
-                  <span>Enviando: {catalogSync.currentType === "clients" ? "Clientes" : "Estoque/Peças"}</span>
-                  <span className="font-mono">{catalogSync.processed} / {catalogSync.total} ({((catalogSync.processed / (catalogSync.total || 1)) * 100).toFixed(0)}%)</span>
+            {/* STATUS E LOGS DA SIMULAÇÃO */}
+            {(syncStatusMsg || syncLogs.length > 0) && (
+              <div className="mt-4 p-4 rounded-xl bg-slate-900 text-slate-200 text-xs space-y-2 font-mono border border-slate-800">
+                <div className="flex justify-between items-center text-slate-400 text-[11px] pb-2 border-b border-slate-800">
+                  <span>STATUS DO PROCESSAMENTO:</span>
+                  <span className="text-emerald-400 font-bold">{syncStatusMsg}</span>
                 </div>
-                {/* Progress bar */}
-                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                  <div 
-                    className="bg-indigo-600 h-full rounded-full transition-all duration-300"
-                    style={{ width: `${(catalogSync.processed / (catalogSync.total || 1)) * 100}%` }}
-                  ></div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 text-center text-[10px] font-mono font-bold">
-                  <div className="bg-emerald-50 text-emerald-700 border border-emerald-100 p-2 rounded-lg">
-                    Sucessos: {catalogSync.successCount}
-                  </div>
-                  <div className="bg-rose-50 text-rose-700 border border-rose-100 p-2 rounded-lg">
-                    Erros: {catalogSync.errorCount}
-                  </div>
-                </div>
-
-                {/* Mini logs terminal */}
-                <div className="bg-slate-950 text-cyan-400 p-3 rounded-xl text-[9px] font-mono max-h-[120px] overflow-y-auto leading-normal border border-slate-800 shadow-inner">
-                  {catalogSync.logs.slice(-5).map((log, idx) => (
-                    <p key={idx} className="truncate">&gt; {log}</p>
+                {errorHeader && <div className="text-rose-400 font-bold">{errorHeader}</div>}
+                <div className="max-h-40 overflow-y-auto space-y-1 text-[11px] text-slate-300">
+                  {syncLogs.map((log, index) => (
+                    <div key={index} className="flex gap-2">
+                      <span className="text-slate-500">&gt;</span>
+                      <span>{log}</span>
+                    </div>
                   ))}
                 </div>
-
-                <button
-                  onClick={stopCatalogSync}
-                  className="w-full bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs py-2.5 rounded-xl transition duration-150 flex items-center justify-center space-x-2 cursor-pointer shadow-sm"
-                >
-                  <span className="material-symbols-outlined text-[14px]">stop</span>
-                  <span>Interromper Sincronização</span>
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
-                  <span className="text-[10px] font-mono text-slate-400 block font-bold">Último status:</span>
-                  <span className="text-[10px] text-slate-700 font-semibold block mt-1.5 font-mono line-clamp-2 leading-relaxed">
-                    {catalogSync.logs.length > 0 ? catalogSync.logs[catalogSync.logs.length - 1] : "Nenhuma execução registrada."}
-                  </span>
-                </div>
-                <button
-                  onClick={startCatalogSync}
-                  className="w-full bg-indigo-650 hover:bg-indigo-700 text-white font-bold text-xs py-3 rounded-xl transition duration-150 flex items-center justify-center space-x-2 hover-premium cursor-pointer shadow-sm"
-                >
-                  <span className="material-symbols-outlined text-[14px]">sync</span>
-                  <span>Sincronizar Geral</span>
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Middle column: Sinc Live logs & Circuit Breaker */}
-        <div className="glassmorphism-dark text-slate-100 rounded-2xl p-6 flex flex-col justify-between shadow-premium-dark lg:col-span-2 border border-slate-800 relative overflow-hidden">
-          {/* Subtle grid scanlines overlay for retro premium terminal screen */}
-          <div className="absolute inset-0 pointer-events-none opacity-5 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[size:100%_4px,6px_100%]" />
-          
-          <div className="space-y-4 z-10">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <span className="text-xs uppercase font-mono tracking-widest text-cyan-400 flex items-center space-x-2">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-400"></span>
-                </span>
-                <span className="neon-text-cyan font-bold flex items-center">
-                  <span className="material-symbols-outlined text-[16px] mr-1.5">terminal</span>
-                  Monitor do Posto Fiscal (SEFAZ/Bling)
-                </span>
-              </span>
-              
-              <div className="flex items-center space-x-3 text-[10px] font-mono text-slate-400">
-                <span className="flex items-center space-x-1">
-                  <span className={`w-1.5 h-1.5 rounded-full ${isOffline ? "bg-red-500" : "bg-emerald-500 anim-pulse"}`} />
-                  <span>Internet</span>
-                </span>
-                <span className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700">
-                  PORT: TLS/HTTPS
-                </span>
-              </div>
-            </div>
-
-            {/* Simulated CRT Terminal screen */}
-            {isSyncing || syncLogs.length > 0 ? (
-              <div className="space-y-2.5 font-mono text-xs max-h-[310px] overflow-y-auto bg-black/90 p-4 rounded-xl border border-slate-800 shadow-inner neon-glow-cyan">
-                <p className="text-slate-500 text-[10px] tracking-widest mb-1">=== INICIANDO COMUNICAÇÃO SEGURA ===</p>
-                {syncLogs.map((log, idx) => (
-                  <p key={idx} className={`${
-                    log.includes("[SEFAZ REJECT]") || log.includes("[HTTP 4") || log.includes("[HTTP 5") || log.includes("[FALHA") ? "text-red-400 font-bold" :
-                    log.includes("[BACKOFF]") || log.includes("[RETENTATIVA") ? "text-amber-400" :
-                    log.includes("sucesso") || log.includes("autorizou") || log.includes("gerada") ? "text-emerald-400 font-bold neon-text-emerald" :
-                    "text-cyan-300 opacity-90"
-                  } leading-relaxed`}>
-                    &gt; {log}
-                  </p>
-                ))}
-                
-                {isSyncing && (
-                  <div className="py-2 flex items-center space-x-2 font-semibold text-cyan-400 anim-pulse">
-                    <span className="material-symbols-outlined text-[14px] animate-spin text-cyan-400">sync</span>
-                    <span className="neon-text-cyan">{syncStatusMsg}</span>
-                    <span className="w-1.5 h-3 bg-cyan-400 animate-pulse" />
-                  </div>
-                )}
-                {!isSyncing && <p className="text-cyan-400 flex items-center mt-1">&gt;<span className="w-1.5 h-3.5 bg-cyan-400 animate-pulse ml-1" /></p>}
-              </div>
-            ) : (
-              <div className="text-center py-20 text-slate-500 font-mono text-xs border border-dashed border-slate-800 rounded-xl bg-black/20">
-                <span className="material-symbols-outlined text-[32px] mx-auto mb-3 text-slate-600 opacity-60 block text-center">terminal</span>
-                <p className="font-bold text-slate-400">AGUARDANDO TRANSMISSÃO FISCAL</p>
-                <p className="text-[10px] mt-1 text-slate-500">Selecione uma OS da base e aperte em Faturar para depurar em tempo real.</p>
-              </div>
-            )}
-
-            {/* Error notifications block */}
-            {errorHeader && (
-              <div className="bg-red-950/60 border border-red-800/80 rounded-xl p-3.5 text-red-200 text-xs flex items-start space-x-3 anim-slideup">
-                <span className="material-symbols-outlined text-[20px] text-rose-450 shrink-0 mt-0.5">error</span>
-                <div>
-                  <strong className="font-bold block uppercase tracking-wide text-red-300">{errorHeader}</strong>
-                  <p className="mt-1 text-red-300/90 leading-relaxed font-medium">{syncStatusMsg}</p>
-                </div>
               </div>
             )}
           </div>
 
-          <div className="pt-4 border-t border-slate-800 text-[10px] font-mono text-slate-500 flex justify-between items-center mt-6 z-10">
-            <span className="flex items-center space-x-1.5">
-              <span className="material-symbols-outlined text-[16px] text-cyan-500">verified_user</span>
-              <span>Chave criptográfica ativa (SSL/TLS 1.3)</span>
-            </span>
-            <span>BLING-GW-V3</span>
-          </div>
-        </div>
-      </div>
+          {/* SIMULADOR DE MOCK DE ERROS PARA HOMOLOGAÇÃO */}
+          <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm space-y-4">
+            <h3 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-3 flex items-center gap-2">
+              <span>🧪</span>
+              <span>Testes de Homologação</span>
+            </h3>
+            <p className="text-xs text-slate-500">Simule respostas de falha ou rejeição da SEFAZ para validar a resiliência do sistema.</p>
 
-      {/* Completed finalizadas table list of sales invoices */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-premium p-6 overflow-hidden">
-        <div className="flex flex-col sm:flex-row justify-between sm:items-center border-b border-slate-100 pb-4 mb-4 gap-2">
-          <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center">
-            <span className="material-symbols-outlined text-[18px] mr-2 text-indigo-600">layers</span>
-            Notas Fiscais de Serviços & Peças (NF-e)
-          </h3>
-          <span className="text-[10px] font-bold text-slate-400 bg-slate-50 border border-slate-200 px-2 py-1 rounded-lg font-mono">
-            Mostrando ordens com status "FINALIZADO"
-          </span>
-        </div>
-        
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-600">
-            <thead className="text-[10px] uppercase text-slate-400 font-bold bg-slate-50 border-b border-slate-200">
-              <tr>
-                <th className="p-3">Numeração</th>
-                <th className="p-3">Proprietário (Cliente)</th>
-                <th className="p-3 font-mono">Chave de Acesso SEFAZ</th>
-                <th className="p-3 text-right">Valor Total</th>
-                <th className="p-3 text-center">Integração</th>
-                <th className="p-3 text-right">Ações de Documento</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 font-medium">
-              {ordensServico.filter(os => os.status === "FINALIZADO").length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="text-center py-10 text-slate-400 italic">
-                    Não existem ordens de serviço finalizadas prontas para faturamento no momento.
-                  </td>
-                </tr>
-              ) : (
-                ordensServico.filter(os => os.status === "FINALIZADO").map(os => (
-                  <tr key={os.id} className="hover:bg-slate-50/50 transition duration-150">
-                    <td className="p-3 font-bold text-slate-900">{os.osNumber}</td>
-                    <td className="p-3 text-slate-800">{(os as any).client?.name || "Cliente N/D"}</td>
-                    <td className="p-3 font-mono text-slate-500 text-[11px] flex items-center space-x-1.5">
-                      {os.blingKey ? (
-                        <>
-                          <span className="bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded text-slate-700">{os.blingKey.slice(0, 16)}...</span>
-                          <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(os.blingKey || "");
-                              alert("Chave SEFAZ copiada para a área de transferência!");
-                            }}
-                            title="Copiar chave completa"
-                            className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600 cursor-pointer"
-                          >
-                            <span className="material-symbols-outlined text-[12px]">content_copy</span>
-                          </button>
-                        </>
-                      ) : (
-                        <span className="text-slate-300">Não faturada</span>
-                      )}
-                    </td>
-                    <td className="p-3 font-bold font-mono text-slate-900 text-right">R$ {os.totalCost.toFixed(2)}</td>
-                    <td className="p-3 text-center">
-                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase border ${
-                        os.billingStatus === "FATURADO" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-                        os.billingStatus === "REJEITADO" ? "bg-red-50 text-red-700 border-red-200" :
-                        os.billingStatus === "TIMEOUT" ? "bg-amber-50 text-amber-700 border-amber-200" :
-                        "bg-slate-50 text-slate-600 border-slate-200"
-                      }`}>
-                        {os.billingStatus}
-                      </span>
-                    </td>
-                    <td className="p-3 text-right">
-                      {os.billingStatus === "FATURADO" ? (
-                        <button
-                          onClick={() => handleOpenDanfe(os)}
-                          className="bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 font-bold text-[10px] px-3.5 py-2 rounded-xl uppercase font-mono tracking-wide flex items-center space-x-1.5 inline-flex ml-auto transition hover-premium active-premium cursor-pointer shadow-sm"
-                        >
-                           <span className="material-symbols-outlined text-[14px]">description</span>
-                          <span>Visualizar DANFE</span>
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => triggerBlingInvoice(os.id)}
-                          className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-[10px] px-3.5 py-2 rounded-xl uppercase font-mono tracking-wide inline-flex ml-auto transition hover-premium active-premium cursor-pointer shadow-sm"
-                        >
-                          Tentar Re-envio
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* API Reference table from Specification */}
-      <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 mt-6 text-xs text-slate-650 shadow-sm">
-        <h4 className="font-bold text-slate-800 uppercase text-[10px] tracking-wider mb-3 flex items-center space-x-1.5 border-b border-slate-200 pb-1.5">
-          <span className="material-symbols-outlined text-[16px] text-indigo-650">help</span>
-          <span>Tabela de Referência Fiscal (Códigos de Operação Bling API V3)</span>
-        </h4>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 mt-3">
-          {[
-            { code: "200 OK", desc: "Sucesso na geração fiscal SEFAZ. Nota autorizada.", color: "text-emerald-700 bg-emerald-50/50 border border-emerald-100" },
-            { code: "400 Bad Request", desc: "Invalidez de digitação documental ou campos ausentes.", color: "text-amber-700 bg-amber-50/50 border border-amber-100" },
-            { code: "401 Unauthorized", desc: "Chave API Bling incorreta ou expirada.", color: "text-red-700 bg-red-50/50 border border-red-100" },
-            { code: "422 Unproc Entity", desc: "Nota rejeitada pela SEFAZ (inconsistência de dados).", color: "text-red-700 bg-red-50/50 border border-red-100" },
-            { code: "503 Service Down", desc: "Servidores do posto fiscal offline. Aciona backoff.", color: "text-purple-700 bg-purple-50/50 border border-purple-100" },
-          ].map((item, idx) => (
-            <div key={idx} className={`p-3 rounded-xl transition ${item.color}`}>
-              <span className="font-mono font-bold text-xs block">{item.code}</span>
-              <span className="text-[10px] text-slate-500 font-medium mt-1 block leading-relaxed">{item.desc}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* DANFE MODAL PREVIEW ON SCREEN */}
-      {activeDanfeOS && danfeData && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-350 w-full max-w-4xl max-h-[95vh] overflow-y-auto flex flex-col anim-slideup">
-            
-            {/* Modal header with options */}
-            <div className="p-4 bg-slate-900 text-white flex items-center justify-between sticky top-0 z-10 border-b border-slate-800">
-              <div className="flex items-center space-x-2.5">
-                <span className="material-symbols-outlined text-[20px] text-cyan-400">description</span>
-                <h3 className="font-bold text-sm uppercase tracking-wide font-display">Simulação de Nota Fiscal Eletrônica (DANFE)</h3>
-              </div>
-              <div className="flex items-center space-x-3">
-                <button
-                  onClick={() => window.print()}
-                  className="bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center space-x-2 transition shadow-sm hover-premium active-premium cursor-pointer"
-                >
-                  <span className="material-symbols-outlined text-[16px]">print</span>
-                  <span>Imprimir NFe</span>
-                </button>
-                <button 
-                  onClick={() => { setActiveDanfeOS(null); setDanfeData(null); }} 
-                  className="text-slate-400 hover:text-white transition p-1.5 hover:bg-slate-800 rounded-lg cursor-pointer"
-                >
-                  <span className="material-symbols-outlined text-[20px]">close</span>
-                </button>
-              </div>
-            </div>
-
-            {/* DANFE Layout - Pixel Perfect Brazilian NFe Mockup */}
-            <div id="printable-danfe" className="p-6 font-sans text-[9px] text-black bg-white select-none">
-              
-              <div className="border border-black p-3 space-y-3 font-mono">
-                
-                {/* COM PROVANTE RECEBIMENTO TEAR-OFF STUB */}
-                <div className="grid grid-cols-12 border border-black divide-x divide-black mb-2">
-                  <div className="col-span-9 p-1.5 leading-relaxed">
-                    <p className="uppercase text-[7px] text-slate-500 font-bold">RECEBEMOS DE MGV TECNOLOGIA E ASSISTÊNCIA TÉCNICA LTDA OS SERVIÇOS CONSTANTES DA NOTA FISCAL INDICADA AO LADO</p>
-                    <div className="grid grid-cols-2 gap-4 mt-2">
-                      <div className="border-t border-dashed border-black/40 pt-1">
-                        <span className="text-[6px] text-slate-500 block uppercase font-bold">Data de Recebimento</span>
-                      </div>
-                      <div className="border-t border-dashed border-black/40 pt-1">
-                        <span className="text-[6px] text-slate-500 block uppercase font-bold">Identificação e Assinatura do Recebedor</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="col-span-3 p-2 text-center flex flex-col justify-center items-center">
-                    <span className="font-bold block text-sm">NF-e</span>
-                    <span className="font-bold text-xs mt-0.5">Nº {danfeData.os.osNumber.replace(/\D/g, "")}</span>
-                    <span className="text-[8px] text-slate-500 uppercase font-bold">Série 001</span>
-                  </div>
-                </div>
-                
-                <div className="border-b border-dashed border-black pb-2 text-center text-[7px] text-slate-400 uppercase tracking-widest">
-                  ------------------------------------------ CORTAR AQUI ------------------------------------------
-                </div>
-
-                {/* EMITENTE E CHAVE SEFAZ */}
-                <div className="grid grid-cols-12 border border-black divide-x divide-black">
-                  <div className="col-span-4 p-2.5 space-y-1">
-                    <h4 className="text-[10px] font-bold uppercase tracking-tight text-slate-900">{danfeData.emitente.nome}</h4>
-                    <p className="text-[8px] text-slate-500 leading-normal">
-                      Av. Tiradentes, 850 - Centro<br/>
-                      CEP: {danfeData.emitente.cep} - Ribeirão Preto - SP<br/>
-                      Tel: {danfeData.emitente.contato}
-                    </p>
-                  </div>
-                  
-                  <div className="col-span-3 p-2.5 text-center flex flex-col justify-center items-center font-sans">
-                    <h5 className="font-black text-sm uppercase text-slate-900 tracking-wider">DANFE</h5>
-                    <p className="text-[8px] text-slate-500 font-bold uppercase mt-0.5">Documento Auxiliar da<br/>Nota Fiscal Eletrônica</p>
-                    <div className="border border-black px-3 py-1.5 my-1.5 text-left text-[9px] font-bold inline-block font-mono">
-                      <p>0 - Entrada</p>
-                      <p className="flex items-center">
-                        <span className="border border-black w-2.5 h-2.5 flex items-center justify-center mr-1">1</span>
-                        <span>1 - Saída</span>
-                      </p>
-                    </div>
-                    <p className="font-bold text-[9px]">Nº {danfeData.os.osNumber.replace(/\D/g, "")}</p>
-                    <p className="text-[8px] text-slate-500 uppercase font-bold">SÉRIE 001 - FL 1/1</p>
-                  </div>
-                  
-                  <div className="col-span-5 p-2.5 space-y-2 leading-relaxed">
-                    <div>
-                      <span className="text-[6px] text-slate-500 block uppercase font-bold">Controle do Fisco</span>
-                      {/* Simulated Access Key Barcode */}
-                      <div className="flex items-end space-x-[1px] h-9 w-full bg-slate-50 border border-slate-300 rounded p-1 justify-center">
-                        <div className="w-[1px] h-full bg-black" />
-                        <div className="w-[2px] h-full bg-black" />
-                        <div className="w-[1px] h-full bg-black" />
-                        <div className="w-[3px] h-full bg-black" />
-                        <div className="w-[1px] h-full bg-black" />
-                        <div className="w-[2px] h-full bg-black" />
-                        <div className="w-[4px] h-full bg-black" />
-                        <div className="w-[1px] h-full bg-black" />
-                        <div className="w-[2px] h-full bg-black" />
-                        <div className="w-[3px] h-full bg-black" />
-                        <div className="w-[1px] h-full bg-black" />
-                        <div className="w-[4px] h-full bg-black" />
-                        <div className="w-[2px] h-full bg-black" />
-                        <div className="w-[1px] h-full bg-black" />
-                        <div className="w-[3px] h-full bg-black" />
-                        <div className="w-[1px] h-full bg-black" />
-                      </div>
-                    </div>
-                    <div>
-                      <span className="text-[6px] text-slate-500 block uppercase font-bold">Chave de Acesso (44 dígitos)</span>
-                      <strong className="text-[8px] font-mono block tracking-tighter text-slate-900">
-                        {danfeData.os.blingKey ? danfeData.os.blingKey.replace(/(\w{4})/g, "$1 ") : "3526 0618 2915 5400 0190 5500 1000 0001 2345 6789 0123"}
-                      </strong>
-                    </div>
-                    <div className="text-[7px] text-slate-500 leading-normal border-t border-slate-200 pt-1 font-sans">
-                      Consulta de autenticidade no portal nacional da NF-e (www.nfe.fazenda.gov.br) ou no site da Sefaz Autorizadora.
-                    </div>
-                  </div>
-                </div>
-
-                {/* NATUREZA OPERACAO / PROTOCOLO */}
-                <div className="grid grid-cols-12 border border-black divide-x divide-black border-t-0">
-                  <div className="col-span-6 p-1.5">
-                    <span className="text-[6px] text-slate-500 block uppercase font-bold">Natureza da Operação</span>
-                    <span className="font-bold text-slate-800">Prestação de Serviço com Reposição de Peças</span>
-                  </div>
-                  <div className="col-span-6 p-1.5">
-                    <span className="text-[6px] text-slate-500 block uppercase font-bold">Protocolo de Autorização de Uso da NF-e</span>
-                    <span className="font-bold text-slate-800 font-mono">135260012938102 - {new Date(danfeData.os.createdAt).toLocaleString("pt-BR")}</span>
-                  </div>
-                </div>
-
-                {/* CADASTROS FISCAIS */}
-                <div className="grid grid-cols-3 border border-black divide-x divide-black border-t-0 text-center">
-                  <div className="p-1.5 text-left">
-                    <span className="text-[6px] text-slate-500 block uppercase font-bold">Inscrição Estadual</span>
-                    <span className="font-bold text-slate-800 font-mono">{danfeData.emitente.ie}</span>
-                  </div>
-                  <div className="p-1.5 text-left">
-                    <span className="text-[6px] text-slate-500 block uppercase font-bold">Insc. Est. do Subst. Trib.</span>
-                    <span className="font-bold text-slate-800">--</span>
-                  </div>
-                  <div className="p-1.5 text-left">
-                    <span className="text-[6px] text-slate-500 block uppercase font-bold">CNPJ Emitente</span>
-                    <span className="font-bold text-slate-800 font-mono">{danfeData.emitente.cnpj}</span>
-                  </div>
-                </div>
-
-                {/* DESTINATÁRIO */}
-                <div className="border border-black">
-                  <div className="bg-slate-100 text-[7px] font-bold px-2 py-0.5 border-b border-black uppercase font-sans">Destinatário / Remetente</div>
-                  <div className="grid grid-cols-12 divide-x divide-black divide-y-0 text-left">
-                    <div className="col-span-7 p-1.5">
-                      <span className="text-[6px] text-slate-500 block uppercase font-bold">Nome / Razão Social</span>
-                      <strong className="text-slate-900 text-[10px]">{danfeData.client.name}</strong>
-                    </div>
-                    <div className="col-span-3 p-1.5">
-                      <span className="text-[6px] text-slate-500 block uppercase font-bold">CNPJ / CPF</span>
-                      <span className="font-mono font-bold text-slate-850">{danfeData.client.cpfCnpj}</span>
-                    </div>
-                    <div className="col-span-2 p-1.5">
-                      <span className="text-[6px] text-slate-500 block uppercase font-bold">Data de Emissão</span>
-                      <span className="font-mono">{new Date(danfeData.os.createdAt).toLocaleDateString("pt-BR")}</span>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-12 divide-x divide-black border-t border-black text-left">
-                    <div className="col-span-5 p-1.5">
-                      <span className="text-[6px] text-slate-500 block uppercase font-bold">Endereço</span>
-                      <span className="truncate block max-w-full">{danfeData.client.address}</span>
-                    </div>
-                    <div className="col-span-3 p-1.5">
-                      <span className="text-[6px] text-slate-500 block uppercase font-bold">Bairro / Distrito</span>
-                      <span>Centro</span>
-                    </div>
-                    <div className="col-span-2 p-1.5">
-                      <span className="text-[6px] text-slate-500 block uppercase font-bold">CEP</span>
-                      <span className="font-mono text-slate-800">01000-000</span>
-                    </div>
-                    <div className="col-span-2 p-1.5">
-                      <span className="text-[6px] text-slate-500 block uppercase font-bold">Data de Saída/Entrada</span>
-                      <span className="font-mono">{new Date(danfeData.os.createdAt).toLocaleDateString("pt-BR")}</span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-12 divide-x divide-black border-t border-black text-left">
-                    <div className="col-span-4 p-1.5">
-                      <span className="text-[6px] text-slate-500 block uppercase font-bold">Município</span>
-                      <span>{danfeData.emitente.cidade.split(" - ")[0]}</span>
-                    </div>
-                    <div className="col-span-2 p-1.5">
-                      <span className="text-[6px] text-slate-500 block uppercase font-bold">Fone / Fax</span>
-                      <span className="font-mono">{danfeData.client.phone}</span>
-                    </div>
-                    <div className="col-span-1 p-1.5 text-center">
-                      <span className="text-[6px] text-slate-500 block uppercase font-bold">UF</span>
-                      <span>SP</span>
-                    </div>
-                    <div className="col-span-3 p-1.5">
-                      <span className="text-[6px] text-slate-500 block uppercase font-bold">Inscrição Estadual</span>
-                      <span>Isento</span>
-                    </div>
-                    <div className="col-span-2 p-1.5">
-                      <span className="text-[6px] text-slate-500 block uppercase font-bold">Hora de Saída</span>
-                      <span className="font-mono">{new Date(danfeData.os.createdAt).toLocaleTimeString("pt-BR", {hour: "2-digit", minute: "2-digit"})}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* FATURA / DUPLICATAS */}
-                <div className="border border-black">
-                  <div className="bg-slate-100 text-[7px] font-bold px-2 py-0.5 border-b border-black uppercase font-sans">Fatura / Duplicata</div>
-                  <div className="p-1.5 font-bold text-slate-800 text-[8px] flex justify-between">
-                    <span>Nº DUPLICATA: DUP-01</span>
-                    <span>VENCIMENTO: À VISTA</span>
-                    <span>VALOR: R$ {danfeData.os.totalCost.toFixed(2)}</span>
-                  </div>
-                </div>
-
-                {/* CALCULO DO IMPOSTO */}
-                <div className="border border-black">
-                  <div className="bg-slate-100 text-[7px] font-bold px-2 py-0.5 border-b border-black uppercase font-sans">Cálculo do Imposto</div>
-                  <div className="grid grid-cols-5 divide-x divide-black text-center text-[8px]">
-                    <div className="p-1">
-                      <span className="text-[5.5px] text-slate-500 uppercase block font-bold">Base de Cálculo do ICMS</span>
-                      <span className="font-mono">R$ 0,00</span>
-                    </div>
-                    <div className="p-1">
-                      <span className="text-[5.5px] text-slate-500 uppercase block font-bold">Valor do ICMS</span>
-                      <span className="font-mono">R$ 0,00</span>
-                    </div>
-                    <div className="p-1">
-                      <span className="text-[5.5px] text-slate-500 uppercase block font-bold">Base de Calc. ICMS S.T.</span>
-                      <span className="font-mono">R$ 0,00</span>
-                    </div>
-                    <div className="p-1">
-                      <span className="text-[5.5px] text-slate-500 uppercase block font-bold">Valor do ICMS S.T.</span>
-                      <span className="font-mono">R$ 0,00</span>
-                    </div>
-                    <div className="p-1 text-right pr-2">
-                      <span className="text-[5.5px] text-slate-500 uppercase block font-bold">V. Total dos Produtos</span>
-                      <span className="font-mono font-bold text-slate-900">R$ {danfeData.os.usedParts.reduce((sum: number, i: any) => sum + (i.price * i.quantity), 0).toFixed(2)}</span>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-5 divide-x divide-black text-center text-[8px] border-t border-black">
-                    <div className="p-1">
-                      <span className="text-[5.5px] text-slate-500 uppercase block font-bold">Valor do Frete</span>
-                      <span className="font-mono">R$ 0,00</span>
-                    </div>
-                    <div className="p-1">
-                      <span className="text-[5.5px] text-slate-500 uppercase block font-bold">Valor do Seguro</span>
-                      <span className="font-mono">R$ 0,00</span>
-                    </div>
-                    <div className="p-1">
-                      <span className="text-[5.5px] text-slate-500 uppercase block font-bold">Desconto</span>
-                      <span className="font-mono">R$ 0,00</span>
-                    </div>
-                    <div className="p-1">
-                      <span className="text-[5.5px] text-slate-500 uppercase block font-bold">Outras Despesas</span>
-                      <span className="font-mono">R$ 0,00</span>
-                    </div>
-                    <div className="p-1 text-right pr-2">
-                      <span className="text-[5.5px] text-slate-500 uppercase block font-bold">VALOR TOTAL DA NOTA</span>
-                      <strong className="font-mono text-slate-950 font-bold text-[10px]">R$ {danfeData.os.totalCost.toFixed(2)}</strong>
-                    </div>
-                  </div>
-                </div>
-
-                {/* TRANSPORTADOR */}
-                <div className="border border-black">
-                  <div className="bg-slate-100 text-[7px] font-bold px-2 py-0.5 border-b border-black uppercase font-sans">Transportador / Volumes Transportados</div>
-                  <div className="grid grid-cols-12 divide-x divide-black text-left text-[8px]">
-                    <div className="col-span-5 p-1">
-                      <span className="text-[5.5px] text-slate-500 block uppercase font-bold">Razão Social</span>
-                      <span className="font-bold">O MESMO (RETIRADA LOCAL)</span>
-                    </div>
-                    <div className="col-span-2 p-1">
-                      <span className="text-[5.5px] text-slate-500 block uppercase font-bold">Frete por Conta</span>
-                      <span>9 - SEM FRETE</span>
-                    </div>
-                    <div className="col-span-2 p-1">
-                      <span className="text-[5.5px] text-slate-500 block uppercase font-bold">Código ANTT</span>
-                      <span>--</span>
-                    </div>
-                    <div className="col-span-2 p-1">
-                      <span className="text-[5.5px] text-slate-500 block uppercase font-bold">Placa do Veículo</span>
-                      <span>--</span>
-                    </div>
-                    <div className="col-span-1 p-1 text-center">
-                      <span className="text-[5.5px] text-slate-500 block uppercase font-bold">UF</span>
-                      <span>SP</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* ITENS DA NOTA FISCAL */}
-                <div className="border border-black">
-                  <div className="bg-slate-100 text-[7px] font-bold px-2 py-0.5 border-b border-black uppercase font-sans">Dados dos Produtos / Serviços</div>
-                  <table className="w-full text-left text-[8px] font-mono border-collapse divide-y divide-black">
-                    <thead className="bg-slate-50 font-bold text-slate-800 text-[7px]">
-                      <tr>
-                        <th className="p-1">CÓDIGO</th>
-                        <th className="p-1">DESCRIÇÃO DOS PRODUTOS / SERVIÇOS</th>
-                        <th className="p-1 text-center">NCM</th>
-                        <th className="p-1 text-center">CST</th>
-                        <th className="p-1 text-center">CFOP</th>
-                        <th className="p-1 text-center">UN</th>
-                        <th className="p-1 text-center">QTD</th>
-                        <th className="p-1 text-right">V. UNIT</th>
-                        <th className="p-1 text-right">V. TOTAL</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-black/30 text-slate-850">
-                      {danfeData.os.usedParts.map((p: any) => (
-                        <tr key={p.partId}>
-                          <td className="p-1">{p.partId.slice(0, 10).toUpperCase()}</td>
-                          <td className="p-1">{p.name.toUpperCase()} (REPOSIÇÃO)</td>
-                          <td className="p-1 text-center">84733019</td>
-                          <td className="p-1 text-center">0102</td>
-                          <td className="p-1 text-center">5949</td>
-                          <td className="p-1 text-center">UN</td>
-                          <td className="p-1 text-center">{p.quantity}</td>
-                          <td className="p-1 text-right">R$ {p.price.toFixed(2)}</td>
-                          <td className="p-1 text-right font-bold">R$ {(p.price * p.quantity).toFixed(2)}</td>
-                        </tr>
-                      ))}
-                      <tr>
-                        <td className="p-1">SUP-SERV</td>
-                        <td className="p-1">
-                          CONSERTO TÉCNICO ESPECIALIZADO: {danfeData.device.type.toUpperCase()} {danfeData.device.brand.toUpperCase()} {danfeData.device.model.toUpperCase()} (SÉRIE: {danfeData.device.serialNumber.toUpperCase()})
-                        </td>
-                        <td className="p-1 text-center">84713012</td>
-                        <td className="p-1 text-center">0000</td>
-                        <td className="p-1 text-center">5933</td>
-                        <td className="p-1 text-center">UN</td>
-                        <td className="p-1 text-center">1</td>
-                        <td className="p-1 text-right">R$ {danfeData.os.laborCost.toFixed(2)}</td>
-                        <td className="p-1 text-right font-bold">R$ {danfeData.os.laborCost.toFixed(2)}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* CALCULO DO ISSQN */}
-                <div className="border border-black">
-                  <div className="bg-slate-100 text-[7px] font-bold px-2 py-0.5 border-b border-black uppercase font-sans">Cálculo do ISSQN</div>
-                  <div className="grid grid-cols-4 divide-x divide-black text-center text-[8px]">
-                    <div className="p-1 text-left">
-                      <span className="text-[5.5px] text-slate-500 uppercase block font-bold">Inscrição Municipal</span>
-                      <span className="font-mono font-bold">1291823/001</span>
-                    </div>
-                    <div className="p-1">
-                      <span className="text-[5.5px] text-slate-500 uppercase block font-bold">Valor Total dos Serviços</span>
-                      <span className="font-mono">R$ {danfeData.os.laborCost.toFixed(2)}</span>
-                    </div>
-                    <div className="p-1">
-                      <span className="text-[5.5px] text-slate-500 uppercase block font-bold">Base de Cálculo do ISSQN</span>
-                      <span className="font-mono">R$ {danfeData.os.laborCost.toFixed(2)}</span>
-                    </div>
-                    <div className="p-1 text-right pr-2">
-                      <span className="text-[5.5px] text-slate-500 uppercase block font-bold">Valor do ISSQN (5%)</span>
-                      <span className="font-mono font-bold text-slate-900">R$ {(danfeData.os.laborCost * 0.05).toFixed(2)}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* DADOS ADICIONAIS */}
-                <div className="border border-black">
-                  <div className="bg-slate-100 text-[7px] font-bold px-2 py-0.5 border-b border-black uppercase font-sans">Dados Adicionais</div>
-                  <div className="p-2 leading-relaxed text-slate-600 text-[7.5px]">
-                    <span className="font-bold text-slate-800 block uppercase text-[6.5px]">Informações Complementares:</span>
-                    <p>
-                      Valores simulados em ambiente de homologação. Documento fiscal demonstrativo sem valor comercial real. 
-                      Referente à Ordem de Serviço {danfeData.os.osNumber}. Defeito periciado: "{danfeData.os.reportedDefect}". 
-                      Garantia legal de 90 dias conforme artigo 26, inciso II, do Código de Defesa do Consumidor. 
-                      Dispositivo em custódia: {danfeData.device.brand} {danfeData.device.model} (Série: {danfeData.device.serialNumber}).
-                    </p>
-                  </div>
-                </div>
-
-              </div>
-
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold text-slate-700">Simular Rejeição/Erro:</label>
+              <select
+                value={forceErrorType}
+                onChange={(e) => setForceErrorType(e.target.value as any)}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-800"
+              >
+                <option value="">Nenhum (Fluxo Real)</option>
+                <option value="SEFAZ_REJECT">Rejeição SEFAZ (Rejeição NFe)</option>
+                <option value="UNAUTHORIZED">Erro 401 Unauthorized</option>
+                <option value="SERVICE_DOWN">Serviço Indisponível (503)</option>
+                <option value="MOCK_TIMEOUT">Simular Timeout (Rede)</option>
+              </select>
             </div>
           </div>
         </div>
       )}
 
+      {/* ABA 2: SINCRONIZAÇÃO DE CATÁLOGO */}
+      {activeTab === "catalog" && (
+        <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+            <div>
+              <h3 className="text-base font-bold text-slate-800">Sincronização em Lote do Catálogo</h3>
+              <p className="text-xs text-slate-500">Transfira e mantenha atualizadas as peças do estoque local no Bling.</p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {catalogSync.isSyncing ? (
+                <button
+                  onClick={stopCatalogSync}
+                  className="px-4 py-2 bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 font-bold text-xs rounded-xl cursor-pointer transition"
+                >
+                  Interromper Sincronização
+                </button>
+              ) : (
+                <button
+                  onClick={startCatalogSync}
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-600/20 cursor-pointer transition flex items-center gap-2"
+                >
+                  <span>⚡</span>
+                  <span>Iniciar Sincronização de Peças</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* BARRA DE PROGRESSO EM TEMPO REAL */}
+          <div className="space-y-3 bg-slate-50 p-5 rounded-2xl border border-slate-200/60">
+            <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+              <span>Progresso Global do Catálogo</span>
+              <span>{catalogSync.processed} de {catalogSync.total} Peças Processadas</span>
+            </div>
+
+            <div className="w-full h-3 bg-slate-200 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-indigo-500 to-emerald-500 transition-all duration-500 rounded-full"
+                style={{
+                  width: `${catalogSync.total > 0 ? (catalogSync.processed / catalogSync.total) * 100 : 0}%`
+                }}
+              ></div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 text-center text-xs">
+              <div className="bg-white p-3 rounded-xl border border-slate-200/80">
+                <span className="block text-slate-400 text-[10px] font-bold uppercase">Total Peças</span>
+                <span className="text-sm font-extrabold text-slate-800">{catalogSync.total}</span>
+              </div>
+              <div className="bg-white p-3 rounded-xl border border-slate-200/80">
+                <span className="block text-emerald-500 text-[10px] font-bold uppercase">Sucesso</span>
+                <span className="text-sm font-extrabold text-emerald-600">{catalogSync.successCount}</span>
+              </div>
+              <div className="bg-white p-3 rounded-xl border border-slate-200/80">
+                <span className="block text-rose-500 text-[10px] font-bold uppercase">Erros</span>
+                <span className="text-sm font-extrabold text-rose-600">{catalogSync.errorCount}</span>
+              </div>
+              <div className="bg-white p-3 rounded-xl border border-slate-200/80">
+                <span className="block text-indigo-500 text-[10px] font-bold uppercase">Status</span>
+                <span className="text-xs font-bold text-indigo-600">{catalogSync.isSyncing ? "Sincronizando..." : "Concluído"}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ABA 3: IMPORTADOR DE XML NFE */}
+      {activeTab === "xml" && (
+        <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm space-y-5">
+          <div>
+            <h3 className="text-base font-bold text-slate-800">Importador de XML de Nota Fiscal (NFe)</h3>
+            <p className="text-xs text-slate-500">Cole a NFe XML de entrada enviada pelo fornecedor para dar entrada automática em estoque.</p>
+          </div>
+
+          <div className="space-y-3">
+            <textarea
+              value={xmlInput}
+              onChange={(e) => setXmlInput(e.target.value)}
+              placeholder="Cole o código XML completo da NFe aqui (<nfeProc> ou <NFe>)..."
+              rows={8}
+              className="w-full p-4 bg-slate-900 text-emerald-400 font-mono text-xs rounded-xl border border-slate-800 focus:ring-2 focus:ring-indigo-500 transition"
+            ></textarea>
+
+            <button
+              disabled={isImportingXml || !xmlInput.trim()}
+              onClick={handleImportXml}
+              className="px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-600/20 cursor-pointer disabled:opacity-50 transition flex items-center justify-center gap-2"
+            >
+              {isImportingXml ? (
+                <>
+                  <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>
+                  <span>Processando XML...</span>
+                </>
+              ) : (
+                <>
+                  <span>📥</span>
+                  <span>Processar e Dar Entrada no Estoque</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {xmlImportResult && (
+            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 space-y-2">
+              <div className="font-bold text-emerald-900">✅ XML Processado com Sucesso!</div>
+              <div>Nota Fiscal Nº: <strong>{xmlImportResult.nNF}</strong> | Fornecedor: <strong>{xmlImportResult.supplier}</strong></div>
+              <div>Peças Criadas: <strong>{xmlImportResult.createdCount}</strong> | Peças Atualizadas: <strong>{xmlImportResult.updatedCount}</strong></div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ABA 4: CONSOLE DE LOGS E DIAGNÓSTICO */}
+      {activeTab === "logs" && (
+        <div className="bg-slate-900 text-slate-200 rounded-2xl p-6 border border-slate-800 shadow-2xl space-y-4 font-mono text-xs">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+            <div className="flex items-center gap-2">
+              <span className="h-3 w-3 rounded-full bg-rose-500"></span>
+              <span className="h-3 w-3 rounded-full bg-amber-500"></span>
+              <span className="h-3 w-3 rounded-full bg-emerald-500"></span>
+              <span className="ml-2 font-bold text-slate-300">Terminal de Logs Fiscais Bling</span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                placeholder="Filtrar logs..."
+                value={logFilter}
+                onChange={(e) => setLogFilter(e.target.value)}
+                className="px-3 py-1.5 bg-slate-800 text-slate-200 rounded-lg text-xs border border-slate-700 focus:outline-none"
+              />
+              <button
+                onClick={handleCopyLogs}
+                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-lg transition cursor-pointer"
+              >
+                {copiedLogs ? "Copiado! ✓" : "Copiar Logs"}
+              </button>
+            </div>
+          </div>
+
+          <div className="max-h-96 overflow-y-auto space-y-1.5 text-[11px] text-slate-300 pr-2">
+            {filteredLogs.length === 0 ? (
+              <div className="text-slate-500 py-4 text-center">Nenhum log registrado até o momento.</div>
+            ) : (
+              filteredLogs.map((log, index) => (
+                <div key={index} className="flex gap-2">
+                  <span className="text-indigo-400 select-none">&gt;</span>
+                  <span className={log.includes("[ERRO]") ? "text-rose-400 font-bold" : log.includes("Sucesso") ? "text-emerald-400" : "text-slate-300"}>
+                    {log}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CONFORMAÇÃO FISCAL DE ESTRATÉGIA */}
+      {isBillingModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in fade-in zoom-in duration-200">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="text-base font-bold text-slate-800">Confirmar Parâmetros Fiscais (NFe)</h3>
+              <button onClick={() => setIsBillingModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-lg font-bold">✕</button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Indicador de Inscrição Estadual (IE):</label>
+                <select
+                  value={clientIcmsType}
+                  onChange={(e) => setClientIcmsType(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800"
+                >
+                  <option value="9">9 - Não Contribuinte (Pessoa Física / Consumidor Final)</option>
+                  <option value="1">1 - Contribuinte ICMS (Empresa com Inscrição Estadual)</option>
+                  <option value="2">2 - Contribuinte Isento</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Inscrição Estadual (se houver):</label>
+                <input
+                  type="text"
+                  value={clientStateInscription}
+                  onChange={(e) => setClientStateInscription(e.target.value)}
+                  placeholder="Ex: 123456789"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Natureza da Operação:</label>
+                <input
+                  type="text"
+                  value={natureOperation}
+                  onChange={(e) => setNatureOperation(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+              <button
+                onClick={() => setIsBillingModalOpen(false)}
+                className="px-4 py-2 text-slate-600 font-bold hover:bg-slate-100 rounded-xl transition cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  setIsBillingModalOpen(false);
+                  triggerBlingInvoice(billingOSId, {
+                    clientIcmsType,
+                    clientStateInscription,
+                    natureOperation
+                  });
+                }}
+                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl cursor-pointer shadow-lg shadow-indigo-600/20 transition"
+              >
+                Emitir Nota no Bling
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

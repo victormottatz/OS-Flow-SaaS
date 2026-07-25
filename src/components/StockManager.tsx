@@ -14,15 +14,33 @@ interface StockManagerProps {
   onRefresh: () => void;
   limit: number | "all";
   onLimitChange: (limit: number | "all") => void;
+  searchQuery: string;
+  onSearchChange: (q: string) => void;
+  totalItemsCount: number;
+  dbLowStockCount?: number;
+  dbSerializedCount?: number;
+  dbTotalStockValue?: number;
 }
 
 type SortField = "name" | "code" | "stock" | "cost" | "price" | "stockMin";
 type SortDirection = "asc" | "desc";
 type StockFilter = "all" | "low" | "serialized";
 
-export default function StockManager({ parts, userRole, isOffline, onRefresh, limit, onLimitChange }: StockManagerProps) {
+export default function StockManager({ 
+  parts, 
+  userRole, 
+  isOffline, 
+  onRefresh, 
+  limit, 
+  onLimitChange, 
+  searchQuery, 
+  onSearchChange, 
+  totalItemsCount,
+  dbLowStockCount = 0,
+  dbSerializedCount = 0,
+  dbTotalStockValue = 0
+}: StockManagerProps) {
   // Search & Filter State
-  const [searchQuery, setSearchQuery] = useState("");
   const [stockFilter, setStockFilter] = useState<StockFilter>("all");
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
@@ -33,11 +51,25 @@ export default function StockManager({ parts, userRole, isOffline, onRefresh, li
   const [formData, setFormData] = useState({
     name: "", code: "", sku: "", barcode: "",
     stock: 0, stockMin: 0, cost: 0, price: 0,
-    requiresSerial: false, supplier: "", location: ""
+    requiresSerial: false, supplier: "", location: "",
+    // Campos Fiscais
+    unit: "UN", gtin: "", ncm: "", cest: "",
+    manufacturerCode: "", manufacturer: "", cnpjFab: "",
+    partGroup: "", partSubgroup: "",
+    weightGross: 0, weightNet: 0,
+    cstOrigem: "0", cstIcms: "000",
+    icmsAliq: 0, icmsStAliq: 0, icmsRedBc: 100,
+    cfopIntraEstadual: "5102", cfopInterEstadual: "6102",
+    ipiAliq: 0, ipiEnquadramento: "999",
+    pisAliq: 0, cofinsAliq: 0,
+    totalTributos: 0, cBenef: "", indEscala: "S",
+    bcStRetido: 0, icmsStRetido: 0, aliqSt: 0, icmsSubstituto: 0,
+    redBcEfet: 0, bcEfet: 0, icmsEfetAliq: 0, icmsEfetValor: 0
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [showFiscalSection, setShowFiscalSection] = useState(false);
 
   // XML Import states (Fase 1 / Bling XML Purchase Import)
   const [showImportModal, setShowImportModal] = useState(false);
@@ -87,10 +119,10 @@ export default function StockManager({ parts, userRole, isOffline, onRefresh, li
   }, [parts, searchQuery, stockFilter, sortField, sortDirection]);
 
   // Stats
-  const totalItems = parts.length;
-  const lowStockCount = parts.filter(p => p.stock <= (p.stockMin || 0)).length;
-  const serializedCount = parts.filter(p => p.requiresSerial).length;
-  const totalStockValue = parts.reduce((sum, p) => sum + (p.cost * p.stock), 0);
+  const totalItems = totalItemsCount || parts.length;
+  const lowStockCount = dbLowStockCount ?? parts.filter(p => p.stock <= (p.stockMin || 0)).length;
+  const serializedCount = dbSerializedCount ?? parts.filter(p => p.requiresSerial).length;
+  const totalStockValue = dbTotalStockValue ?? parts.reduce((sum, p) => sum + (p.cost * p.stock), 0);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -103,7 +135,24 @@ export default function StockManager({ parts, userRole, isOffline, onRefresh, li
 
   const openCreateModal = () => {
     setEditingPart(null);
-    setFormData({ name: "", code: "", sku: "", barcode: "", stock: 0, stockMin: 0, cost: 0, price: 0, requiresSerial: false, supplier: "", location: "" });
+    setFormData({
+      name: "", code: "", sku: "", barcode: "",
+      stock: 0, stockMin: 0, cost: 0, price: 0,
+      requiresSerial: false, supplier: "", location: "",
+      unit: "UN", gtin: "", ncm: "", cest: "",
+      manufacturerCode: "", manufacturer: "", cnpjFab: "",
+      partGroup: "", partSubgroup: "",
+      weightGross: 0, weightNet: 0,
+      cstOrigem: "0", cstIcms: "000",
+      icmsAliq: 0, icmsStAliq: 0, icmsRedBc: 100,
+      cfopIntraEstadual: "5102", cfopInterEstadual: "6102",
+      ipiAliq: 0, ipiEnquadramento: "999",
+      pisAliq: 0, cofinsAliq: 0,
+      totalTributos: 0, cBenef: "", indEscala: "S",
+      bcStRetido: 0, icmsStRetido: 0, aliqSt: 0, icmsSubstituto: 0,
+      redBcEfet: 0, bcEfet: 0, icmsEfetAliq: 0, icmsEfetValor: 0
+    });
+    setShowFiscalSection(false);
     setError("");
     setShowModal(true);
   };
@@ -121,8 +170,43 @@ export default function StockManager({ parts, userRole, isOffline, onRefresh, li
       price: part.price,
       requiresSerial: part.requiresSerial || false,
       supplier: part.supplier || "",
-      location: part.location || ""
+      location: part.location || "",
+      unit: part.unit || "UN",
+      gtin: part.gtin || "",
+      ncm: part.ncm || "",
+      cest: part.cest || "",
+      manufacturerCode: part.manufacturerCode || "",
+      manufacturer: part.manufacturer || "",
+      cnpjFab: part.cnpjFab || "",
+      partGroup: part.partGroup || "",
+      partSubgroup: part.partSubgroup || "",
+      weightGross: part.weightGross || 0,
+      weightNet: part.weightNet || 0,
+      cstOrigem: part.cstOrigem || "0",
+      cstIcms: part.cstIcms || "000",
+      icmsAliq: part.icmsAliq || 0,
+      icmsStAliq: part.icmsStAliq || 0,
+      icmsRedBc: part.icmsRedBc ?? 100,
+      cfopIntraEstadual: part.cfopIntraEstadual || "5102",
+      cfopInterEstadual: part.cfopInterEstadual || "6102",
+      ipiAliq: part.ipiAliq || 0,
+      ipiEnquadramento: part.ipiEnquadramento || "999",
+      pisAliq: part.pisAliq || 0,
+      cofinsAliq: part.cofinsAliq || 0,
+      totalTributos: part.totalTributos || 0,
+      cBenef: part.cBenef || "",
+      indEscala: part.indEscala || "S",
+      bcStRetido: part.bcStRetido || 0,
+      icmsStRetido: part.icmsStRetido || 0,
+      aliqSt: part.aliqSt || 0,
+      icmsSubstituto: part.icmsSubstituto || 0,
+      redBcEfet: part.redBcEfet || 0,
+      bcEfet: part.bcEfet || 0,
+      icmsEfetAliq: part.icmsEfetAliq || 0,
+      icmsEfetValor: part.icmsEfetValor || 0
     });
+    // Se a peça já tem dados fiscais preenchidos, abre a seção fiscal
+    setShowFiscalSection(!!(part.ncm || part.cest || (part.icmsAliq && part.icmsAliq > 0)));
     setError("");
     setShowModal(true);
   };
@@ -257,7 +341,7 @@ export default function StockManager({ parts, userRole, isOffline, onRefresh, li
               type="text"
               placeholder="Buscar por nome, código, SKU ou fornecedor..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => onSearchChange(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition"
             />
           </div>
@@ -282,20 +366,6 @@ export default function StockManager({ parts, userRole, isOffline, onRefresh, li
                 <span className="hidden sm:inline">{f.label}</span>
               </button>
             ))}
-          </div>
-
-          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 shrink-0">
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Limite:</label>
-            <select
-              value={limit}
-              onChange={(e) => onLimitChange(e.target.value === "all" ? "all" : Number(e.target.value))}
-              className="bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer"
-            >
-              <option value="100">100 Peças</option>
-              <option value="250">250 Peças</option>
-              <option value="500">500 Peças</option>
-              <option value="all">Exibir Todas</option>
-            </select>
           </div>
 
           {/* Add Button & XML Import */}
@@ -427,8 +497,19 @@ export default function StockManager({ parts, userRole, isOffline, onRefresh, li
         </div>
 
         {/* Table Footer */}
-        <div className="border-t border-slate-200 bg-slate-50 px-4 py-2.5 flex items-center justify-between text-[10px] text-slate-500 font-bold">
+        <div className="border-t border-slate-200 bg-slate-50 px-4 py-2.5 flex flex-col sm:flex-row items-center justify-between gap-2 text-[10px] text-slate-500 font-bold">
           <span>Exibindo {filteredParts.length} de {totalItems} itens</span>
+          
+          {limit !== "all" && filteredParts.length >= (typeof limit === "number" ? limit : 100) && (
+            <button
+              onClick={() => onLimitChange(typeof limit === "number" ? limit + 100 : 200)}
+              className="px-4 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition cursor-pointer flex items-center gap-1"
+            >
+              <span className="material-symbols-outlined text-[14px]">add</span>
+              Mostrar mais (+100)
+            </button>
+          )}
+
           <button
             onClick={onRefresh}
             disabled={isOffline}
@@ -535,6 +616,185 @@ export default function StockManager({ parts, userRole, isOffline, onRefresh, li
                     <p className="text-[10px] text-violet-600 mt-0.5">Ative para peças de alto valor. O técnico será obrigado a informar o nº de série ao instalar esta peça em uma OS.</p>
                   </div>
                 </label>
+              </div>
+
+              {/* ============ DADOS FISCAIS (Collapsible) ============ */}
+              <div className="border border-slate-200 rounded-xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setShowFiscalSection(!showFiscalSection)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[16px] text-indigo-600" style={{ fontVariationSettings: "'FILL' 1" }}>receipt_long</span>
+                    <span className="text-xs font-bold text-slate-700">Dados Fiscais / Tributários</span>
+                    {formData.ncm && <span className="text-[9px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-bold">NCM preenchido</span>}
+                  </div>
+                  <span className={`material-symbols-outlined text-[16px] text-slate-400 transition-transform ${showFiscalSection ? 'rotate-180' : ''}`}>expand_more</span>
+                </button>
+
+                {showFiscalSection && (
+                  <div className="p-4 space-y-4 border-t border-slate-200">
+
+                    {/* Identificação Fiscal */}
+                    <div>
+                      <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider mb-2 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[12px]">badge</span>Identificação Fiscal
+                      </p>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">NCM</label>
+                          <input type="text" value={formData.ncm} onChange={e => setFormData({...formData, ncm: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 font-mono" placeholder="00000000" maxLength={8} />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">CEST</label>
+                          <input type="text" value={formData.cest} onChange={e => setFormData({...formData, cest: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 font-mono" placeholder="0000000" maxLength={7} />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">GTIN/EAN</label>
+                          <input type="text" value={formData.gtin} onChange={e => setFormData({...formData, gtin: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 font-mono" placeholder="Código de barras" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-3 mt-3">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Unidade</label>
+                          <input type="text" value={formData.unit} onChange={e => setFormData({...formData, unit: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400" placeholder="UN" maxLength={6} />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Peso Bruto (kg)</label>
+                          <input type="number" min="0" step="0.001" value={formData.weightGross} onChange={e => setFormData({...formData, weightGross: Number(e.target.value)})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Peso Líquido (kg)</label>
+                          <input type="number" min="0" step="0.001" value={formData.weightNet} onChange={e => setFormData({...formData, weightNet: Number(e.target.value)})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400" />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Fabricante */}
+                    <div>
+                      <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider mb-2 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[12px]">factory</span>Fabricante
+                      </p>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Cód. Fabricante</label>
+                          <input type="text" value={formData.manufacturerCode} onChange={e => setFormData({...formData, manufacturerCode: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 font-mono" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Fabricante</label>
+                          <input type="text" value={formData.manufacturer} onChange={e => setFormData({...formData, manufacturer: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">CNPJ Fabricante</label>
+                          <input type="text" value={formData.cnpjFab} onChange={e => setFormData({...formData, cnpjFab: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 font-mono" placeholder="00.000.000/0000-00" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 mt-3">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Grupo</label>
+                          <input type="text" value={formData.partGroup} onChange={e => setFormData({...formData, partGroup: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Subgrupo</label>
+                          <input type="text" value={formData.partSubgroup} onChange={e => setFormData({...formData, partSubgroup: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400" />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Tributação */}
+                    <div>
+                      <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider mb-2 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[12px]">calculate</span>Tributação
+                      </p>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Origem CST</label>
+                          <select value={formData.cstOrigem} onChange={e => setFormData({...formData, cstOrigem: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400">
+                            <option value="0">0 - Nacional</option>
+                            <option value="1">1 - Estrangeira (Import. direta)</option>
+                            <option value="2">2 - Estrangeira (Merc. interno)</option>
+                            <option value="3">3 - Nacional (40-70% imp.)</option>
+                            <option value="4">4 - Nacional (proc. básico)</option>
+                            <option value="5">5 - Nacional (Conf. DL 288/67)</option>
+                            <option value="6">6 - Estrangeira (Import. s/ similar)</option>
+                            <option value="7">7 - Estrangeira (Merc. int. s/ similar)</option>
+                            <option value="8">8 - Nacional (sup. 70% imp.)</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">CST ICMS</label>
+                          <input type="text" value={formData.cstIcms} onChange={e => setFormData({...formData, cstIcms: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 font-mono" placeholder="000" maxLength={3} />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">ICMS (%)</label>
+                          <input type="number" min="0" step="0.01" value={formData.icmsAliq} onChange={e => setFormData({...formData, icmsAliq: Number(e.target.value)})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-3 mt-3">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">ICMS-ST (%)</label>
+                          <input type="number" min="0" step="0.01" value={formData.icmsStAliq} onChange={e => setFormData({...formData, icmsStAliq: Number(e.target.value)})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Red. BC ICMS (%)</label>
+                          <input type="number" min="0" max="100" step="0.01" value={formData.icmsRedBc} onChange={e => setFormData({...formData, icmsRedBc: Number(e.target.value)})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">IPI (%)</label>
+                          <input type="number" min="0" step="0.01" value={formData.ipiAliq} onChange={e => setFormData({...formData, ipiAliq: Number(e.target.value)})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-4 gap-3 mt-3">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Enq. IPI</label>
+                          <input type="text" value={formData.ipiEnquadramento} onChange={e => setFormData({...formData, ipiEnquadramento: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 font-mono" placeholder="999" maxLength={3} />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">PIS (%)</label>
+                          <input type="number" min="0" step="0.01" value={formData.pisAliq} onChange={e => setFormData({...formData, pisAliq: Number(e.target.value)})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">COFINS (%)</label>
+                          <input type="number" min="0" step="0.01" value={formData.cofinsAliq} onChange={e => setFormData({...formData, cofinsAliq: Number(e.target.value)})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Tributos (R$)</label>
+                          <input type="number" min="0" step="0.01" value={formData.totalTributos} onChange={e => setFormData({...formData, totalTributos: Number(e.target.value)})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400" />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* CFOP e Outros */}
+                    <div>
+                      <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider mb-2 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[12px]">local_shipping</span>CFOP e Outros
+                      </p>
+                      <div className="grid grid-cols-4 gap-3">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">CFOP Intra-UF</label>
+                          <input type="text" value={formData.cfopIntraEstadual} onChange={e => setFormData({...formData, cfopIntraEstadual: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 font-mono" placeholder="5102" maxLength={4} />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">CFOP Inter-UF</label>
+                          <input type="text" value={formData.cfopInterEstadual} onChange={e => setFormData({...formData, cfopInterEstadual: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 font-mono" placeholder="6102" maxLength={4} />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Cód. Benefício</label>
+                          <input type="text" value={formData.cBenef} onChange={e => setFormData({...formData, cBenef: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 font-mono" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Ind. Escala</label>
+                          <select value={formData.indEscala} onChange={e => setFormData({...formData, indEscala: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400">
+                            <option value="S">S - Relevante</option>
+                            <option value="N">N - Não Relevante</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+                )}
               </div>
             </div>
 

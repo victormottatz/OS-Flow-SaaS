@@ -63,6 +63,7 @@ export class DashboardController {
       });
 
       const statusCount: Record<string, number> = {
+        ORCAMENTO: 0,
         AGUARDANDO_AVALIACAO: 0,
         AGUARDANDO_AUTORIZACAO: 0,
         AGUARDANDO_PECA: 0,

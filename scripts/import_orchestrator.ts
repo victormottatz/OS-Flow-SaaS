@@ -103,6 +103,9 @@ async function main() {
     } else {
       console.warn(`[AVISO] Nenhum agente encontrado para o status: '${statusStr}' na OS ${osNumber}`);
     }
+
+    // Pequeno atraso para não estourar pool de conexão
+    await new Promise(r => setTimeout(r, 10));
   }
 
   console.log("Importação concluída. Verifique import_pendencies.log para anomalias.");

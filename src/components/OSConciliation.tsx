@@ -922,7 +922,7 @@ export default function OSConciliation() {
                         <span className="font-mono text-xs text-slate-500">{batch.id}</span>
                       </div>
                       <p className="text-xs text-slate-400">
-                        Executado por <strong>{batch.createdBy}</strong> em {new Date(batch.createdAt).toLocaleString()}
+                        Executado por <strong>{batch.createdBy}</strong> em {new Date(batch.createdAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}
                       </p>
                     </div>
                     <div>

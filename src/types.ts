@@ -29,6 +29,7 @@ export interface Client {
   name: string;
   cpfCnpj: string;
   phone: string;
+  phone2?: string;
   email: string;
   address: string;
   deletedAt?: string | null;
@@ -52,8 +53,13 @@ export type OSStatus = 'AGUARDANDO_AVALIACAO' | 'AGUARDANDO_AUTORIZACAO' | 'AGUA
 export type OSClosingReason =
   | 'REPARO_CONCLUIDO'
   | 'ORCAMENTO_RECUSADO'
+  | 'SEM_CONSERTO'
   | 'DESCARTE_CLIENTE_RETIRA'
   | 'DESCARTE_OFICINA';
+
+export type WarrantyType = 'NENHUMA' | 'FABRICA' | 'MGV';
+
+export type OSFinancialStatus = 'PENDENTE' | 'CREDIARIO' | 'PAGAR_DEPOIS' | 'PAGO';
 
 export interface Part {
   id: string;
@@ -71,9 +77,58 @@ export interface Part {
   notaFiscalEntradaId?: string | null; // Preparado para fase 2 (importação via XML NF-e)
   deletedAt?: string | null;
   createdAt?: string;
+
+  // ─── Campos Fiscais ────────────────────────────────────────
+
+  // Identificação e Classificação
+  unit?: string;
+  gtin?: string;
+  ncm?: string;
+  cest?: string;
+  manufacturerCode?: string;
+  manufacturer?: string;
+  cnpjFab?: string;
+  partGroup?: string;
+  partSubgroup?: string;
+  weightGross?: number;
+  weightNet?: number;
+
+  // Tributação ICMS
+  cstOrigem?: string;
+  cstIcms?: string;
+  icmsAliq?: number;
+  icmsStAliq?: number;
+  icmsRedBc?: number;
+
+  // CFOP
+  cfopIntraEstadual?: string;
+  cfopInterEstadual?: string;
+
+  // IPI
+  ipiAliq?: number;
+  ipiEnquadramento?: string;
+
+  // PIS / COFINS
+  pisAliq?: number;
+  cofinsAliq?: number;
+
+  // Outros Fiscais
+  totalTributos?: number;
+  cBenef?: string;
+  indEscala?: string;
+
+  // ICMS-ST Retido
+  bcStRetido?: number;
+  icmsStRetido?: number;
+  aliqSt?: number;
+  icmsSubstituto?: number;
+  redBcEfet?: number;
+  bcEfet?: number;
+  icmsEfetAliq?: number;
+  icmsEfetValor?: number;
 }
 
-export type AvulsoCategory = 'PECA' | 'SERVICO' | 'TAXA' | 'FRETE' | 'DESCONTO' | 'OUTROS';
+export type AvulsoCategory = 'PECA' | 'SERVICO' | 'CALIBRAGEM' | 'TAXA' | 'FRETE' | 'DESCONTO' | 'OUTROS';
 
 export interface UsedPart {
   id?: string; // ID único para a listagem (especialmente útil para itens avulsos)
@@ -111,10 +166,13 @@ export interface OrdemServico {
   accessoriesLeft: string;
   physicalState: string;
   status: OSStatus;
+  statusCode?: number;
   diagnostic?: string;
   laudoMacro?: string;
   usedParts: UsedPart[];
   laborCost: number;
+  calibrationCost?: number;
+  discount?: number;
   technicianLaborHours?: number;
   technicianHourlyRate?: number;
   totalCost: number;
@@ -131,6 +189,7 @@ export interface OrdemServico {
   sefazErrorMessage?: string;
   pdfUrl?: string;
   billingLogs?: string[];
+  paymentMethod?: string | null;
   
   deletedAt?: string | null;
   stressTestStartedAt?: string | null;
@@ -140,6 +199,9 @@ export interface OrdemServico {
   closingReason?: OSClosingReason | null;
   client?: Client | null;
   device?: Device | null;
+  warrantyType: WarrantyType;
+  financialStatus: OSFinancialStatus;
+  financialDueDate?: string | null;
 
   // Rentabilidade (Virtual / Computado no backend para OWNER)
   profitValue?: number | null;

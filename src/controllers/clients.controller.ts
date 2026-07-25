@@ -7,44 +7,62 @@ export class ClientsController {
   async getAll(req: Request, res: Response) {
     try {
       const limitParam = req.query.limit as string;
-      const limit = limitParam === "all" ? undefined : (Number(limitParam) || 100);
+      const search = (req.query.search as string)?.trim().toLowerCase() || "";
+      const limit = search ? undefined : (limitParam === "all" ? undefined : (Number(limitParam) || 100));
 
-      const activeClients = await prisma.client.findMany({
-        where: { deletedAt: null },
-        include: {
-          devices: {
-            where: { deletedAt: null }
-          }
-        },
-        take: limit
+      const where: any = { deletedAt: null };
+
+      if (search) {
+        where.OR = [
+          { name: { contains: search, mode: "insensitive" } },
+          { cpfCnpj: { contains: search, mode: "insensitive" } },
+          { email: { contains: search, mode: "insensitive" } },
+          { phone: { contains: search, mode: "insensitive" } }
+        ];
+      }
+
+      const [activeClients, total] = await Promise.all([
+        prisma.client.findMany({
+          where,
+          include: {
+            devices: {
+              where: { deletedAt: null }
+            }
+          },
+          take: limit
+        }),
+        prisma.client.count({ where: { deletedAt: null } })
+      ]);
+
+      res.json({
+        data: activeClients.map(c => ({
+          id: c.id,
+          name: c.name,
+          cpfCnpj: c.cpfCnpj,
+          phone: c.phone,
+          email: c.email,
+          address: c.address,
+          deletedAt: null,
+          devices: c.devices.map(d => ({
+            id: d.id,
+            clientId: d.clientId,
+            type: d.type,
+            brand: d.brand,
+            model: d.model,
+            serialNumber: d.serialNumber,
+            description: d.description,
+            deletedAt: null
+          }))
+        })),
+        total
       });
-
-      res.json(activeClients.map(c => ({
-        id: c.id,
-        name: c.name,
-        cpfCnpj: c.cpfCnpj,
-        phone: c.phone,
-        email: c.email,
-        address: c.address,
-        deletedAt: null,
-        devices: c.devices.map(d => ({
-          id: d.id,
-          clientId: d.clientId,
-          type: d.type,
-          brand: d.brand,
-          model: d.model,
-          serialNumber: d.serialNumber,
-          description: d.description,
-          deletedAt: null
-        }))
-      })));
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   }
 
   async create(req: Request, res: Response) {
-    const { name, cpfCnpj, phone, email, address, devices } = req.body;
+    const { name, cpfCnpj, phone, phone2, email, address, devices } = req.body;
     
     if (!name || !cpfCnpj || !phone || !email || !address) {
       res.status(422).json({ error: "Parâmetros incorretos. Todos os campos de cadastro do cliente são obrigatórios." });
@@ -62,7 +80,7 @@ export class ClientsController {
       }
 
       const client = await prisma.client.create({
-        data: { name, cpfCnpj, phone, email, address }
+        data: { name, cpfCnpj, phone, phone2: phone2 || "", email, address }
       });
 
       const insertedDevices: any[] = [];
@@ -90,6 +108,7 @@ export class ClientsController {
           name: client.name,
           cpfCnpj: client.cpfCnpj,
           phone: client.phone,
+          phone2: client.phone2,
           email: client.email,
           address: client.address,
           deletedAt: null
@@ -116,7 +135,7 @@ export class ClientsController {
 
   async update(req: Request, res: Response) {
     const { id } = req.params;
-    const { name, cpfCnpj, phone, email, address } = req.body;
+    const { name, cpfCnpj, phone, phone2, email, address } = req.body;
 
     try {
       const client = await prisma.client.findUnique({ where: { id } });
@@ -136,7 +155,7 @@ export class ClientsController {
 
       const updated = await prisma.client.update({
         where: { id },
-        data: { name, cpfCnpj, phone, email, address }
+        data: { name, cpfCnpj, phone, phone2: phone2 || "", email, address }
       });
 
       const responsePayload = {
@@ -144,6 +163,7 @@ export class ClientsController {
         name: updated.name,
         cpfCnpj: updated.cpfCnpj,
         phone: updated.phone,
+        phone2: updated.phone2,
         email: updated.email,
         address: updated.address,
         deletedAt: null
@@ -161,6 +181,7 @@ export class ClientsController {
             name: client.name,
             cpfCnpj: client.cpfCnpj,
             phone: client.phone,
+            phone2: client.phone2,
             email: client.email,
             address: client.address
           },
@@ -168,6 +189,7 @@ export class ClientsController {
             name: updated.name,
             cpfCnpj: updated.cpfCnpj,
             phone: updated.phone,
+            phone2: updated.phone2,
             email: updated.email,
             address: updated.address
           }
@@ -254,6 +276,7 @@ export class ClientsController {
           name: client.name,
           cpfCnpj: client.cpfCnpj,
           phone: client.phone,
+          phone2: client.phone2,
           email: client.email,
           address: client.address,
           createdAt: (client as any).createdAt

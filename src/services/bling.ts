@@ -4,9 +4,24 @@
  */
 
 import axios from "axios";
-import { PrismaClient } from "@prisma/client";
+import prisma from "../database/prisma";
 
-const prisma = new PrismaClient();
+// Mutex para impedir renovação concorrente do token OAuth do Bling em requisições paralelas
+let refreshPromiseMutex: Promise<string | null> | null = null;
+
+// Interface para o payload do produto no Bling
+export interface BlingProductPayload {
+  nome: string;
+  codigo: string;
+  preco: number;
+  tipo: "P" | "S"; // Produto ou Serviço
+  formato: "S" | "V" | "E"; // Simples, Com variação, Com composição
+  situacao: "A" | "I"; // Ativo ou Inativo
+  tributacao?: {
+    cfop: string;
+    csosn: string;
+  };
+}
 
 const BLING_TOKEN_URL = "https://api.bling.com.br/Api/v3/oauth/token";
 
@@ -34,7 +49,7 @@ async function requestWithRetry<T>(fn: () => Promise<T>, retries = 3, delay = 20
     return await fn();
   } catch (err: any) {
     if (err.response?.status === 429 && retries > 0) {
-      console.warn(`[Bling Rate Limit] CÃ³digo 429 (Too Many Requests). Aguardando ${delay}ms para tentar novamente... (${retries} tentativas restantes)`);
+      console.warn(`[Bling Rate Limit] Código 429 (Too Many Requests). Aguardando ${delay}ms para tentar novamente... (${retries} tentativas restantes)`);
       await new Promise(resolve => setTimeout(resolve, delay));
       return requestWithRetry(fn, retries - 1, delay * 1.5);
     }
@@ -51,7 +66,7 @@ export async function exchangeCode(code: string): Promise<string> {
   const clientSecret = process.env.BLING_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
-    throw new Error("[Bling OAuth] BLING_CLIENT_ID ou BLING_CLIENT_SECRET nÃ£o configurados no ambiente.");
+    throw new Error("[Bling OAuth] BLING_CLIENT_ID ou BLING_CLIENT_SECRET não configurados no ambiente.");
   }
 
   // Basic Auth header value: base64(client_id:client_secret)
@@ -101,20 +116,20 @@ export async function exchangeCode(code: string): Promise<string> {
     const data = err.response?.data;
     const msg = `HTTP ${status || "Desconhecido"}: ${JSON.stringify(data || err.message)}`;
     console.error("[Bling OAuth Error] Erro ao trocar authorization code:", msg);
-    throw new Error(`Erro na troca de cÃ³digo com o Bling: ${msg}`);
+    throw new Error(`Erro na troca de código com o Bling: ${msg}`);
   }
 }
 
 /**
  * Retrieve active Access Token, automatically executing OAuth refresh logic
- * if the cached token is expired or close to expiration.
+ * with mutex protection to prevent race conditions on concurrent API calls.
  */
 export async function getAccessToken(): Promise<string | null> {
   const clientId = process.env.BLING_CLIENT_ID;
   const clientSecret = process.env.BLING_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
-    console.error("[Bling OAuth] BLING_CLIENT_ID ou BLING_CLIENT_SECRET nÃ£o configurados no ambiente.");
+    console.error("[Bling OAuth] BLING_CLIENT_ID ou BLING_CLIENT_SECRET não configurados no ambiente.");
     return null;
   }
 
@@ -124,64 +139,72 @@ export async function getAccessToken(): Promise<string | null> {
   });
 
   if (!config) {
-    console.warn("[Bling OAuth] IntegraÃ§Ã£o Bling pendente: nenhuma credencial cadastrada na tabela bling_configs.");
+    console.warn("[Bling OAuth] Integração Bling pendente: nenhuma credencial cadastrada na tabela bling_configs.");
     return null;
   }
 
   // 2. Check if token is still valid (not expired, and not expiring in the next 30 seconds)
-  const now = new Date();
   const bufferTime = new Date(Date.now() + 30000); // 30s buffer
 
   if (config.expiresAt > bufferTime) {
-    // Token is valid, return it
     return config.accessToken;
   }
 
-  // 3. Token is expired or expiring soon, perform refresh
-  console.log(`[Bling OAuth] Access token expirado ou prestes a expirar. Iniciando renovaÃ§Ã£o automÃ¡tica...`);
-  console.log(`[Bling OAuth] Refresh token atual: ${maskToken(config.refreshToken)}`);
-
-  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
-
-  try {
-    const response = await axios.post<BlingTokenResponse>(
-      BLING_TOKEN_URL,
-      new URLSearchParams({
-        grant_type: "refresh_token",
-        refresh_token: config.refreshToken,
-      }).toString(),
-      {
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          Authorization: `Basic ${credentials}`,
-          "enable-jwt": "1",
-        },
-      }
-    );
-
-    const { access_token, refresh_token, expires_in } = response.data;
-    const expiresAt = new Date(Date.now() + (expires_in - 60) * 1000);
-
-    // Save renewed tokens back to Supabase
-    await prisma.blingConfig.update({
-      where: { id: 1 },
-      data: {
-        accessToken: access_token,
-        refreshToken: refresh_token || config.refreshToken, // Bling might return a new refresh token or same
-        expiresAt: expiresAt,
-      },
-    });
-
-    console.log(`[Bling OAuth] Token renovado automaticamente com absoluto sucesso. Novo vencimento: ${expiresAt.toISOString()}`);
-    return access_token;
-  } catch (err: any) {
-    const status = err.response?.status;
-    const data = err.response?.data;
-    const msg = `HTTP ${status || "Desconhecido"}: ${JSON.stringify(data || err.message)}`;
-    console.error("[Bling OAuth Error] Erro ao renovar o access token:", msg);
-    // Do not throw, return null to let the application handle offline mode gracefully
-    return null;
+  // 3. Se uma renovação de token já estiver em andamento por outra requisição, reutiliza a Promise (Mutex)
+  if (refreshPromiseMutex) {
+    console.log("[Bling OAuth] Reutilizando renovação de token já em andamento (Mutex)...");
+    return refreshPromiseMutex;
   }
+
+  // Executa a renovação isolada com trava
+  refreshPromiseMutex = (async () => {
+    try {
+      console.log(`[Bling OAuth] Access token expirado ou prestes a expirar. Iniciando renovação automática...`);
+      console.log(`[Bling OAuth] Refresh token atual: ${maskToken(config.refreshToken)}`);
+
+      const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+
+      const response = await axios.post<BlingTokenResponse>(
+        BLING_TOKEN_URL,
+        new URLSearchParams({
+          grant_type: "refresh_token",
+          refresh_token: config.refreshToken,
+        }).toString(),
+        {
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            Authorization: `Basic ${credentials}`,
+            "enable-jwt": "1",
+          },
+        }
+      );
+
+      const { access_token, refresh_token, expires_in } = response.data;
+      const expiresAt = new Date(Date.now() + (expires_in - 60) * 1000);
+
+      await prisma.blingConfig.update({
+        where: { id: 1 },
+        data: {
+          accessToken: access_token,
+          refreshToken: refresh_token || config.refreshToken,
+          expiresAt: expiresAt,
+        },
+      });
+
+      console.log(`[Bling OAuth] Token renovado com sucesso. Novo vencimento: ${expiresAt.toISOString()}`);
+      return access_token;
+    } catch (err: any) {
+      const status = err.response?.status;
+      const data = err.response?.data;
+      const msg = `HTTP ${status || "Desconhecido"}: ${JSON.stringify(data || err.message)}`;
+      console.error("[Bling OAuth Error] Erro ao renovar o access token:", msg);
+      return null;
+    } finally {
+      refreshPromiseMutex = null;
+    }
+  })();
+
+  return refreshPromiseMutex;
 }
 
 /**
@@ -194,10 +217,13 @@ export async function syncClientToBling(client: {
   phone: string;
   email: string;
   address: string;
+  rg?: string; // Tabela Client.rg armazena IE/RG no banco local
+  stateInscription?: string;
+  icmsContribuinteType?: string;
 }): Promise<number> {
   const token = await getAccessToken();
   if (!token) {
-    throw new Error("NÃ£o foi possÃ­vel obter um token vÃ¡lido para o Bling.");
+    throw new Error("Não foi possível obter um token válido para o Bling.");
   }
 
   const documentSanitized = client.cpfCnpj.replace(/\D/g, "");
@@ -223,70 +249,115 @@ export async function syncClientToBling(client: {
     }
   }
 
-  // Parse Address string
-  let logradouro = "NÃ£o informado";
+  // Parse Address string de forma resiliente
+  let logradouro = "Não informado";
   let numero = "S/N";
   let bairro = "Centro";
-  let cep = "01000000";
-  let municipio = "RibeirÃ£o Preto";
+  let cep = "14000000"; // Fallback para Ribeirão Preto genérico
+  let municipio = "Ribeirão Preto";
   let uf = "SP";
 
-  try {
-    // 1. Extract UF and Municipio using regex
-    const cityMatch = client.address.match(/([^,\-]+)\/([A-Za-z]{2})/);
-    if (cityMatch) {
-      municipio = cityMatch[1].trim();
-      uf = cityMatch[2].trim().toUpperCase().substring(0, 2);
-    }
+  const rawAddress = client.address || "";
 
-    // 2. Extract CEP
-    const cepMatch = client.address.match(/\b\d{2}\.?\d{3}-?\d{3}\b/);
+  try {
+    // 1. Extrair CEP (formato XXXXX-XXX ou XXXXXXXX)
+    const cepMatch = rawAddress.match(/\b\d{5}-?\d{3}\b/);
     if (cepMatch) {
       cep = cepMatch[0].replace(/\D/g, "");
     }
 
-    // 3. Extract Logradouro and Numero
-    const commaParts = client.address.split(",");
+    // 2. Extrair UF/Estado (ex: "SP", "/SP", "- SP")
+    const ufMatch = rawAddress.match(/[\/,\-\s]\s*([A-Za-z]{2})\b/);
+    if (ufMatch) {
+      const parsedUf = ufMatch[1].toUpperCase();
+      // Simples lista de UFs válidas brasileiras
+      const validUfs = ["AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"];
+      if (validUfs.includes(parsedUf)) {
+        uf = parsedUf;
+      }
+    }
+
+    // 3. Extrair Município
+    const cityMatch = rawAddress.match(/([^,\-\/]+)\s*[\/-]\s*([A-Za-z]{2})\b/);
+    if (cityMatch) {
+      const potentialCity = cityMatch[1].trim();
+      if (potentialCity.length > 2 && potentialCity.toUpperCase() !== "BAIRRO") {
+        municipio = potentialCity;
+      }
+    }
+
+    // 4. Extrair Logradouro e Número dividindo por vírgula
+    const commaParts = rawAddress.split(",");
     if (commaParts.length > 0) {
-      logradouro = commaParts[0].trim();
+      logradouro = commaParts[0].trim() || "Não informado";
+      
+      // Tentar encontrar número na segunda parte
       if (commaParts.length > 1) {
-        const potentialNum = commaParts[1].trim().split(" ")[0].replace(/\D/g, "");
-        if (potentialNum && potentialNum.length > 0) {
-          numero = potentialNum;
+        const potentialNumSec = commaParts[1].trim().split(/\s+/)[0];
+        const numClean = potentialNumSec.replace(/\D/g, "");
+        if (numClean && numClean.length > 0) {
+          numero = numClean;
+        } else if (potentialNumSec.toLowerCase() === "s/n" || potentialNumSec.toLowerCase() === "sn") {
+          numero = "S/N";
         }
       }
     }
 
-    // 4. Extract Bairro
-    const bairroMatch = client.address.match(/Bairro\s+([^,\-]+)/i);
+    // 5. Extrair Bairro
+    const bairroMatch = rawAddress.match(/Bairro\s+([^,\-\/]+)/i) || rawAddress.match(/-\s*([^,\-\/]+)\s*-/);
     if (bairroMatch) {
       bairro = bairroMatch[1].trim();
+    } else if (commaParts.length > 2) {
+      bairro = commaParts[2].trim().split(/[\-\/]/)[0].trim() || "Centro";
     }
   } catch (e) {
-    // fallback
+    console.warn("[Bling Sync] Erro no parsing de endereço, utilizando fallbacks:", e);
   }
 
-  // Sanitization: Remove non-digits from phone (fix double backslash regex escape)
-    const phoneSanitized = client.phone.replace(/\D/g, "").substring(0, 11);
+  // Sanitização final de telefones e nomes
+  const phoneSanitized = client.phone.replace(/\D/g, "").substring(0, 11);
   const nameSanitized = client.name.trim().replace(/\s{2,}/g, " ");
+
+  // Classificação do Tipo de Contribuinte de ICMS
+  // 1 - Contribuinte ICMS (PJ com IE)
+  // 2 - Contribuinte isento (PJ sem IE / Isento)
+  // 9 - Não Contribuinte (PF ou PJ sem IE)
+  let contribuinte = "9";
+  let ie = "";
+
+  if (documentSanitized.length > 11) {
+    // Jurídica
+    const ieRaw = (client.rg || client.stateInscription || "").trim().toUpperCase();
+    if (ieRaw && ieRaw !== "ISENTO" && ieRaw !== "ISENTA" && !ieRaw.includes("ISENTO")) {
+      contribuinte = "1";
+      ie = ieRaw.replace(/\D/g, ""); // Apenas números para a IE
+    } else if (ieRaw === "ISENTO" || ieRaw === "ISENTA") {
+      contribuinte = "2";
+    } else {
+      contribuinte = "9";
+    }
+  } else {
+    // Física
+    contribuinte = "9";
+  }
 
   const payload = {
     nome: nameSanitized,
-    // Bling V3 expects "Física" or "Juridica" literally as the 'tipo' field
     tipo: documentSanitized.length > 11 ? "Juridica" : "Física",
     cnpj: documentSanitized,
     email: client.email || "",
     telefone: phoneSanitized,
     situacao: "A",
-    contribuinte: "9", // NÃ£o contribuinte
+    contribuinte: client.icmsContribuinteType || contribuinte,
+    inscricaoEstadual: ie || client.stateInscription || "",
     endereco: {
       geral: {
-        endereco: logradouro || "NÃ£o informado",
-        numero: numero || "S/N",
-        bairro: bairro || "Centro",
-        cep: cep.replace(/\D/g, "") || "01000000",
-        municipio: municipio || "Nao informado",
-        uf: uf || "SP"
+        endereco: logradouro,
+        numero: numero,
+        bairro: bairro,
+        cep: cep,
+        municipio: municipio,
+        uf: uf
       }
     }
   };
@@ -317,7 +388,7 @@ export async function syncClientToBling(client: {
       }));
       const newId = response.data?.data?.id;
       if (!newId) {
-        throw new Error("Resposta do Bling nÃ£o retornou o ID do contato criado.");
+        throw new Error("Resposta do Bling não retornou o ID do contato criado.");
       }
       return newId;
     } catch (err: any) {
@@ -327,6 +398,8 @@ export async function syncClientToBling(client: {
   }
 }
 
+
+
 /**
  * Sincroniza uma peÃ§a (produto) local com o Bling V3.
  * Retorna o ID do produto no Bling.
@@ -335,7 +408,7 @@ export async function syncPartToBling(part: {
   name: string;
   code: string;
   price: number;
-}): Promise<number> {
+}, cfopCalculado?: string, cstIcms?: string): Promise<number> {
   const token = await getAccessToken();
   if (!token) {
     throw new Error("NÃ£o foi possÃ­vel obter um token vÃ¡lido para o Bling.");
@@ -359,7 +432,7 @@ export async function syncPartToBling(part: {
     console.error(`[Bling Sync] Erro ao buscar produto por cÃ³digo ${part.code}:`, err.message);
   }
 
-  const payload = {
+  const payload: BlingProductPayload = {
     nome: part.name,
     codigo: part.code,
     preco: part.price,
@@ -367,6 +440,13 @@ export async function syncPartToBling(part: {
     formato: "S", // Simples
     situacao: "A"
   };
+
+  if (cfopCalculado || cstIcms) {
+    payload.tributacao = {
+      cfop: cfopCalculado,
+      csosn: cstIcms
+    };
+  }
 
   if (productId) {
     console.log(`[Bling Sync] Atualizando produto existente ID: ${productId}`);

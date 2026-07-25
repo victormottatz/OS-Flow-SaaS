@@ -23,6 +23,11 @@ async function main() {
 
   let createdCount = 0;
   let updatedCount = 0;
+  let ignoredCount = 0;
+  let invalidCount = 0;
+  let duplicatedCount = 0;
+
+  const startTime = Date.now();
 
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
@@ -45,12 +50,15 @@ async function main() {
     
     const address = `${endereco}, ${numero} - ${bairro}, ${cidade}/${uf} - CEP: ${cep}`.replace(/undefined/g, '').trim();
 
-    if (!name) continue;
+    if (!name) {
+      invalidCount++;
+      continue;
+    }
 
     const clientPhone = cleanPhone(phone);
     const clientCpf = cpfCnpj.replace(/\D/g, '');
 
-    // Tentar encontrar um cliente já existente pelo legacyId, cpfCnpj, telefone ou nome (parte do nome)
+    // Nova ordem de prioridade: legacyId -> CPF/CNPJ -> Telefone -> Nome Completo
     let existingClient = null;
 
     if (legacyId) {
@@ -71,22 +79,27 @@ async function main() {
 
     if (!existingClient) {
       existingClient = await prisma.client.findFirst({
-        where: { name: { contains: name.split(' ')[0], mode: 'insensitive' } }
+        where: { name: { equals: name, mode: 'insensitive' } }
       });
     }
 
     if (existingClient) {
       // Atualiza com o legacyId e outros dados se estiver vazio
-      await prisma.client.update({
-        where: { id: existingClient.id },
-        data: {
-          legacyId: legacyId || existingClient.legacyId,
-          cpfCnpj: existingClient.cpfCnpj === '' ? cpfCnpj : existingClient.cpfCnpj,
-          phone: existingClient.phone === '' ? phone : existingClient.phone,
-          address: existingClient.address === '' ? address : existingClient.address,
-        }
-      });
-      updatedCount++;
+      const wasUpdated = existingClient.legacyId !== legacyId || existingClient.cpfCnpj === '' || existingClient.phone === '' || existingClient.address === '';
+      if (wasUpdated) {
+        await prisma.client.update({
+          where: { id: existingClient.id },
+          data: {
+            legacyId: legacyId || existingClient.legacyId,
+            cpfCnpj: existingClient.cpfCnpj === '' ? cpfCnpj : existingClient.cpfCnpj,
+            phone: existingClient.phone === '' ? phone : existingClient.phone,
+            address: existingClient.address === '' ? address : existingClient.address,
+          }
+        });
+        updatedCount++;
+      } else {
+        duplicatedCount++;
+      }
     } else {
       // Criar novo cliente
       await prisma.client.create({
@@ -101,11 +114,20 @@ async function main() {
       });
       createdCount++;
     }
+
+    // Pequeno atraso para não estourar pool de conexão
+    await new Promise(r => setTimeout(r, 10));
   }
 
-  console.log(`\nImportação de clientes concluída!`);
-  console.log(`Novos clientes criados: ${createdCount}`);
+  const endTime = Date.now();
+  const timeElapsed = ((endTime - startTime) / 1000).toFixed(2);
+
+  console.log(`\n=== Import Summary ===`);
+  console.log(`Clientes criados: ${createdCount}`);
   console.log(`Clientes atualizados: ${updatedCount}`);
+  console.log(`Clientes duplicados (já existiam e sem att): ${duplicatedCount}`);
+  console.log(`Clientes inválidos (sem nome): ${invalidCount}`);
+  console.log(`Tempo total: ${timeElapsed} segundos`);
 }
 
 main()

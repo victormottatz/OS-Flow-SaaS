@@ -1,0 +1,225 @@
+Total tables: 96
+Tables: AGENDA, BANCOS, BOLETOS, CALIBRACAO, CALIBRACAO_ENSAIOS, CALIBRACAO_PADRAO_ENSAIOS, CARTOES, CHAMADO, CHEQUES, CLIENTES, CLIENTES_ENDERECO, CONFIG, CONTAS_CONTAS, CONTAS_DEPOSITOS, CONTRATOS, CONVENIO_BOLETO, CONVENIO_CARTAO, CST_CBSIBS, DESP_FIXAS, DESPESAS, ECF_CFG, EMPRESAS, EQUIP_CONTRATO, ESQUEMAS, FCAIXA, FORNECEDORES, FORNECER_DE, FUNCIONARIOS, IBPT, ICMS_UF, ITEM_REGRAFISCAL, ITENS, ITENS_ENTRADA, ITENS_FABRICA, ITENS_FOTOS_ML, ITENS_ORCA, ITENS_PEDIDO, ITENS_SAIDA, ITENS_SERIAL, ITENS_VENDA, LOGUSER, NFE_INUTILIZADAS, NFE_NUMERO_LOTE, NFE_UF_CIDADE, NOTAS_CCE, NOTAS_CFOP, NOTAS_COMPRAS, NOTAS_COMPRAS_COREL, NOTAS_COMPRAS_DFE, NOTAS_COMPRAS_FATURAS, NOTAS_CONTADOR, NOTAS_DESERVICOS, NOTAS_FATURAS, NOTASFISCAIS, NOTASFISCAIS_CONSUMIDOR, NOTASFISCAIS_CONSUMIDOR_FORMAS, NOTASFISCAIS_CONSUMIDOR_ITENS, NOTASFISCAIS_FORMAS, NOTASFISCAIS_ITENS_DETALHA, NOTASFISCAIS_ITENS_RASTREABILIDADE, NOTASFISCAIS_refNFP, NOTASFISCAIS_RETENCOES, NOTASFISCAIS_XML, ORCA_PADRAO, ORCA_PADRAO_ITENS, ORCAS, ORDEMS, ORDEMS_CONTATO, ORDEMS_DESLOCAMENTO, ORDEMS_INSUMOS, OS_PECAS, OS_SERVICOS, OSPERSON, PARAMETROS, PEDIDOS, PLANOS, SAT_FISCAL_CONSUMIDOR, SAT_FISCAL_CONSUMIDOR_FORMAS, SAT_FISCAL_CONSUMIDOR_ITENS, SERVICOS, SITUACOES, Switchboard Items, tblRegrasIndOp, TMP_REGRA_NFCE, VENDAS, CALIBRACAO_PADRAO, CONTAS, COORD_IMPRES, EQUIPAMENTOS, ICMS_EMP, ITENS_NOTA, LCP116, NOTAS_COMPRAS_ITENS, NOTASFISCAIS_ENDERECOS, REGRAFISCAL, USUARIOS
+
+
+=== TABELAS DE ESTOQUE/PEÇAS/PRODUTOS ENCONTRADAS: ITENS_PEDIDO, OS_PECAS, PEDIDOS ===
+
+
+========================================
+TABLE: ITENS_PEDIDO (72 rows, 17 columns)
+========================================
+ALL COLUMNS: CODIGO, ITEM, PEDIDO, COD_ITEM, NOME, UN, QTD, VLR, IPI, ICMS, VALOR, COD_FAB, vFrete, vSeguro, vDesconto, vOutros, SERIAIS_IN
+
+  --- Row 1 ---
+    CODIGO: (number) = 380
+    ITEM: (number) = 443
+    PEDIDO: (number) = 115
+    COD_ITEM: (string) = "268"
+    NOME: (string) = "CABO MANGA COM PLUGUE INJETADO CANETA LASER 904 VET"
+    UN: (string) = "UN"
+    QTD: (number) = 2
+    VLR: (string) = "31.9050"
+    IPI: (number) = 0
+    ICMS: (number) = 0
+    VALOR: (string) = "63.8100"
+    COD_FAB: (string) = "000268"
+    vFrete: (string) = "20.0000"
+    vSeguro: (string) = "0.0000"
+    vDesconto: (string) = "0.0000"
+    vOutros: (string) = "0.0000"
+    SERIAIS_IN: (object) = null
+
+  --- Row 2 ---
+    CODIGO: (number) = 381
+    ITEM: (number) = 443
+    PEDIDO: (number) = 115
+    COD_ITEM: (string) = "000268"
+    NOME: (string) = "CABO MANGA COM PLUGUE INJETADO CANETA LASER 904 VET"
+    UN: (string) = "UN"
+    QTD: (number) = 2
+    VLR: (string) = "31.9000"
+    IPI: (number) = 0
+    ICMS: (number) = 0
+    VALOR: (string) = "63.8000"
+    COD_FAB: (string) = "000268"
+    vFrete: (string) = "20.0000"
+    vSeguro: (string) = "0.0000"
+    vDesconto: (string) = "0.0000"
+    vOutros: (string) = "0.0000"
+    SERIAIS_IN: (object) = null
+
+========================================
+TABLE: OS_PECAS (2019 rows, 14 columns)
+========================================
+ALL COLUMNS: CODIGO, DESCRICAO, COD_PECA, VALOR, TECNICO, QTD, DIA, COD_OS, CUSTO, SERIAIS_IN, XPED, NITEMPED, COD_BAIXA, LOTES
+
+  --- Row 1 ---
+    CODIGO: (number) = 1
+    DESCRICAO: (string) = "toroides "
+    COD_PECA: (number) = 0
+    VALOR: (string) = "430.0000"
+    TECNICO: (number) = 1
+    QTD: (number) = 1
+    DIA: (object) = "2023-02-23T10:46:28.000Z"
+    COD_OS: (number) = 230016
+    CUSTO: (string) = "0.0000"
+    SERIAIS_IN: (object) = null
+    XPED: (object) = null
+    NITEMPED: (object) = null
+    COD_BAIXA: (number) = 0
+    LOTES: (string) = ""
+
+  --- Row 2 ---
+    CODIGO: (number) = 2
+    DESCRICAO: (string) = "placa"
+    COD_PECA: (number) = 0
+    VALOR: (string) = "930.0000"
+    TECNICO: (number) = 1
+    QTD: (number) = 1
+    DIA: (object) = "2023-09-11T09:51:46.000Z"
+    COD_OS: (number) = 230290
+    CUSTO: (string) = "0.0000"
+    SERIAIS_IN: (object) = null
+    XPED: (object) = null
+    NITEMPED: (object) = null
+    COD_BAIXA: (number) = 0
+    LOTES: (string) = ""
+
+========================================
+TABLE: PEDIDOS (151 rows, 30 columns)
+========================================
+ALL COLUMNS: CODIGO, TIPO, DATA_PEDIDO, FORMA_PGTO, ENTREGA_DIA, ENTREGA_CONTATO, ENTREGA_ENDERECO, ENTREGA_CIDADE, ENTREGA_UF, ENTREGA_CEP, ENTREGA_TELEFONE, DATA_ENVIO, OBSERVACOES, FORNECEDOR, TRANSPORTADOR, VENDEDOR, VALOR, SITUACAO, DESCONTO, NUM_NF_PED, V_FRETE, V_SEGURO, V_OUTROS, PED_PRAZO, PED_FORMA, PED_OBS, CHAVE_NFE_COMPRA, PAGAMENTO_PEDIDO, PAGAMENTO_FRETE, RASTREIO_FRETE
+
+  --- Row 1 ---
+    CODIGO: (number) = 1
+    TIPO: (boolean) = false
+    DATA_PEDIDO: (object) = "2024-10-14T00:00:00.000Z"
+    FORMA_PGTO: (string) = "0 - Pagamento à vista - 15=Boleto Bancário\r\n\r\nFATURA   |  VENCTO  |   VALOR   | DUPLICATA No |\r\nF-1328   |14/10/2024|     940,01| 1\r\n"
+    ENTREGA_DIA: (object) = "2024-10-14T00:00:00.000Z"
+    ENTREGA_CONTATO: (object) = null
+    ENTREGA_ENDERECO: (object) = null
+    ENTREGA_CIDADE: (object) = null
+    ENTREGA_UF: (object) = null
+    ENTREGA_CEP: (object) = null
+    ENTREGA_TELEFONE: (object) = null
+    DATA_ENVIO: (object) = "2024-10-14T00:00:00.000Z"
+    OBSERVACOES: (string) = "Pedido gerado automaticamente via importação de XML de NFe, chave:35241002968092000123550010000680561454127596, de 14/10/24, Comprador:\r\n\r\nNosso Pedido: 041332 Coleta N: SEDEX REVERSO - ALIQ IPI RED A ZERO CONF DEC. 11.158/2022 DA TIPI - ICMS-ST DEC. 54251 DE 17/04/09, SECAO XXXII, ART. 313-Z17, ITEM 17 - ROLO COM 100 MTS / *ROLOS COM 50 MTS / **ROLOS COM 25 MTS - PERCENTUAL APROX. DOS TRIBUTOS = 30,75% PARA NCM 85.44.49.00 / 33,42% PARA NCM 85.44.20.00 - FONTE IBPT End. Entrega: RUA JULIO PRESTES, 648 - Bairro: JARDIM SUMARE - Complemento:  - Mun: RIBEIRAO PRETO - UF: SP - CEP: 14025060 "
+    FORNECEDOR: (number) = 5
+    TRANSPORTADOR: (number) = 6
+    VENDEDOR: (object) = null
+    VALOR: (string) = "940.0100"
+    SITUACAO: (number) = 2
+    DESCONTO: (string) = "0.0000"
+    NUM_NF_PED: (string) = "68056"
+    V_FRETE: (string) = "0.0000"
+    V_SEGURO: (string) = "0.0000"
+    V_OUTROS: (string) = "0.0000"
+    PED_PRAZO: (string) = "7 (sete) dias úteis."
+    PED_FORMA: (string) = ""
+    PED_OBS: (string) = ""
+    CHAVE_NFE_COMPRA: (string) = "35241002968092000123550010000680561454127596"
+    PAGAMENTO_PEDIDO: (number) = 0
+    PAGAMENTO_FRETE: (number) = 0
+    RASTREIO_FRETE: (string) = ""
+
+  --- Row 2 ---
+    CODIGO: (number) = 2
+    TIPO: (boolean) = false
+    DATA_PEDIDO: (object) = "2024-10-09T00:00:00.000Z"
+    FORMA_PGTO: (string) = "1 - Pagamento à prazo - 15=Boleto Bancário\r\n\r\nFATURA   |  VENCTO  |   VALOR   | DUPLICATA No |\r\nF-1342   |06/11/2024|     473,50| 1\r\n"
+    ENTREGA_DIA: (object) = "2024-10-09T00:00:00.000Z"
+    ENTREGA_CONTATO: (object) = null
+    ENTREGA_ENDERECO: (object) = null
+    ENTREGA_CIDADE: (object) = null
+    ENTREGA_UF: (object) = null
+    ENTREGA_CEP: (object) = null
+    ENTREGA_TELEFONE: (object) = null
+    DATA_ENVIO: (object) = "2024-10-09T00:00:00.000Z"
+    OBSERVACOES: (string) = "Pedido gerado automaticamente via importação de XML de NFe, chave:35241000133418000177550010001999901767434757, de 09/10/24, Comprador:\r\n\r\nSubst.Tributaria conf. convenio ICMS 142/18- Acesse a Carta de Notificacao/Notification Letter aqui: https://tinyurl.com/yck7cxfbPedido do Cliente: 53610881 "
+    FORNECEDOR: (number) = 4
+    TRANSPORTADOR: (number) = 0
+    VENDEDOR: (object) = null
+    VALOR: (string) = "473.5000"
+    SITUACAO: (number) = 2
+    DESCONTO: (string) = "0.0000"
+    NUM_NF_PED: (string) = "199990"
+    V_FRETE: (string) = "0.0000"
+    V_SEGURO: (string) = "0.0000"
+    V_OUTROS: (string) = "0.0000"
+    PED_PRAZO: (string) = "7 (sete) dias úteis."
+    PED_FORMA: (string) = ""
+    PED_OBS: (string) = ""
+    CHAVE_NFE_COMPRA: (string) = "35241000133418000177550010001999901767434757"
+    PAGAMENTO_PEDIDO: (number) = 0
+    PAGAMENTO_FRETE: (number) = 0
+    RASTREIO_FRETE: (string) = ""
+
+
+=== TABELAS FISCAIS/TRIBUTÁRIAS: ICMS_UF, ITEM_REGRAFISCAL, SAT_FISCAL_CONSUMIDOR, SAT_FISCAL_CONSUMIDOR_FORMAS, SAT_FISCAL_CONSUMIDOR_ITENS, tblRegrasIndOp, TMP_REGRA_NFCE, ICMS_EMP, REGRAFISCAL ===
+
+TABLE: ICMS_UF (0 rows, 4 columns)
+  COLUMNS: CODIGO, COD_ITEM, UF, ICMS
+
+TABLE: ITEM_REGRAFISCAL (0 rows, 3 columns)
+  COLUMNS: IDPK, ITEM_IDPK, REGRAFISCAL_IDPK
+
+TABLE: SAT_FISCAL_CONSUMIDOR (0 rows, 45 columns)
+  COLUMNS: CODIGO, PRODUCAO, SERIE, NATUREZA, EMISSAO, DEST_NOME, DEST_EMAIL, DEST_CPF_CNPJ, DEST_IDESTRANGEIRO, DEST_xLgr, DEST_CPL, DEST_nro, DEST_xBairro, DEST_cMun, DEST_xMun, DEST_UF, DEST_CEP, DEST_cPais, DEST_xPais, DEST_fone, FRETE_MODALIDADE, FRETE_xCNPJ_CPF, FRETE_xNome, NFC_PRONTA, NFC_infCpl, TOTAL_vBC, TOTAL_vICMS, TOTAL_vBCST, TOTAL_vST, TOTAL_vProd, TOTAL_vFrete, TOTAL_vSeg, TOTAL_vDesc, TOTAL_vII, TOTAL_vIPI, TOTAL_vPIS, TOTAL_vCOFINS, TOTAL_vOutro, TOTAL_vNF, TERMINAL, CHAVE_NFC, PROTOCOLO, PROTOCOLO_CANCELA, SITUACAO, DATA_CADASTRO
+
+TABLE: SAT_FISCAL_CONSUMIDOR_FORMAS (0 rows, 7 columns)
+  COLUMNS: CODIGO, COD_NFCE, FORMA, VALOR, DATA_CADASTRO, CNPJ_OPERADORA, tBand
+
+TABLE: SAT_FISCAL_CONSUMIDOR_ITENS (0 rows, 59 columns)
+  COLUMNS: CODIGO, COD_NFCE, ITEM_TIPO, ITEM_CEAN, ITEM_CPROD, ITEM_XPROD, ITEM_INF_ADIC, ITEM_CFOP, ITEM_NCM, ITEM_UNCOM, ITEM_QCOM, ITEM_VPROD, ITEM_VOUTRO, ITEM_VFRETE, ITEM_VSEG, ITEM_VDESC, ITEM_vTotTrib, ITEM_ORIGEM, ITEM_CST, DATA_CADASTRO, ITEM_ICMS_modBC, ITEM_ICMS_pRedBC, ITEM_ICMS_vBC, ITEM_ICMS_pICMS, ITEM_ICMS_vICMS, ITEM_ICMS_vICMSDeson, ITEM_ICMS_motDesICMS, ITEM_ICMS_modBCST, ITEM_ICMS_pMVAST, ITEM_ICMS_pRedBCST, ITEM_ICMS_vBCST, ITEM_ICMS_pICMSST, ITEM_ICMS_vICMSST, ITEM_pFCP, ITEM_vFCP, ITEM_vBCFCP, ITEM_vBCFCPST, ITEM_pFCPST, ITEM_vFCPST, ITEM_pST, ITEM_vBCFCPSTRet, ITEM_pFCPSTRet, ITEM_vFCPSTRet, ITEM_cProdANP, ITEM_CEST, ITEM_PIS_CST, ITEM_PIS_vBC, ITEM_PIS_pPIS, ITEM_PIS_vPIS, ITEM_COFINS_CST, ITEM_COFINS_vBC, ITEM_COFINS_pCOFINS, ITEM_COFINS_vCOFINS, vICMSSubstituto, pRedBCEfet, vBCEfet, pICMSEfet, vICMSEfet, cBenef
+
+TABLE: tblRegrasIndOp (26 rows, 7 columns)
+  COLUMNS: CodigoIndOp, Artigo, Inciso, TipoOperacao, LocalConsideradoOperacao, CaracteristicaFornecimento, LocalIdentificado
+  Sample Row 1:
+    CodigoIndOp = "020101"
+    Artigo = "Art. 11"
+    Inciso = null
+    TipoOperacao = "Operação com bem imóvel, bem imaterial, inclusive direito, relacionada a bem imóvel"
+    LocalConsideradoOperacao = "o local onde o imóvel estiver situado"
+    CaracteristicaFornecimento = "Execução de operações com bem imóvel, bem imaterial, inclusive direito, relacionado a bem imóvel"
+    LocalIdentificado = "Localidade do imóvel (1)"
+
+TABLE: TMP_REGRA_NFCE (0 rows, 2 columns)
+  COLUMNS: ITEM_IDPK, REGRAFISCAL_IDPK
+
+TABLE: ICMS_EMP (27 rows, 31 columns)
+  COLUMNS: CODIGO, UF, ICMS, UF_AC, UF_AL, UF_AM, UF_AP, UF_BA, UF_CE, UF_DF, UF_ES, UF_GO, UF_MA, UF_MT, UF_MS, UF_MG, UF_PA, UF_PB, UF_PR, UF_PE, UF_PI, UF_RN, UF_RS, UF_RJ, UF_RO, UF_RR, UF_SC, UF_SP, UF_SE, UF_TO, FCP
+  Sample Row 1:
+    CODIGO = 105
+    UF = "AC"
+    ICMS = 17
+    UF_AC = "17.0000"
+    UF_AL = "12.0000"
+    UF_AM = "12.0000"
+    UF_AP = "12.0000"
+    UF_BA = "12.0000"
+    UF_CE = "12.0000"
+    UF_DF = "12.0000"
+    UF_ES = "12.0000"
+    UF_GO = "12.0000"
+    UF_MA = "12.0000"
+    UF_MT = "12.0000"
+    UF_MS = "12.0000"
+    UF_MG = "12.0000"
+    UF_PA = "12.0000"
+    UF_PB = "12.0000"
+    UF_PR = "12.0000"
+    UF_PE = "12.0000"
+    UF_PI = "12.0000"
+    UF_RN = "12.0000"
+    UF_RS = "12.0000"
+    UF_RJ = "12.0000"
+    UF_RO = "12.0000"
+    UF_RR = "12.0000"
+    UF_SC = "12.0000"
+    UF_SP = "12.0000"
+    UF_SE = "12.0000"
+    UF_TO = "12.0000"
+    FCP = "0.0000"
+
+TABLE: REGRAFISCAL (0 rows, 12 columns)
+  COLUMNS: IDPK, CST_CBSIBS_IDPK, DESCRICAO, AliquotaCBS, AliquotaIBSUF, AliquotaIBSMun, BC_ICMS_IBSCBD, tpOperGov, pRedAliqCBS, pRedAliqIBSUF, pRedAliqIBSMun, OBS_REFORMA

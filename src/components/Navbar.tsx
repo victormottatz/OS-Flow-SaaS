@@ -167,6 +167,20 @@ export default function Navbar({
               {!isSidebarMinimized && <span className="animate-fadein">Suporte</span>}
             </button>
             <button
+              onClick={() => {
+                if(window.confirm("Deseja sair para acessar a conta de outro funcionário?")) {
+                  onLogout();
+                }
+              }}
+              title={isSidebarMinimized ? "Trocar de Conta" : ""}
+              className={`flex items-center text-xs font-bold text-slate-450 hover:text-indigo-400 transition cursor-pointer ${
+                isSidebarMinimized ? "justify-center p-2 rounded-xl hover:bg-slate-800/40" : "gap-3 px-4 py-2 w-full"
+              }`}
+            >
+              <span className="material-symbols-outlined text-[18px]">switch_account</span>
+              {!isSidebarMinimized && <span className="animate-fadein">Trocar de Conta</span>}
+            </button>
+            <button
               onClick={onLogout}
               title={isSidebarMinimized ? "Sair da Conta" : ""}
               className={`flex items-center text-xs font-bold text-slate-450 hover:text-red-400 transition cursor-pointer ${
@@ -215,8 +229,8 @@ export default function Navbar({
             className="flex items-center gap-2.5 cursor-pointer hover:opacity-80 transition-opacity"
             title="Ver configurações de perfil"
           >
-            <div className="text-right hidden sm:block">
-              <p className="font-bold text-xs text-slate-800 leading-none">{user.name}</p>
+            <div className="text-right flex flex-col items-end">
+              <p className="font-bold text-xs text-slate-800 leading-none max-w-[80px] sm:max-w-[150px] truncate">{user.name}</p>
               <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
                 {user.role === UserRole.OWNER ? "Administrador" : 
                  user.role === UserRole.ATTENDANT ? "Atendimento" : 
@@ -226,7 +240,7 @@ export default function Navbar({
             
             <img 
               alt="Avatar do Técnico" 
-              className="w-9 h-9 rounded-xl border border-slate-200 object-cover shadow-sm bg-slate-50"
+              className="w-9 h-9 shrink-0 rounded-xl border border-slate-200 object-cover shadow-sm bg-slate-50"
               src={user.avatarUrl || FALLBACK_AVATAR}
             />
           </div>

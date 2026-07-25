@@ -34,14 +34,19 @@ export abstract class BaseImportAgent {
 
     // 1. Find Client by exact name or phone
     const clientPhone = cleanPhone(row.phone);
-    let client = await this.prisma.client.findFirst({
-      where: {
-        OR: [
-          { name: { contains: clientNameUpper.split(' ')[0], mode: 'insensitive' } },
-          ...(clientPhone ? [{ phone: { contains: clientPhone } }] : [])
-        ]
-      }
-    });
+    let client = null;
+
+    if (clientPhone) {
+      client = await this.prisma.client.findFirst({
+        where: { phone: { contains: clientPhone } }
+      });
+    }
+
+    if (!client && row.clientName) {
+      client = await this.prisma.client.findFirst({
+        where: { name: { equals: row.clientName, mode: 'insensitive' } }
+      });
+    }
 
     if (!client) {
       // Regra de Cliente Ausente: Sinalizar para confirmação visual

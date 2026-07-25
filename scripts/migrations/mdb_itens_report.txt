@@ -1,0 +1,794 @@
+
+============================================================
+TABLE: ITENS (587 rows, 83 columns)
+============================================================
+ALL COLUMNS:
+  CODIGO
+  NUMERO
+  NOME
+  GRUPO
+  TIPO
+  MEDICAMENTO
+  MATERIA_PRIMA
+  UNIDADE
+  NUMERO_FAB
+  ESTOQUE_MIN
+  ESTOQUE_IDEAL
+  ESTOQUE_DISP
+  CUSTO
+  LUCRO
+  VENDA
+  DOLAR
+  ABC
+  FORNECEDOR
+  LOCAL
+  GAVETA
+  Utilizado
+  FABRICANTE
+  SUBGRUPO
+  NOMECURTO
+  P_FOTO
+  NC_MERCOSUL
+  C_CLAS_FISCAL
+  C_CST_O
+  C_CST
+  C_ECF_ALIQ
+  C_ICMS
+  C_ICMS_ST
+  C_IPI
+  C_RED_BCALC
+  ULTIMA_VENDA
+  ULTIMA_COMPRA
+  PODE_DESCONTO
+  DESCONTO_MAX
+  PESO_BRUTO
+  PESO_LIQUIDO
+  CFOP_INUF
+  CFOP_OUTUF
+  ARQUIVADO
+  PRECO_1
+  PRECO_2
+  GTIN
+  USA_SERIAL
+  vTotTrib
+  NUMERO_ORIGINAL
+  cANP
+  CST_IPI_PIS_COFINS
+  VALIDADE
+  USA_LOTES
+  cBenef
+  indEscala
+  CNPJFab
+  PIS_ALIQ
+  COFINS_ALIQ
+  IPI_cEnq
+  CEST
+  vBCSTRet
+  vICMSSTRet
+  pST
+  vICMSSubstituto
+  pRedBCEfet
+  vBCEfet
+  pICMSEfet
+  vICMSEfet
+  ML_category_id
+  ML_video_id
+  ML_warranty
+  ML_Description
+  ITEM_REGRAFISCAL_IDPK
+  REGRAFISCALPDV_IDPK
+  CST_CBSIBS
+  ClassTrib_CBSIBS
+  AliquotaCBS
+  AliquotaIBSUF
+  AliquotaIBSMun
+  pRedAliqCBS
+  pRedAliqIBSUF
+  pRedAliqIBSMun
+  OBS_REFORMA
+
+  --- Row 1 ---
+    CODIGO: (number) = 1
+    NUMERO: (string) = "3029078"
+    NOME: (string) = "ACABAMENTO EMBORRACHADO DA PROBE                                                 NS: 0000000045"
+    GRUPO: (string) = ""
+    TIPO: (string) = "C"
+    MEDICAMENTO: (string) = "N"
+    MATERIA_PRIMA: (string) = "N"
+    UNIDADE: (string) = "UN"
+    NUMERO_FAB: (string) = "3029078"
+    ESTOQUE_MIN: (number) = 0
+    ESTOQUE_IDEAL: (number) = 0
+    ESTOQUE_DISP: (number) = 22
+    CUSTO: (string) = "10.0100"
+    LUCRO: (string) = "150.0500"
+    VENDA: (string) = "25.0300"
+    DOLAR: (string) = "4.9800"
+    ABC: (number) = 0
+    FORNECEDOR: (number) = 23
+    LOCAL: (string) = ""
+    GAVETA: (string) = ""
+    Utilizado: (string) = ""
+    FABRICANTE: (string) = ""
+    SUBGRUPO: (string) = ""
+    NOMECURTO: (object) = null
+    P_FOTO: (object) = null
+    NC_MERCOSUL: (string) = "39269090"
+    C_CLAS_FISCAL: (object) = null
+    C_CST_O: (string) = "0"
+    C_CST: (string) = "000"
+    C_ECF_ALIQ: (object) = null
+    C_ICMS: (number) = 0
+    C_ICMS_ST: (number) = 0
+    C_IPI: (number) = 0
+    C_RED_BCALC: (number) = 100
+    ULTIMA_VENDA: (object) = null
+    ULTIMA_COMPRA: (object) = null
+    PODE_DESCONTO: (boolean) = true
+    DESCONTO_MAX: (number) = 100
+    PESO_BRUTO: (number) = 0
+    PESO_LIQUIDO: (number) = 0
+    CFOP_INUF: (string) = "5102"
+    CFOP_OUTUF: (string) = "6102"
+    ARQUIVADO: (boolean) = false
+    PRECO_1: (string) = "0.0000"
+    PRECO_2: (string) = "0.0000"
+    GTIN: (object) = null
+    USA_SERIAL: (boolean) = false
+    vTotTrib: (string) = "0.0000"
+    NUMERO_ORIGINAL: (string) = ""
+    cANP: (object) = null
+    CST_IPI_PIS_COFINS: (object) = null
+    VALIDADE: (object) = null
+    USA_LOTES: (boolean) = false
+    cBenef: (object) = null
+    indEscala: (string) = "S"
+    CNPJFab: (object) = null
+    PIS_ALIQ: (string) = "0.0000"
+    COFINS_ALIQ: (string) = "0.0000"
+    IPI_cEnq: (string) = "999"
+    CEST: (object) = null
+    vBCSTRet: (string) = "0.0000"
+    vICMSSTRet: (string) = "0.0000"
+    pST: (string) = "0.0000"
+    vICMSSubstituto: (string) = "0.0000"
+    pRedBCEfet: (string) = "0.0000"
+    vBCEfet: (string) = "0.0000"
+    pICMSEfet: (string) = "0.0000"
+    vICMSEfet: (string) = "0.0000"
+    ML_category_id: (object) = null
+    ML_video_id: (object) = null
+    ML_warranty: (object) = null
+    ML_Description: (object) = null
+    ITEM_REGRAFISCAL_IDPK: (number) = 0
+    REGRAFISCALPDV_IDPK: (number) = 0
+    CST_CBSIBS: (string) = "0"
+    ClassTrib_CBSIBS: (string) = "1"
+    AliquotaCBS: (string) = "0.0000"
+    AliquotaIBSUF: (string) = "0.0000"
+    AliquotaIBSMun: (string) = "0.0000"
+    pRedAliqCBS: (string) = "0.0000"
+    pRedAliqIBSUF: (string) = "0.0000"
+    pRedAliqIBSMun: (string) = "0.0000"
+    OBS_REFORMA: (object) = null
+
+  --- Row 2 ---
+    CODIGO: (number) = 2
+    NUMERO: (string) = "3067013"
+    NOME: (string) = "ACABAMENTO EMBORRACHADO PARA APLICADOR CLUSTER"
+    GRUPO: (string) = ""
+    TIPO: (string) = "C"
+    MEDICAMENTO: (string) = "N"
+    MATERIA_PRIMA: (string) = "N"
+    UNIDADE: (string) = "UN"
+    NUMERO_FAB: (string) = "3067013"
+    ESTOQUE_MIN: (number) = 0
+    ESTOQUE_IDEAL: (number) = 0
+    ESTOQUE_DISP: (number) = 6
+    CUSTO: (string) = "23.2000"
+    LUCRO: (string) = "158.1897"
+    VENDA: (string) = "59.9000"
+    DOLAR: (string) = "11.9100"
+    ABC: (number) = 0
+    FORNECEDOR: (number) = 23
+    LOCAL: (string) = ""
+    GAVETA: (string) = ""
+    Utilizado: (string) = ""
+    FABRICANTE: (string) = ""
+    SUBGRUPO: (string) = ""
+    NOMECURTO: (object) = null
+    P_FOTO: (object) = null
+    NC_MERCOSUL: (string) = "84149039"
+    C_CLAS_FISCAL: (object) = null
+    C_CST_O: (string) = "0"
+    C_CST: (string) = "000"
+    C_ECF_ALIQ: (object) = null
+    C_ICMS: (number) = 0
+    C_ICMS_ST: (number) = 0
+    C_IPI: (number) = 0
+    C_RED_BCALC: (number) = 100
+    ULTIMA_VENDA: (object) = "2026-05-26T00:00:00.000Z"
+    ULTIMA_COMPRA: (object) = null
+    PODE_DESCONTO: (boolean) = true
+    DESCONTO_MAX: (number) = 100
+    PESO_BRUTO: (number) = 0
+    PESO_LIQUIDO: (number) = 0
+    CFOP_INUF: (string) = "5102"
+    CFOP_OUTUF: (string) = "6102"
+    ARQUIVADO: (boolean) = false
+    PRECO_1: (string) = "0.0000"
+    PRECO_2: (string) = "0.0000"
+    GTIN: (object) = null
+    USA_SERIAL: (boolean) = false
+    vTotTrib: (string) = "0.0000"
+    NUMERO_ORIGINAL: (string) = ""
+    cANP: (string) = ""
+    CST_IPI_PIS_COFINS: (object) = null
+    VALIDADE: (object) = null
+    USA_LOTES: (boolean) = false
+    cBenef: (object) = null
+    indEscala: (string) = "S"
+    CNPJFab: (object) = null
+    PIS_ALIQ: (string) = "0.0000"
+    COFINS_ALIQ: (string) = "0.0000"
+    IPI_cEnq: (string) = "999"
+    CEST: (object) = null
+    vBCSTRet: (string) = "0.0000"
+    vICMSSTRet: (string) = "0.0000"
+    pST: (string) = "0.0000"
+    vICMSSubstituto: (string) = "0.0000"
+    pRedBCEfet: (string) = "0.0000"
+    vBCEfet: (string) = "0.0000"
+    pICMSEfet: (string) = "0.0000"
+    vICMSEfet: (string) = "0.0000"
+    ML_category_id: (object) = null
+    ML_video_id: (object) = null
+    ML_warranty: (object) = null
+    ML_Description: (object) = null
+    ITEM_REGRAFISCAL_IDPK: (number) = 0
+    REGRAFISCALPDV_IDPK: (number) = 0
+    CST_CBSIBS: (string) = "0"
+    ClassTrib_CBSIBS: (string) = "1"
+    AliquotaCBS: (string) = "0.0000"
+    AliquotaIBSUF: (string) = "0.0000"
+    AliquotaIBSMun: (string) = "0.0000"
+    pRedAliqCBS: (string) = "0.0000"
+    pRedAliqIBSUF: (string) = "0.0000"
+    pRedAliqIBSMun: (string) = "0.0000"
+    OBS_REFORMA: (object) = null
+
+============================================================
+TABLE: ITENS_ENTRADA (1034 rows, 10 columns)
+============================================================
+ALL COLUMNS:
+  CODIGO
+  COD_ITEM
+  NOVOS
+  NOTA
+  TOTAL
+  DATA_INC
+  FUNCIONARIO
+  OBSERVACAO
+  FORNECEDOR
+  PED_NUM
+
+  --- Row 1 ---
+    CODIGO: (number) = 1
+    COD_ITEM: (number) = 1
+    NOVOS: (number) = 22
+    NOTA: (object) = null
+    TOTAL: (string) = "0.0000"
+    DATA_INC: (object) = "2026-05-20T13:24:33.000Z"
+    FUNCIONARIO: (number) = 0
+    OBSERVACAO: (string) = "INCLUSÃO DO ITEM NO ESTOQUE COM : 22 UN(Imp. via excel)"
+    FORNECEDOR: (number) = 0
+    PED_NUM: (number) = 0
+
+  --- Row 2 ---
+    CODIGO: (number) = 2
+    COD_ITEM: (number) = 2
+    NOVOS: (number) = 5
+    NOTA: (object) = null
+    TOTAL: (string) = "0.0000"
+    DATA_INC: (object) = "2026-05-20T13:24:33.000Z"
+    FUNCIONARIO: (number) = 0
+    OBSERVACAO: (string) = "INCLUSÃO DO ITEM NO ESTOQUE COM : 5 UN(Imp. via excel)"
+    FORNECEDOR: (number) = 0
+    PED_NUM: (number) = 0
+
+============================================================
+TABLE: ITENS_SAIDA (185 rows, 11 columns)
+============================================================
+ALL COLUMNS:
+  CODIGO
+  COD_ITEM
+  QTD_SAI
+  FUNCIONARIO
+  NOTA
+  OS
+  OP
+  OBSERVACAO
+  DATA_SAIDA
+  NATUREZA
+  OV
+
+  --- Row 1 ---
+    CODIGO: (number) = 1
+    COD_ITEM: (number) = 134
+    QTD_SAI: (number) = 1
+    FUNCIONARIO: (number) = 1
+    NOTA: (string) = "203"
+    OS: (number) = 0
+    OP: (number) = 0
+    OBSERVACAO: (string) = "Retirada OS nº 234709\r\nUtilizada em 19/05/2026 (De:3 P:2)"
+    DATA_SAIDA: (object) = "2026-05-21T13:23:29.000Z"
+    NATUREZA: (number) = 0
+    OV: (number) = 0
+
+  --- Row 2 ---
+    CODIGO: (number) = 2
+    COD_ITEM: (number) = 317
+    QTD_SAI: (number) = 1
+    FUNCIONARIO: (number) = 1
+    NOTA: (string) = "203"
+    OS: (number) = 0
+    OP: (number) = 0
+    OBSERVACAO: (string) = "Retirada OS nº 234709\r\nUtilizada em 19/05/2026 (De:107 P:106)"
+    DATA_SAIDA: (object) = "2026-05-21T13:23:29.000Z"
+    NATUREZA: (number) = 0
+    OV: (number) = 0
+
+============================================================
+TABLE: ITENS_SERIAL (0 rows, 10 columns)
+============================================================
+ALL COLUMNS:
+  CODIGO
+  COD_ITEM
+  SERIAL
+  COD_NF_ENTRADA
+  COD_NF_SAIDA
+  COD_ENTRADA
+  COD_SAIDA
+  DATA_MOVIM
+  BAIXADO
+  OBS
+
+============================================================
+TABLE: ITENS_FABRICA (0 rows, 9 columns)
+============================================================
+ALL COLUMNS:
+  CODIGO
+  KIT_CODIGO
+  ITEM_CODIGO
+  BARCODE
+  DESCRICAO
+  QTD
+  CUSTO
+  VENDA
+  SERVICO
+
+============================================================
+TABLE: NOTAS_COMPRAS_ITENS (536 rows, 46 columns)
+============================================================
+ALL COLUMNS:
+  CODIGO
+  NOTA_ID
+  CPROD
+  CEAN
+  XPROD
+  NCM
+  CFOP
+  UCOM
+  QCOM
+  VUNCOM
+  VPROD
+  VFRETE
+  VSEG
+  VDESC
+  VOUTRO
+  ORIG
+  CST_ICMS
+  CST_PIS
+  CST_COFINS
+  CST_IPI
+  DI_NDI
+  DI_DDI
+  DI_XLOCDESEMB
+  DI_UFDESEMB
+  DI_CEXPORTADOR
+  COD_NAT
+  XPROD_COMPL
+  NAT_BC_CRED
+  COD_CTA
+  COD_CCUS
+  EX_IPI
+  IND_NAT_FRT
+  IPI_VBC
+  IPI_PIPI
+  IPI_VIPI
+  ICMS_VBC
+  ICMS_PICMS
+  ICMS_VICMS
+  ICMS_VBCST
+  ICMS_PICMSST
+  ICMS_VICMSST
+  COD_INTERNO
+  XPED
+  NITEMPED
+  SERIAIS_IN
+  EAN
+
+  --- Row 1 ---
+    CODIGO: (number) = 1
+    NOTA_ID: (number) = 1
+    CPROD: (string) = "04042202"
+    CEAN: (string) = ""
+    XPROD: (string) = "CABO AFT 4 X 0,30 MM2 - (BT) FLEXIVEL EMBORRACHADO"
+    NCM: (string) = "85444900"
+    CFOP: (string) = "1102"
+    UCOM: (string) = "RL"
+    QCOM: (string) = "2.0000"
+    VUNCOM: (string) = "436.2400"
+    VPROD: (string) = "872.4800"
+    VFRETE: (string) = "0.0000"
+    VSEG: (string) = "0.0000"
+    VDESC: (string) = "0.0000"
+    VOUTRO: (string) = "0.0000"
+    ORIG: (number) = 0
+    CST_ICMS: (string) = "10"
+    CST_PIS: (string) = "01"
+    CST_COFINS: (string) = "01"
+    CST_IPI: (string) = "51"
+    DI_NDI: (string) = ""
+    DI_DDI: (object) = null
+    DI_XLOCDESEMB: (string) = ""
+    DI_UFDESEMB: (string) = ""
+    DI_CEXPORTADOR: (string) = ""
+    COD_NAT: (object) = null
+    XPROD_COMPL: (string) = ""
+    NAT_BC_CRED: (object) = null
+    COD_CTA: (object) = null
+    COD_CCUS: (object) = null
+    EX_IPI: (string) = ""
+    IND_NAT_FRT: (string) = "3"
+    IPI_VBC: (string) = "0.0000"
+    IPI_PIPI: (string) = "0.0000"
+    IPI_VIPI: (string) = "0.0000"
+    ICMS_VBC: (string) = "872.4800"
+    ICMS_PICMS: (string) = "18.0000"
+    ICMS_VICMS: (string) = "157.0500"
+    ICMS_VBCST: (string) = "1247.6500"
+    ICMS_PICMSST: (string) = "18.0000"
+    ICMS_VICMSST: (string) = "67.5300"
+    COD_INTERNO: (number) = 3
+    XPED: (string) = ""
+    NITEMPED: (object) = null
+    SERIAIS_IN: (object) = null
+    EAN: (string) = "7898429985939"
+
+  --- Row 2 ---
+    CODIGO: (number) = 2
+    NOTA_ID: (number) = 2
+    CPROD: (string) = "03015117"
+    CEAN: (string) = ""
+    XPROD: (string) = "SOQUETE CIRCULAR 9 VIAS                                                          Ns: 0000000051"
+    NCM: (string) = "85366990"
+    CFOP: (string) = "1102"
+    UCOM: (string) = "UN"
+    QCOM: (string) = "10.0000"
+    VUNCOM: (string) = "38.4000"
+    VPROD: (string) = "384.0000"
+    VFRETE: (string) = "0.0000"
+    VSEG: (string) = "0.0000"
+    VDESC: (string) = "0.0000"
+    VOUTRO: (string) = "0.0000"
+    ORIG: (number) = 0
+    CST_ICMS: (string) = "10"
+    CST_PIS: (string) = "01"
+    CST_COFINS: (string) = "01"
+    CST_IPI: (string) = "50"
+    DI_NDI: (string) = ""
+    DI_DDI: (object) = null
+    DI_XLOCDESEMB: (string) = ""
+    DI_UFDESEMB: (string) = ""
+    DI_CEXPORTADOR: (string) = ""
+    COD_NAT: (object) = null
+    XPROD_COMPL: (string) = ""
+    NAT_BC_CRED: (object) = null
+    COD_CTA: (object) = null
+    COD_CCUS: (object) = null
+    EX_IPI: (string) = ""
+    IND_NAT_FRT: (string) = "3"
+    IPI_VBC: (string) = "384.0000"
+    IPI_PIPI: (string) = "9.7500"
+    IPI_VIPI: (string) = "37.4400"
+    ICMS_VBC: (string) = "384.0000"
+    ICMS_PICMS: (string) = "18.0000"
+    ICMS_VICMS: (string) = "69.1200"
+    ICMS_VBCST: (string) = "627.9500"
+    ICMS_PICMSST: (string) = "18.0000"
+    ICMS_VICMSST: (string) = "43.9100"
+    COD_INTERNO: (number) = 4
+    XPED: (string) = ""
+    NITEMPED: (object) = null
+    SERIAIS_IN: (object) = null
+    EAN: (string) = ""
+
+============================================================
+TABLE: NOTAS_COMPRAS (177 rows, 90 columns)
+============================================================
+ALL COLUMNS:
+  CODIGO
+  CFOP
+  IDE_INDPAG
+  IDE_MOD
+  IDE_SERIE
+  IDE_NNF
+  IDE_DEMI
+  IDE_DSAIENT
+  IDE_HSAIENT
+  IDE_CMUNFG
+  IDE_CHNFE
+  IDE_INDEMIT
+  IDE_CODCONS
+  DESTEMIT_CODIGO
+  DESTEMIT_CNPJCPF
+  DESTEMIT_XNOME
+  DESTEMIT_XFANT
+  DESTEMIT_XLGR
+  DESTEMIT_NRO
+  DESTEMIT_XCLP
+  DESTEMIT_XBAIRRO
+  DESTEMIT_CMUN
+  DESTEMIT_XMUN
+  DESTEMIT_UF
+  DESTEMIT_CEP
+  DESTEMIT_CPAIS
+  DESTEMIT_XPAIS
+  DESTEMIT_FONE
+  DESTEMIT_IE
+  DESTEMIT_IEST
+  DESTEMIT_IM
+  DESTEMIT_CNAE
+  DESTEMIT_CRT
+  DESTEMIT_ISUF
+  DESTEMIT_EMAIL
+  TRANSP_CODIGO
+  TRANSP_MODFRETE
+  TRANSP_CNPJCPF
+  TRANSP_XNOME
+  TRANSP_IE
+  TRANSP_XBAIRRO
+  TRANSP_XLGR
+  TRANSP_CPAIS
+  TRANSP_CMUN
+  TRANSP_XMUN
+  TRANSP_NRO
+  TRANSP_UF
+  TRANSP_PLACA
+  TRANSP_RNTC
+  TRANSP_QVOL
+  TRANSP_ESP
+  TRANSP_MARCA
+  TRANSP_NVOL
+  TRANSP_PESOL
+  TRANSP_PESOB
+  TOTAL_VBC
+  TOTAL_VICMS
+  TOTAL_VBCST
+  TOTAL_VST
+  TOTAL_VPROD
+  TOTAL_VFRETE
+  TOTAL_VSEG
+  TOTAL_VDESC
+  TOTAL_VII
+  TOTAL_VIPI
+  TOTAL_VPIS_ST
+  TOTAL_VPIS
+  TOTAL_VCOFINS
+  TOTAL_VCOFINS_ST
+  TOTAL_VOUTRO
+  TOTAL_ISS
+  TOTAL_VNF
+  NFREF_REFNF
+  REFECF_MOD
+  REFECF_NECF
+  REFECF_NCOO
+  REFECF_TPIMP
+  REFECF_TPEMIS
+  REFECF_FINNFE
+  REFECF_PROCEMI
+  REFECF_VERPROC
+  REFECF_DHCONT
+  REFECF_XJUST
+  FAT_INDTIT
+  OBS_COMPRADOR
+  IDE_NATOP
+  MANIFESTO
+  IDE_CODSIT
+  infCpl
+  infAdFisco
+
+  --- Row 1 ---
+    CODIGO: (number) = 1
+    CFOP: (string) = "1102"
+    IDE_INDPAG: (number) = 0
+    IDE_MOD: (string) = "55"
+    IDE_SERIE: (string) = "001"
+    IDE_NNF: (number) = 68056
+    IDE_DEMI: (object) = "2024-10-14T00:00:00.000Z"
+    IDE_DSAIENT: (object) = "2024-10-14T00:00:00.000Z"
+    IDE_HSAIENT: (object) = null
+    IDE_CMUNFG: (number) = 3550308
+    IDE_CHNFE: (string) = "35241002968092000123550010000680561454127596"
+    IDE_INDEMIT: (object) = null
+    IDE_CODCONS: (object) = null
+    DESTEMIT_CODIGO: (number) = 0
+    DESTEMIT_CNPJCPF: (string) = "02968092000123"
+    DESTEMIT_XNOME: (string) = "JOMACLER IND. E COM. DE CONDUT. ELETRICOS LTDA.             "
+    DESTEMIT_XFANT: (string) = "JOMACLER IND. E COM. DE CONDUT. ELETRICOS LTDA.             "
+    DESTEMIT_XLGR: (string) = "RUA YUCATAN                                                 "
+    DESTEMIT_NRO: (string) = "65                                                          "
+    DESTEMIT_XCLP: (string) = "ANEXOS 69 E 79                                              "
+    DESTEMIT_XBAIRRO: (string) = "VILA REGENTE FEIJO                                          "
+    DESTEMIT_CMUN: (number) = 3550308
+    DESTEMIT_XMUN: (string) = "SAO PAULO                                                   "
+    DESTEMIT_UF: (string) = "SP"
+    DESTEMIT_CEP: (string) = "03347110"
+    DESTEMIT_CPAIS: (number) = 1058
+    DESTEMIT_XPAIS: (string) = "BRASIL                                                      "
+    DESTEMIT_FONE: (string) = "1129669095"
+    DESTEMIT_IE: (string) = "115152318112  "
+    DESTEMIT_IEST: (object) = null
+    DESTEMIT_IM: (string) = "               "
+    DESTEMIT_CNAE: (string) = "       "
+    DESTEMIT_CRT: (number) = 3
+    DESTEMIT_ISUF: (object) = null
+    DESTEMIT_EMAIL: (string) = "                                                                                                                                                                                                        "
+    TRANSP_CODIGO: (number) = 6
+    TRANSP_MODFRETE: (number) = 1
+    TRANSP_CNPJCPF: (string) = "66922741000138"
+    TRANSP_XNOME: (string) = "ECT - EMP. BRAS. DE CORREIOS E TELEGRAFO                    "
+    TRANSP_IE: (string) = "ISENTO                                                      "
+    TRANSP_XBAIRRO: (string) = "                                                            "
+    TRANSP_XLGR: (string) = "AG: 424441 - AGF VL. INVERNADA                              "
+    TRANSP_CPAIS: (number) = 1058
+    TRANSP_CMUN: (number) = 0
+    TRANSP_XMUN: (string) = "                                                            "
+    TRANSP_NRO: (object) = null
+    TRANSP_UF: (string) = "  "
+    TRANSP_PLACA: (string) = "        "
+    TRANSP_RNTC: (string) = "                    "
+    TRANSP_QVOL: (string) = "1.0000"
+    TRANSP_ESP: (string) = "CAIXA                                                       "
+    TRANSP_MARCA: (string) = "                                                            "
+    TRANSP_NVOL: (string) = "                                                            "
+    TRANSP_PESOL: (string) = "9.0000"
+    TRANSP_PESOB: (string) = "9.0000"
+    TOTAL_VBC: (string) = "872.4800"
+    TOTAL_VICMS: (string) = "157.0500"
+    TOTAL_VBCST: (string) = "1247.6500"
+    TOTAL_VST: (string) = "67.5300"
+    TOTAL_VPROD: (string) = "872.4800"
+    TOTAL_VFRETE: (string) = "0.0000"
+    TOTAL_VSEG: (string) = "0.0000"
+    TOTAL_VDESC: (string) = "0.0000"
+    TOTAL_VII: (string) = "0.0000"
+    TOTAL_VIPI: (string) = "0.0000"
+    TOTAL_VPIS_ST: (string) = "0.0000"
+    TOTAL_VPIS: (string) = "4.6500"
+    TOTAL_VCOFINS: (string) = "21.4600"
+    TOTAL_VCOFINS_ST: (string) = "0.0000"
+    TOTAL_VOUTRO: (string) = "0.0000"
+    TOTAL_ISS: (string) = "0.0000"
+    TOTAL_VNF: (string) = "940.0100"
+    NFREF_REFNF: (string) = "                                            "
+    REFECF_MOD: (string) = "  "
+    REFECF_NECF: (number) = 0
+    REFECF_NCOO: (number) = 0
+    REFECF_TPIMP: (number) = 1
+    REFECF_TPEMIS: (number) = 1
+    REFECF_FINNFE: (number) = 1
+    REFECF_PROCEMI: (number) = 0
+    REFECF_VERPROC: (string) = "12.1.2310 | 3.0     "
+    REFECF_DHCONT: (object) = null
+    REFECF_XJUST: (string) = "                                                                                                                                                                                                                                                              "
+    FAT_INDTIT: (string) = "15"
+    OBS_COMPRADOR: (number) = 0
+    IDE_NATOP: (string) = "VEND.PROD.ESTABELEC."
+    MANIFESTO: (object) = null
+    IDE_CODSIT: (string) = "00"
+    infCpl: (string) = "Nosso Pedido: 041332 Coleta N: SEDEX REVERSO - ALIQ IPI RED A ZERO CONF DEC. 11.158/2022 DA TIPI - ICMS-ST DEC. 54251 DE 17/04/09, SECAO XXXII, ART. 313-Z17, ITEM 17 - ROLO COM 100 MTS / *ROLOS COM 50 MTS / **ROLOS COM 25 MTS - PERCENTUAL APROX. DOS TRIBUTOS = 30,75% PARA NCM 85.44.49.00 / 33,42% PARA NCM 85.44.20.00 - FONTE IBPT End. Entrega: RUA JULIO PRESTES, 648 - Bairro: JARDIM SUMARE - Complemento:  - Mun: RIBEIRAO PRETO - UF: SP - CEP: 14025060 "
+    infAdFisco: (string) = " "
+
+  --- Row 2 ---
+    CODIGO: (number) = 2
+    CFOP: (string) = "1102"
+    IDE_INDPAG: (number) = 1
+    IDE_MOD: (string) = "55"
+    IDE_SERIE: (string) = "001"
+    IDE_NNF: (number) = 199990
+    IDE_DEMI: (object) = "2024-10-09T00:00:00.000Z"
+    IDE_DSAIENT: (object) = "2024-10-09T00:00:00.000Z"
+    IDE_HSAIENT: (object) = null
+    IDE_CMUNFG: (number) = 3501905
+    IDE_CHNFE: (string) = "35241000133418000177550010001999901767434757"
+    IDE_INDEMIT: (object) = null
+    IDE_CODCONS: (object) = null
+    DESTEMIT_CODIGO: (number) = 0
+    DESTEMIT_CNPJCPF: (string) = "00133418000177"
+    DESTEMIT_XNOME: (string) = "IBRAMED INDUSTRIA BRASILEIRA DE EQUIPAMENTOS MEDICOS LTDA   "
+    DESTEMIT_XFANT: (string) = "IBRAMED INDUSTRIA BRASILEIRA DE EQUIPAMENTOS MEDICOS LTDA   "
+    DESTEMIT_XLGR: (string) = "AV.DR.CARLOS BURGOS                                         "
+    DESTEMIT_NRO: (string) = "2800                                                        "
+    DESTEMIT_XCLP: (string) = "                                                            "
+    DESTEMIT_XBAIRRO: (string) = "JARDIM ITALIA                                               "
+    DESTEMIT_CMUN: (number) = 3501905
+    DESTEMIT_XMUN: (string) = "AMPARO                                                      "
+    DESTEMIT_UF: (string) = "SP"
+    DESTEMIT_CEP: (string) = "13901080"
+    DESTEMIT_CPAIS: (number) = 1058
+    DESTEMIT_XPAIS: (string) = "BRASIL                                                      "
+    DESTEMIT_FONE: (string) = "1938179633"
+    DESTEMIT_IE: (string) = "168032530117  "
+    DESTEMIT_IEST: (object) = null
+    DESTEMIT_IM: (string) = "               "
+    DESTEMIT_CNAE: (string) = "       "
+    DESTEMIT_CRT: (number) = 3
+    DESTEMIT_ISUF: (object) = null
+    DESTEMIT_EMAIL: (string) = "                                                                                                                                                                                                        "
+    TRANSP_CODIGO: (number) = 0
+    TRANSP_MODFRETE: (number) = 1
+    TRANSP_CNPJCPF: (string) = "              "
+    TRANSP_XNOME: (string) = "SEDEX - EMPRESA BRASIL. CORREIOS TELEGR.                    "
+    TRANSP_IE: (string) = "209263344110                                                "
+    TRANSP_XBAIRRO: (string) = "                                                            "
+    TRANSP_XLGR: (string) = "RUA COMENDADOR GUIMARAES, 121                               "
+    TRANSP_CPAIS: (number) = 1058
+    TRANSP_CMUN: (number) = 3501905
+    TRANSP_XMUN: (string) = "AMPARO                                                      "
+    TRANSP_NRO: (object) = null
+    TRANSP_UF: (string) = "SP"
+    TRANSP_PLACA: (string) = "        "
+    TRANSP_RNTC: (string) = "                    "
+    TRANSP_QVOL: (string) = "1.0000"
+    TRANSP_ESP: (string) = "CAIXA                                                       "
+    TRANSP_MARCA: (string) = "                                                            "
+    TRANSP_NVOL: (string) = "                                                            "
+    TRANSP_PESOL: (string) = "0.0000"
+    TRANSP_PESOB: (string) = "0.0000"
+    TOTAL_VBC: (string) = "390.7200"
+    TOTAL_VICMS: (string) = "70.3300"
+    TOTAL_VBCST: (string) = "638.9400"
+    TOTAL_VST: (string) = "44.6800"
+    TOTAL_VPROD: (string) = "390.7200"
+    TOTAL_VFRETE: (string) = "0.0000"
+    TOTAL_VSEG: (string) = "0.0000"
+    TOTAL_VDESC: (string) = "0.0000"
+    TOTAL_VII: (string) = "0.0000"
+    TOTAL_VIPI: (string) = "38.1000"
+    TOTAL_VPIS_ST: (string) = "0.0000"
+    TOTAL_VPIS: (string) = "5.2900"
+    TOTAL_VCOFINS: (string) = "24.3500"
+    TOTAL_VCOFINS_ST: (string) = "0.0000"
+    TOTAL_VOUTRO: (string) = "0.0000"
+    TOTAL_ISS: (string) = "0.0000"
+    TOTAL_VNF: (string) = "473.5000"
+    NFREF_REFNF: (string) = "                                            "
+    REFECF_MOD: (string) = "  "
+    REFECF_NECF: (number) = 0
+    REFECF_NCOO: (number) = 0
+    REFECF_TPIMP: (number) = 1
+    REFECF_TPEMIS: (number) = 1
+    REFECF_FINNFE: (number) = 1
+    REFECF_PROCEMI: (number) = 0
+    REFECF_VERPROC: (string) = "12.1.2310 | 3.0     "
+    REFECF_DHCONT: (object) = null
+    REFECF_XJUST: (string) = "                                                                                                                                                                                                                                                              "
+    FAT_INDTIT: (string) = "15"
+    OBS_COMPRADOR: (number) = 0
+    IDE_NATOP: (string) = "VENDA MERC. RECEB.TERC. SUBST.TRIBUT. CONT. SUBSTITUTO"
+    MANIFESTO: (object) = null
+    IDE_CODSIT: (string) = "00"
+    infCpl: (string) = "Subst.Tributaria conf. convenio ICMS 142/18- Acesse a Carta de Notificacao/Notification Letter aqui: https://tinyurl.com/yck7cxfbPedido do Cliente: 53610881 "
+    infAdFisco: (string) = " - Acesse a Carta de Notificacao/Notification Letter aqui: https://tinyurl.com/yck7cxfb"

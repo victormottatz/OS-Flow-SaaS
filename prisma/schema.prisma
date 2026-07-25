@@ -1,39 +1,11 @@
-datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
-}
-
 generator client {
   provider = "prisma-client-js"
 }
 
-enum UserRole {
-  OWNER
-  ADMIN
-  SUPERVISOR
-  EDITOR
-  ATTENDANT
-  TECHNICIAN
-  FINANCIAL
-}
-
-enum OSStatus {
-  ORCAMENTO
-  AGUARDANDO_AVALIACAO
-  AGUARDANDO_AUTORIZACAO
-  AGUARDANDO_PECA
-  EM_MANUTENCAO
-  PRONTO_RETIRADA
-  PAGO_PRONTO_RETIRADA
-  FINALIZADO
-}
-
-enum OSClosingReason {
-  REPARO_CONCLUIDO
-  ORCAMENTO_RECUSADO
-  DESCARTE_CLIENTE_RETIRA
-  DESCARTE_OFICINA
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -42,107 +14,294 @@ model User {
   email        String   @unique
   passwordHash String
   role         UserRole @default(EDITOR)
+  createdAt    DateTime @default(now())
   permissions  String[] @default([])
-  phone        String?
   avatarUrl    String?
   bio          String?
-  createdAt    DateTime @default(now())
+  phone        String?
 
   @@map("users")
 }
 
 model Client {
-  id        String         @id @default(uuid())
-  legacyId  String?        @unique
-  name      String
-  cpfCnpj   String
-  phone     String
-  email     String
-  address   String
-  deletedAt DateTime?
-  devices   Device[]
-  orders    OrdemServico[]
+  id           String         @id @default(uuid())
+  name         String
+  cpfCnpj      String
+  phone        String
+  email        String
+  address      String
+  deletedAt    DateTime?
+  legacyId     String?        @unique
+  birthday     DateTime?
+  blocked      Boolean        @default(false)
+  city         String         @default("")
+  clientType   Int            @default(0)
+  complement   String         @default("")
+  contact      String         @default("")
+  createdAt    DateTime?
+  creditLimit  String         @default("0")
+  fantasyName  String         @default("")
+  gender       Int            @default(0)
+  lastSaleAt   DateTime?
+  neighborhood String         @default("")
+  nfeEmail     String         @default("")
+  notes        String         @default("")
+  number       String         @default("")
+  phone2       String         @default("")
+  rg           String         @default("")
+  sellerCode   Int            @default(0)
+  state        String         @default("")
+  status       Int            @default(1)
+  suframa      String         @default("")
+  website      String         @default("")
+  zipCode      String         @default("")
+  devices      Device[]
+  orders       OrdemServico[]
 
   @@map("clients")
 }
 
 model Device {
   id                String         @id @default(uuid())
-  legacyId          String?        @unique
-  clientId          String
-  client            Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId          String?
   type              String
   brand             String
   model             String
   serialNumber      String         @default("Sem Série")
   description       String         @default("Sem observações.")
   deletedAt         DateTime?
-  orders            OrdemServico[]
-  notes             DeviceNote[]
-  warrantyExpiresAt DateTime?
+  legacyId          String?        @unique
   lastMaintenanceAt DateTime?
+  warrantyExpiresAt DateTime?
   acquisitionDate   DateTime?
+  clientLegacyId    String?
+  notes             String         @default("")
+  patrimony         String         @default("")
+  status            Int            @default(1)
+  deviceNotes       DeviceNote[]
+  client            Client?        @relation(fields: [clientId], references: [id])
+  orders            OrdemServico[]
 
   @@map("devices")
+}
+
+model ServiceItem {
+  id           String    @id @default(uuid())
+  legacyId     String?   @unique
+  osLegacyId   String?
+  description  String    @default("")
+  total        String    @default("0")
+  startDate    DateTime?
+  endDate      DateTime?
+  technicianId Int       @default(0)
+  type         Int       @default(0)
+  serviceId    Int       @default(0)
+  quantity     String    @default("1")
+  freight      String    @default("0")
+  insurance    String    @default("0")
+  otherValue   String    @default("0")
+  nfNumber     String?
+  cost         String    @default("0")
+
+  @@map("service_items")
+}
+
+model PartUsage {
+  id           String    @id @default(uuid())
+  legacyId     String?   @unique
+  osLegacyId   String?
+  description  String    @default("")
+  partLegacyId Int       @default(0)
+  value        String    @default("0")
+  cost         String    @default("0")
+  technicianId Int       @default(0)
+  quantity     Int       @default(1)
+  date         DateTime?
+  batchInfo    String?
+  serialInfo   String?
+
+  @@map("part_usages")
+}
+
+model Payment {
+  id               String    @id @default(uuid())
+  legacyId         String?   @unique
+  type             String    @default("R")
+  clientLegacyId   String?
+  providerLegacyId Int       @default(0)
+  dueDate          DateTime?
+  paidDate         DateTime?
+  paid             String    @default("N")
+  value            String    @default("0")
+  interest         String    @default("0")
+  discount         String    @default("0")
+  documentDate     DateTime?
+  reference        String    @default("")
+  installment      String?
+  paymentMethod    Int       @default(0)
+  cashAmount       String    @default("0")
+  checkAmount      String    @default("0")
+  cardAmount       String    @default("0")
+  boletoAmount     String    @default("0")
+  changeAmount     String    @default("0")
+  accountPlan      Int       @default(0)
+  currentAccount   Int       @default(0)
+  notes            String    @default("")
+  collectionNotes  String    @default("")
+  cfop             String    @default("0")
+
+  @@map("payments")
 }
 
 model Part {
   id                  String    @id @default(uuid())
   name                String
   code                String    @unique
-  sku                 String?
-  barcode             String?
   stock               Int       @default(0)
-  stockMin            Int       @default(0)
-  reserved            Int       @default(0)
   cost                Float     @default(0.0)
   price               Float     @default(0.0)
-  requiresSerial      Boolean   @default(false)
-  supplier            String?
+  barcode             String?
+  createdAt           DateTime  @default(now())
+  deletedAt           DateTime?
   location            String?
   notaFiscalEntradaId String?
-  deletedAt           DateTime?
-  createdAt           DateTime  @default(now())
+  requiresSerial      Boolean   @default(false)
+  sku                 String?
+  stockMin            Int       @default(0)
+  supplier            String?
+  reserved            Int       @default(0)
+
+  // --- Identificação e Classificação ---
+  unit                String    @default("UN")
+  gtin                String?
+  ncm                 String?
+  cest                String?
+  manufacturerCode    String?
+  manufacturer        String?
+  cnpjFab             String?
+  partGroup           String?
+  partSubgroup        String?
+  weightGross         Float     @default(0.0)
+  weightNet           Float     @default(0.0)
+
+  // --- Tributação ICMS ---
+  cstOrigem           String    @default("0")
+  cstIcms             String    @default("000")
+  icmsAliq            Float     @default(0.0)
+  icmsStAliq          Float     @default(0.0)
+  icmsRedBc           Float     @default(100.0)
+
+  // --- CFOP ---
+  cfopIntraEstadual   String    @default("5102")
+  cfopInterEstadual   String    @default("6102")
+
+  // --- IPI ---
+  ipiAliq             Float     @default(0.0)
+  ipiEnquadramento    String    @default("999")
+
+  // --- PIS / COFINS ---
+  pisAliq             Float     @default(0.0)
+  cofinsAliq          Float     @default(0.0)
+
+  // --- Outros Fiscais ---
+  totalTributos       Float     @default(0.0)
+  cBenef              String?
+  indEscala           String    @default("S")
+
+  // --- ICMS-ST Retido ---
+  bcStRetido          Float     @default(0.0)
+  icmsStRetido        Float     @default(0.0)
+  aliqSt              Float     @default(0.0)
+  icmsSubstituto      Float     @default(0.0)
+  redBcEfet           Float     @default(0.0)
+  bcEfet              Float     @default(0.0)
+  icmsEfetAliq        Float     @default(0.0)
+  icmsEfetValor       Float     @default(0.0)
 
   @@map("parts")
 }
 
+
 model OrdemServico {
   id                   String               @id @default(uuid())
   osNumber             String               @unique
-  clientId             String
-  client               Client               @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  deviceId             String
-  device               Device               @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-  reportedDefect       String
+  clientId             String?
+  deviceId             String?
+  reportedDefect       String               @default("")
   accessoriesLeft      String               @default("Nenhum")
   physicalState        String               @default("Não especificado")
   status               OSStatus             @default(AGUARDANDO_AVALIACAO)
   diagnostic           String?
-  laudoMacro           String?
-  usedParts            Json                 @default("[]") // Stores array of UsedPart { partId, name, quantity, price }
+  usedParts            Json                 @default("[]")
   laborCost            Float                @default(0.0)
-  technicianLaborHours Float?
-  technicianHourlyRate Float?
+  discount             Float                @default(0.0)
   totalCost            Float                @default(0.0)
-  billingStatus        String               @default("PENDENTE") // PENDENTE, PROCESSANDO, FATURADO, REJEITADO, TIMEOUT
+  billingStatus        String               @default("PENDENTE")
   blingId              String?
   blingKey             String?
   sefazErrorMessage    String?
   pdfUrl               String?
-  billingLogs          Json                 @default("[]") // Stores string array of logs
-  checklistEntrada     Json?                @default("[]") // Stores checklist details
-  checklistSaida       Json?                @default("[]") // Stores exit checklist details
-  laudoFotos           Json?                @default("[]") // Stores base64 images and captions
-  originalEntryDate    DateTime?
-  originalExitDate     DateTime?
-  stressTestStartedAt  DateTime?
-  stressTestStartedBy  String?
+  billingLogs          Json                 @default("[]")
   createdAt            DateTime             @default(now())
   deletedAt            DateTime?
+  originalEntryDate    DateTime?
+  originalExitDate     DateTime?
+  checklistEntrada     Json?                @default("[]")
+  laudoFotos           Json?                @default("[]")
+  technicianHourlyRate Float?
+  technicianLaborHours Float?
+  stressTestStartedAt  DateTime?
+  checklistSaida       Json?                @default("[]")
+  stressTestStartedBy  String?
   recurrent            Boolean              @default(false)
+  laudoMacro           String?
   closingReason        OSClosingReason?
+  abandonAlert         DateTime?
+  advancePayment       Float?
+  attendantId          Int                  @default(0)
+  budgetForms          String?
+  clientLegacyId       String?
+  deviceBrand          String               @default("")
+  deviceDescription    String               @default("")
+  deviceLegacyId       String?
+  deviceModel          String               @default("")
+  deviceNotes          String               @default("")
+  devicePatrimony      String               @default("")
+  deviceSerial         String               @default("")
+  entryDate            DateTime?
+  estimatedDate        DateTime?
+  exitDate             DateTime?
+  inUse                Boolean              @default(false)
+  isReopened           Boolean              @default(false)
+  kilometrage          Int                  @default(0)
+  microUser            String               @default("")
+  nfEmit               Int                  @default(0)
+  nfRemessa            Int                  @default(0)
+  nfValue              String               @default("0")
+  nfcNumber            String?
+  nfeNumber            String?
+  nfsNumber            String?
+  otherCost            Float                @default(0.0)
+  partsCost            Float                @default(0.0)
+  priority             Int                  @default(1)
+  readyDate            DateTime?
+  serviceNotes         String               @default("")
+  statusCode           Int                  @default(0)
+  technicianId         Int                  @default(0)
+  thirdPartyCost       Float                @default(0.0)
+  travelCost           Float                @default(0.0)
+  warrantor            Int                  @default(0)
+  warrantorName        String               @default("")
+  warrantyDate         DateTime?
+  warrantyType         WarrantyType         @default(NENHUMA)
+  financialStatus      OSFinancialStatus    @default(PENDENTE)
+  paymentMethod        String?
+  financialDueDate     DateTime?
+  webKey               String?
+  webPassword          String?
   messageHistories     MessageHistory[]
+  client               Client?              @relation(fields: [clientId], references: [id])
+  device               Device?              @relation(fields: [deviceId], references: [id])
   conciliationItems    OSConciliationItem[]
 
   @@map("ordem_servicos")
@@ -171,28 +330,28 @@ model FeatureFlag {
 model MessageHistory {
   id          String       @id @default(uuid())
   orderId     String       @map("order_id")
-  order       OrdemServico @relation(fields: [orderId], references: [id], onDelete: Cascade)
   phoneNumber String       @map("phone_number")
   messageText String       @map("message_text")
-  status      String // PENDENTE, ENVIADO, ENTREGUE, LIDO, FALHOU
+  status      String
   errorDetail String?      @map("error_detail")
   createdAt   DateTime     @default(now()) @map("created_at")
+  order       OrdemServico @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@map("message_history")
 }
 
 model AuditLog {
   id         String   @id @default(uuid())
-  entityName String // "OrdemServico", "Part", "Device", "Client"
+  entityName String
   entityId   String
-  action     String // "UPDATE", "CREATE", "DELETE"
+  action     String
   oldValue   Json?
   newValue   Json?
-  userId     String // ID or email/name
-  ipAddress  String?
-  source     String? // ex: "WEB", "API", "SYSTEM"
-  reason     String?
+  userId     String
   createdAt  DateTime @default(now())
+  ipAddress  String?
+  reason     String?
+  source     String?
 
   @@map("audit_logs")
 }
@@ -200,17 +359,17 @@ model AuditLog {
 model DeviceNote {
   id        String   @id @default(uuid())
   deviceId  String
-  device    Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
   content   String
   createdBy String
   createdAt DateTime @default(now())
+  device    Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
   @@map("device_notes")
 }
 
 model DeviceCategory {
   id               String @id @default(uuid())
-  name             String @unique // ex: "Autoclave", "Compressor"
+  name             String @unique
   defaultChecklist Json   @default("[]")
 
   @@map("device_categories")
@@ -219,11 +378,11 @@ model DeviceCategory {
 model OfficeSetting {
   id          String   @id @default(uuid())
   key         String   @unique
-  value       String // Stringified JSON or plain text
-  type        String   @default("string") // boolean, number, string, json
-  category    String   @default("GERAL") // GERAL, FINANCEIRO, KANBAN, GARANTIAS, WHATSAPP, CENTRAL_CLIENTE, ESTOQUE, ISAIAS
+  value       String
+  type        String   @default("string")
   description String?
   updatedAt   DateTime @updatedAt
+  category    String   @default("GERAL")
 
   @@map("office_settings")
 }
@@ -241,7 +400,7 @@ model RolePermission {
 model OSConciliationBatch {
   id        String               @id @default(uuid())
   createdAt DateTime             @default(now())
-  createdBy String // Nome/ID do usuário que executou
+  createdBy String
   items     OSConciliationItem[]
 
   @@map("os_conciliation_batches")
@@ -250,18 +409,114 @@ model OSConciliationBatch {
 model OSConciliationItem {
   id              String              @id @default(uuid())
   batchId         String
-  batch           OSConciliationBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
   orderId         String
-  order           OrdemServico        @relation(fields: [orderId], references: [id], onDelete: Cascade)
   oldStatus       OSStatus
   newStatus       OSStatus
   reason          String
+  undoneAt        DateTime?
   confidence      Int                 @default(0)
   confidenceLevel String              @default("LOW")
+  metadata        Json?
   rulesSatisfied  String[]
   sourceFiles     String[]
-  metadata        Json?
-  undoneAt        DateTime? // Preenchido caso o lote seja desfeito
+  batch           OSConciliationBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  order           OrdemServico        @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@map("os_conciliation_items")
+}
+
+model MigrationRun {
+  id                String             @id @default(uuid())
+  status            String             @default("PENDING")
+  startedAt         DateTime           @default(now())
+  finishedAt        DateTime?
+  mdbHash           String
+  mdbSizeBytes      Int
+  extractVersion    String
+  dictionaryVersion String
+  importerVersion   String
+  totalRecords      Int                @default(0)
+  createdRecords    Int                @default(0)
+  updatedRecords    Int                @default(0)
+  skippedRecords    Int                @default(0)
+  errorCount        Int                @default(0)
+  warningCount      Int                @default(0)
+  metadata          Json?
+  logs              MigrationLog[]
+  mappings          MigrationMapping[]
+
+  @@map("migration_runs")
+}
+
+model MigrationLog {
+  id               String       @id @default(uuid())
+  migrationRunId   String
+  phase            String
+  status           String
+  startedAt        DateTime     @default(now())
+  finishedAt       DateTime?
+  recordsProcessed Int          @default(0)
+  errors           Json?
+  warnings         Json?
+  migrationRun     MigrationRun @relation(fields: [migrationRunId], references: [id])
+
+  @@map("migration_logs")
+}
+
+model MigrationMapping {
+  id             String       @id @default(uuid())
+  migrationRunId String
+  sourceTable    String
+  sourceId       String
+  version        Int          @default(1)
+  row            Json
+  targetTable    String?
+  targetId       String?
+  createdAt      DateTime     @default(now())
+  migrationRun   MigrationRun @relation(fields: [migrationRunId], references: [id])
+
+  @@unique([migrationRunId, sourceTable, sourceId])
+  @@map("migration_mappings")
+}
+
+enum UserRole {
+  OWNER
+  EDITOR
+  ATTENDANT
+  TECHNICIAN
+  FINANCIAL
+  ADMIN
+  SUPERVISOR
+}
+
+enum OSStatus {
+  ORCAMENTO
+  AGUARDANDO_PECA
+  EM_MANUTENCAO
+  PRONTO_RETIRADA
+  FINALIZADO
+  PAGO_PRONTO_RETIRADA
+  AGUARDANDO_AVALIACAO
+  AGUARDANDO_AUTORIZACAO
+}
+
+enum OSClosingReason {
+  REPARO_CONCLUIDO
+  ORCAMENTO_RECUSADO
+  DESCARTE_CLIENTE_RETIRA
+  DESCARTE_OFICINA
+}
+
+enum WarrantyType {
+  NENHUMA
+  FABRICA
+  MGV
+}
+
+enum OSFinancialStatus {
+  PENDENTE
+  CREDIARIO
+  PAGAR_DEPOIS
+  PAGO
+  INADIMPLENTE
 }

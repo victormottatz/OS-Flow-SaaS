@@ -1,0 +1,44 @@
+import { test, expect } from '@playwright/test';
+
+test.describe('Gestão de Clientes', () => {
+  const testEmail = 'admin@test.com';
+  const password = 'password123';
+  const clientCpf = String(Math.floor(Math.random() * 90000000000) + 10000000000);
+
+  test.beforeEach(async ({ page }) => {
+    // Fazer login usando o usuário semeado
+    await page.goto('/');
+    await page.fill('input[placeholder="Ex: tecnico@mgv.com"]', testEmail);
+    await page.fill('input[placeholder="• • • • • •"]', password);
+    await page.click('button:has-text("Acessar Oficina")');
+    await expect(page.locator('aside nav button:has-text("Dashboard")')).toBeVisible();
+  });
+
+  test('Deve cadastrar um cliente com sucesso', async ({ page }) => {
+    // 1. Navegar para Clientes
+    await page.click('aside nav button:has-text("Clientes")');
+    await expect(page.locator('main h2:has-text("Clientes & Equipamentos")')).toBeVisible();
+
+    // 2. Clicar em Cadastrar Cliente
+    await page.click('button:has-text("Cadastrar Cliente")');
+
+    // 3. Preencher formulário de cadastro de cliente
+    await page.fill('input[placeholder="Ex: Carlos Roberto Silva"]', 'Cliente de Teste Audit');
+    await page.fill('input[placeholder="Ex: 14259388210"]', clientCpf);
+    await page.fill('input[placeholder="Ex: (11) 98112-2233"]', '(11) 99999-9999');
+    await page.fill('input[placeholder="Ex: carlos@silva.com"]', 'cliente_audit@teste.com');
+    await page.fill('input[placeholder*="Av. Paulista"]', 'Rua das Flores, 123');
+
+    // 4. Salvar cliente
+    await page.click('button:has-text("Salvar no Supabase")');
+
+    // Aguardar o modal fechar
+    await expect(page.locator('text=Novo Cadastro de Cliente')).toBeHidden({ timeout: 5000 });
+
+    // 5. Filtrar pelo CPF gerado
+    await page.fill('input[placeholder*="Filtrar por nome"]', clientCpf);
+
+    // 6. Verificar que o cliente cadastrado aparece na listagem/tabela
+    await expect(page.locator(`td:has-text("${clientCpf}")`)).toBeVisible();
+  });
+});

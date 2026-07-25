@@ -1,0 +1,30 @@
+{
+  "name": "mgv-migrations",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "tsc --noEmit",
+    "migrate": "node --import tsx src/cli.ts",
+    "migrate:dev": "NODE_ENV=development node --import tsx src/cli.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "dotenv": "^17.4.2",
+    "mdb-reader": "^3.2.0",
+    "minimist": "^1.2.8",
+    "pg": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/minimist": "^1.2.5",
+    "@types/node": "^22.14.0",
+    "@types/pg": "^8.20.0",
+    "prisma": "^6.19.3",
+    "tsx": "^4.21.0",
+    "typescript": "~5.8.2",
+    "vitest": "^3.1.1"
+  }
+}

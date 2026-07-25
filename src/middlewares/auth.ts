@@ -3,6 +3,10 @@ import jwt from "jsonwebtoken";
 import { UserRole } from "../types";
 import prisma from "../database/prisma";
 
+if (process.env.NODE_ENV === "production" && !process.env.JWT_SECRET) {
+  console.error("[CRITICAL SECURITY WARNING] JWT_SECRET não configurada em ambiente de produção!");
+}
+
 const JWT_SECRET = process.env.JWT_SECRET || "mgv_tecnologia_super_secure_jwt_secret_key_123!";
 
 // Rotas publicas
@@ -10,10 +14,14 @@ const PUBLIC_PATHS = [
   "/api/portal/",
   "/api/auth/login",
   "/api/auth/register",
-  "/api/debug-db",
 ];
 
 export function authenticateJWT(req: Request, res: Response, next: NextFunction): void {
+  // Blindagem de Segurança (Rule 01): Deletar headers injetados externamente pelo cliente
+  delete req.headers["x-user-role"];
+  delete req.headers["x-user-id"];
+  delete req.headers["x-user-email"];
+
   const reqPath = req.path;
 
   if (
@@ -35,7 +43,7 @@ export function authenticateJWT(req: Request, res: Response, next: NextFunction)
     req.headers["x-user-id"] = decoded.id;
     req.headers["x-user-email"] = decoded.email;
   } catch (err) {
-    // invalido
+    // Token inválido: headers foram previamente removidos
   }
 
   next();

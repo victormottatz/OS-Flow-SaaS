@@ -4,6 +4,30 @@ Este documento serve como a **Base de Conhecimento Suprema** para guiar agentes 
 
 ---
 
+## 📌 Sumário
+
+1. [🖥️ Visão Geral do Produto](#️-1-visão-geral-do-produto)
+2. [🛠️ Stack Tecnológica (O "Motor" do Sistema)](#️-2-stack-tecnológica-o-motor-do-sistema)
+3. [🔌 Decisões Arquiteturais e Integrações Críticas](#-3-decisões-arquiteturais-e-integrações-críticas)
+   - [3.1. Conexão com Banco de Dados via Pooler (Supabase IPv4)](#31-conexão-com-banco-de-dados-via-pooler-supabase-ipv4)
+   - [3.2. Integração com Bling ERP V3](#32-integração-com-bling-erp-v3-fluxo-oauth-20-híbrido-e-faturamento)
+   - [3.3. Painel Kanban Interativo](#33-painel-kanban-interativo)
+   - [3.4. Onboarding Progressivo (Lazy Loading) de Base Instalada](#34-onboarding-progressivo-lazy-loading-de-base-instalada)
+   - [3.5. Governança de Estoque com Rastreabilidade de Peças](#35-governança-de-estoque-com-rastreabilidade-de-peças)
+   - [3.6. Rentabilidade por Ordem de Serviço](#36-rentabilidade-por-ordem-de-serviço)
+   - [3.7. Protocolo de Garantia e Eficácia (Teste de Estresse de 30 minutos)](#37-protocolo-de-garantia-e-eficácia-teste-de-estresse-de-30-minutos)
+   - [3.8. Arquitetura de Rede Local (Intranet)](#38-arquitetura-de-rede-local-intranet)
+   - [3.9. Árvore de Habilidades (Skill Tree) de Módulos](#39-árvore-de-habilidades-skill-tree-de-módulos)
+   - [3.10. Comunicação WhatsApp Baseada em Fila e Templates](#310-comunicação-whatsapp-baseada-em-fila-e-templates)
+   - [3.11. Controle de Estoque com Reserva Lógica e Entrada de Notas](#311-controle-de-estoque-com-reserva-lógica-e-entrada-de-notas)
+   - [3.12. Suporte a Itens Avulsos e Formulários Aninhados](#312-suporte-a-itens-avulsos-e-formulários-aninhados)
+4. [🗄️ Estrutura de Entidades (Prisma Schema)](#️-4-estrutura-de-entidades-prisma-schema)
+5. [🎨 Padrões de Design e UI/UX](#-5-padrões-de-design-e-uiux)
+6. [🛡️ Diretrizes de Desenvolvimento e Segurança](#️-6-diretrizes-de-desenvolvimento-e-segurança-system-instructions)
+7. [📂 Estrutura do Repositório (Arquivos Principais)](#-7-estrutura-do-repositório-arquivos-principais)
+
+---
+
 ## 🖥️ 1. Visão Geral do Produto
 
 O **MGV Sistema Integrado** é um sistema web proprietário desenvolvido sob medida para a gestão operacional e automação fiscal da assistência técnica da MGV. Ele foi projetado para substituir soluções desktop legadas (como o software *SH Oficina*), modernizando a operação.
@@ -81,6 +105,11 @@ O **MGV Sistema Integrado** é um sistema web proprietário desenvolvido sob med
 *   **Reserva de Peças:** Peças alocadas a OS em status de orçamentação ou manutenção não reduzem o estoque físico imediato (`stock`), mas sim o estoque reservado (`reserved`). O saldo disponível real é `stock - reserved`, impedindo conflitos. A baixa física ocorre na transição de status para `FINALIZADO` (faturamento real). A reabertura ou exclusão de OS estorna e limpa a reserva automaticamente.
 *   **Parser XML de Compras:** Upload de arquivo XML de NFe de fornecedores extrai dados do emitente e calcula o Custo Médio Ponderado das peças atualizando a tabela relacional. Peças não cadastradas são inseridas automaticamente com 50% de margem no preço de venda.
 *   **Webhooks do Bling V3:** O endpoint `/api/integration/bling/webhook` processa alertas assíncronos do ERP e faz upserts seguros de cadastros de contatos (clientes) e produtos (peças), puxando dados oficiais diretamente da API.
+
+### 3.12. Suporte a Itens Avulsos e Formulários Aninhados
+*   **Lançamento Manual Temporário:** O sistema permite a inclusão de itens avulsos nas OS (como peças de uso único, taxas adicionais ou serviços rápidos sob demanda) marcados com `isAvulso: true` e associados a um `category` (ex: `PECA`, `SERVICO`, `TAXA`, etc.). Estes itens não realizam baixa lógica no estoque do sistema nem requerem cadastro prévio de produto.
+*   **Evitação de Bubbling de Formulários (React):** Para prevenir que o preenchimento e confirmação do item avulso acione prematuramente a gravação da OS inteira (o que anteriormente causava o fechamento indesejado da modal de edição de OS devido à submissão do formulário pai por propagação), a interface do cadastro de novos itens avulsos é encapsulada em uma `<div>` comum, e o seu botão de ação utiliza `type="button"` com um manipulador de evento `onClick` explícito que intercepta a propagação com `preventDefault()`.
+*   **Mapeamento de Chaves (`key`):** Como itens avulsos não possuem um `partId` (ID de estoque), a listagem do React utiliza `p.partId || p.id` para evitar renderizações instáveis no DOM virtual e chaves sob valor `undefined`.
 
 ---
 
@@ -204,10 +233,11 @@ erDiagram
 2.  **Client (`clients`):** Cadastro de clientes. Armazena dados de contato e referências herdadas do sistema legado (`legacyId`).
 3.  **Device (`devices`):** Representa os equipamentos físicos dos clientes (Base Instalada). Cada equipamento possui tipo, marca, modelo e número de série obrigatório para evitar conflitos de garantia.
 4.  **Part (`parts`):** Peças de reposição e produtos no estoque. Armazena o código de barras, SKU, níveis de estoque mínimo (`stockMin`), preço de custo (`cost`), preço de venda (`price`), localização no almoxarifado (`location`) e se exige serialização (`requiresSerial`).
-5.  **OrdemServico (`ordem_servicos`):** Core da aplicação. Conecta o cliente e o equipamento sob manutenção. Armazena laudos, custos de mão de obra (`laborCost`), horas trabalhadas, checklist de entrada em formato JSON, fotos anexadas em Base64 (`laudoFotos`), status da integração fiscal com o Bling (`billingStatus`), o timestamp de início do teste de estresse (`stressTestStartedAt`) e o histórico de disparos de WhatsApp.
+5.  **OrdemServico (`ordem_servicos`):** Core da aplicação. Conecta o cliente e o equipamento sob manutenção. Armazena laudos, custos de mão de obra (`laborCost`), horas trabalhadas, checklist de entrada em formato JSON, fotos anexadas em Base64 (`laudoFotos`), status da integração fiscal com o Bling (`billingStatus`), o timestamp de início do teste de estresse (`stressTestStartedAt`) e o histórico de disparos de WhatsApp. Os itens avulsos e peças integradas adicionados na OS são gravados dinamicamente no campo `usedParts` como um Array JSON.
 6.  **BlingConfig (`bling_configs`):** Tabela de registro único (ID = 1) que gerencia de forma centralizada os tokens de acesso OAuth2 da API do Bling.
 7.  **FeatureFlag (`feature_flags`):** Cadastro de flags que gerenciam os recursos ativados do sistema através do painel gamificado (Skill Tree).
 8.  **MessageHistory (`message_history`):** Logs de auditoria das mensagens e lembretes enviados via WhatsApp para o cliente de cada OS.
+
 
 ---
 

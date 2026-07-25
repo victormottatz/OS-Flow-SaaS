@@ -17,6 +17,7 @@ interface OSWhatsAppPanelProps {
   deviceModel: string;
   deviceBrand: string;
   totalCost: number;
+  onPrintPDF?: () => void;
 }
 
 export default function OSWhatsAppPanel({
@@ -26,7 +27,8 @@ export default function OSWhatsAppPanel({
   osNumber,
   deviceModel,
   deviceBrand,
-  totalCost
+  totalCost,
+  onPrintPDF
 }: OSWhatsAppPanelProps) {
   const [history, setHistory] = useState<MessageRecord[]>([]);
   const [messageText, setMessageText] = useState("");
@@ -190,6 +192,36 @@ export default function OSWhatsAppPanel({
           </div>
         </div>
 
+        {/* Orçamento em PDF */}
+        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div>
+            <span className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider">Documento de Orçamento em PDF</span>
+            <p className="text-[11px] text-slate-500 mt-0.5">Salve e envie manualmente o arquivo PDF detalhado do orçamento para o cliente.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const originalTitle = document.title;
+              document.title = `${clientName} - ${osNumber} - Orçamento`;
+              
+              if (onPrintPDF) {
+                onPrintPDF();
+              } else {
+                window.print();
+              }
+              
+              // Aguarda a janela de impressão ser gerada e restaura o título original
+              setTimeout(() => {
+                document.title = originalTitle;
+              }, 1000);
+            }}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs uppercase tracking-wider px-4 py-2.5 rounded-lg transition shrink-0 flex items-center justify-center gap-1.5 hover:scale-[1.02] active:scale-[0.98]"
+          >
+            <span className="material-symbols-outlined text-[16px]">picture_as_pdf</span>
+            Salvar Orçamento em PDF
+          </button>
+        </div>
+
         {/* Campo de envio */}
         <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
           <label className="block text-[10px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
@@ -237,7 +269,7 @@ export default function OSWhatsAppPanel({
               {history.map((record) => (
                 <div key={record.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
                   <div className="flex justify-between items-center text-[10px] text-slate-450">
-                    <span className="font-mono">{new Date(record.createdAt).toLocaleString("pt-BR")}</span>
+                    <span className="font-mono">{new Date(record.createdAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}</span>
                     <span className={`px-2 py-0.5 font-bold rounded-full border ${getStatusBadge(record.status)}`}>
                       {record.status}
                     </span>

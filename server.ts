@@ -8,16 +8,18 @@ import express from "express";
 import path from "path";
 import fs from "fs/promises";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
 import { createServer as createViteServer } from "vite";
-import { UserRole, OSStatus } from "./src/types";
+import { UserRole } from "./src/types";
 import { PrismaClient } from "@prisma/client";
-import { authenticateJWT } from "./src/middlewares/auth";
+import { authenticateJWT, requireAuth, checkRole } from "./src/middlewares/auth";
 import apiRoutes from "./src/routes";
 
 const prisma = new PrismaClient();
 const DB_FILE = path.join(process.cwd(), "database.json");
-const JWT_SECRET = process.env.JWT_SECRET || "mgv_tecnologia_super_secure_jwt_secret_key_123!";
+
+if (process.env.NODE_ENV === "production" && !process.env.JWT_SECRET) {
+  console.error("[CRITICAL SECURITY WARNING] JWT_SECRET não configurada em ambiente de produção!");
+}
 
 // Mutex / Queue Lock to prevent database file race conditions under high concurrency
 class DatabaseLock {
@@ -40,12 +42,6 @@ async function readDB() {
     } catch (error) {
       return { users: [], clients: [], devices: [], parts: [], ordensServico: [] };
     }
-  });
-}
-
-async function writeDB(data: any) {
-  await dbLock.enqueue(async () => {
-    await fs.writeFile(DB_FILE, JSON.stringify(data, null, 2), "utf-8");
   });
 }
 
@@ -108,10 +104,11 @@ async function startServer() {
     console.error("[Database Migration] Error during initialization seeder:", err);
   }
 
-  // ----------------------------------------------------
-  // DEBUG DB: Endpoint de diagnóstico (leitura pura)
-  // ----------------------------------------------------
-  app.get("/api/debug-db", async (req, res) => {
+  // Middleware de Autenticação JWT com blindagem contra header spoofing
+  app.use(authenticateJWT);
+
+  // DEBUG DB: Endpoint de diagnóstico (protegido exclusivamente para OWNER/ADMIN)
+  app.get("/api/debug-db", requireAuth, checkRole(UserRole.OWNER, UserRole.ADMIN), async (req, res) => {
     try {
       const db = await readDB();
       res.json(db);
@@ -120,11 +117,9 @@ async function startServer() {
     }
   });
 
-  // Token authentication middleware with backward-compatible role extraction
-  app.use(authenticateJWT);
-    app.use("/api", apiRoutes);
+  app.use("/api", apiRoutes);
 
-    if (process.env.NODE_ENV !== "production") {
+  if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",

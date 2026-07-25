@@ -96,7 +96,7 @@ export class DevicesController {
             where: { deletedAt: null },
             orderBy: { createdAt: "desc" }
           },
-          notes: {
+          deviceNotes: {
             orderBy: { createdAt: "desc" }
           }
         }
@@ -106,7 +106,8 @@ export class DevicesController {
         return;
       }
 
-      const parsedOrders = device.orders.map((o: any) => ({
+      const devAny = device as any;
+      const parsedOrders = devAny.orders.map((o: any) => ({
         ...o,
         usedParts: typeof o.usedParts === "string" ? JSON.parse(o.usedParts) : o.usedParts || [],
         billingLogs: typeof o.billingLogs === "string" ? JSON.parse(o.billingLogs) : o.billingLogs || [],

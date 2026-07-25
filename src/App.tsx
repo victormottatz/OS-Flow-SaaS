@@ -48,6 +48,8 @@ export default function App() {
   const [clients, setClients] = useState<(Client & { devices: Device[] })[]>([]);
   const [ordensServico, setOrdensServico] = useState<OrdemServico[]>([]);
   const [parts, setParts] = useState<Part[]>([]);
+  const [totalClients, setTotalClients] = useState<number>(0);
+  const [totalParts, setTotalParts] = useState<number>(0);
 
   // System Controls
   const [currentTab, setCurrentTab] = useState<string>(getInitialTab);
@@ -105,29 +107,66 @@ export default function App() {
   const [osLimit, setOsLimit] = useState<number | "all">(100);
   const [clientLimit, setClientLimit] = useState<number | "all">(100);
   const [partLimit, setPartLimit] = useState<number | "all">(100);
+  const [clientSearch, setClientSearch] = useState<string>("");
+  const [partSearch, setPartSearch] = useState<string>("");
+  const [partStats, setPartStats] = useState<{ lowStockCount: number; serializedCount: number; totalStockValue: number }>({ lowStockCount: 0, serializedCount: 0, totalStockValue: 0 });
+  const [osCountsByStatus, setOsCountsByStatus] = useState<Record<string, number>>({
+    AGUARDANDO_AVALIACAO: 0,
+    AGUARDANDO_AUTORIZACAO: 0,
+    AGUARDANDO_PECA: 0,
+    EM_MANUTENCAO: 0,
+    PRONTO_RETIRADA: 0,
+    PAGO_PRONTO_RETIRADA: 0,
+    FINALIZADO: 0
+  });
 
   // Fetch core models from express server API
-  const loadDatabase = async (currentOsLimit = osLimit, currentClientLimit = clientLimit, currentPartLimit = partLimit) => {
+  const loadDatabase = async (
+    currentOsLimit = osLimit,
+    currentClientLimit = clientLimit,
+    currentPartLimit = partLimit,
+    currentClientSearch = clientSearch,
+    currentPartSearch = partSearch
+  ) => {
     if (isOffline) return; // Freeze API calls if offline
 
     const activeToken = localStorage.getItem("mgv_token") || token || "";
     const headers = activeToken ? { "Authorization": `Bearer ${activeToken}` } : {};
 
     try {
+      const clientsUrl = `/api/clients?limit=${currentClientLimit}${currentClientSearch ? `&search=${encodeURIComponent(currentClientSearch)}` : ""}`;
+      const partsUrl = `/api/parts?limit=${currentPartLimit}${currentPartSearch ? `&search=${encodeURIComponent(currentPartSearch)}` : ""}`;
+      const osUrl = `/api/ordens-servico?pageSize=${currentOsLimit === "all" ? 10000 : currentOsLimit}&includeRelations=true`;
+
       const [clientsRes, osRes, partsRes] = await Promise.all([
-        fetch(`/api/clients?limit=${currentClientLimit}`, { headers }),
-        fetch(`/api/ordens-servico?limit=${currentOsLimit}`, { headers }),
-        fetch(`/api/parts?limit=${currentPartLimit}`, { headers })
+        fetch(clientsUrl, { headers }),
+        fetch(osUrl, { headers }),
+        fetch(partsUrl, { headers })
       ]);
 
       if (clientsRes.ok && osRes.ok && partsRes.ok) {
-        const clientsData = await clientsRes.json();
-        const osData = await osRes.json();
-        const partsData = await partsRes.json();
+        const clientsRaw = await clientsRes.json();
+        const osRaw = await osRes.json();
+        console.log("[App.tsx] osRaw retornado do backend:", osRaw);
+        const partsRaw = await partsRes.json();
+        const osData = Array.isArray(osRaw) ? osRaw : (osRaw.data || []);
+        const countsData = (!Array.isArray(osRaw) && osRaw.countsByStatus) ? osRaw.countsByStatus : {};
+
+        // Se o backend retorna { data, total }, usamos o data e total correspondentes, senão retrocompatibilidade
+        const clientsData = clientsRaw && clientsRaw.data ? clientsRaw.data : clientsRaw;
+        const totalCli = clientsRaw && typeof clientsRaw.total === "number" ? clientsRaw.total : clientsRaw.length;
+        
+        const partsData = partsRaw && partsRaw.data ? partsRaw.data : partsRaw;
+        const totalPrt = partsRaw && typeof partsRaw.total === "number" ? partsRaw.total : partsRaw.length;
+        const statsPrt = partsRaw && partsRaw.stats ? partsRaw.stats : { lowStockCount: 0, serializedCount: 0, totalStockValue: 0 };
 
         setClients(clientsData);
+        setTotalClients(totalCli);
         setOrdensServico(osData);
+        setOsCountsByStatus(countsData);
         setParts(partsData);
+        setTotalParts(totalPrt);
+        setPartStats(statsPrt);
       }
     } catch (err) {
       console.error("Erro ao sincronizar base de dados Express:", err);
@@ -136,9 +175,9 @@ export default function App() {
 
   useEffect(() => {
     if (user) {
-      loadDatabase(osLimit, clientLimit, partLimit);
+      loadDatabase(osLimit, clientLimit, partLimit, clientSearch, partSearch);
     }
-  }, [user, isOffline, osLimit, clientLimit, partLimit]);
+  }, [user, isOffline, osLimit, clientLimit, partLimit, clientSearch, partSearch]);
 
   const handleLoginSuccess = (loggedInUser: User, sessionToken: string) => {
     setUser(loggedInUser);
@@ -215,18 +254,17 @@ export default function App() {
             onRefresh={loadDatabase}
             limit={clientLimit}
             onLimitChange={setClientLimit}
+            searchTerm={clientSearch}
+            onSearchChange={setClientSearch}
+            totalItems={totalClients}
           />
         )}
 
         {currentTab === "os" && (
           <OSList
-            clients={clients}
-            ordensServico={ordensServico}
             isOffline={isOffline}
             onRefresh={loadDatabase}
             userRole={user.role}
-            limit={osLimit}
-            onLimitChange={setOsLimit}
           />
         )}
 
@@ -251,6 +289,7 @@ export default function App() {
             onNavigateToBlingPanel={() => handleTabChange("bling")}
             limit={osLimit}
             onLimitChange={setOsLimit}
+            countsByStatus={osCountsByStatus}
           />
         )}
 
@@ -262,6 +301,12 @@ export default function App() {
             onRefresh={loadDatabase}
             limit={partLimit}
             onLimitChange={setPartLimit}
+            searchQuery={partSearch}
+            onSearchChange={setPartSearch}
+            totalItemsCount={totalParts}
+            dbLowStockCount={partStats.lowStockCount}
+            dbSerializedCount={partStats.serializedCount}
+            dbTotalStockValue={partStats.totalStockValue}
           />
         )}
 
@@ -304,7 +349,7 @@ export default function App() {
       <footer className={`bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-400 font-mono select-none transition-all duration-300 ${
         isSidebarMinimized ? "md:ml-[70px]" : "md:ml-[260px]"
       }`}>
-        <p>MGV Tecnologia & Assistência Técnica © {new Date().getFullYear()} – Centralized ERP Workspace</p>
+        <p>MGV Assistência Técnica © {new Date().getFullYear()} – Centralized ERP Workspace</p>
       </footer>
     </div>
     </FeatureFlagProvider>

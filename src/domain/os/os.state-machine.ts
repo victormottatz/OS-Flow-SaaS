@@ -1,4 +1,5 @@
 import { OSStatus } from "../../types";
+import prisma from "../../database/prisma";
 
 export interface StateTransition {
   from: OSStatus;
@@ -23,8 +24,22 @@ export class OSStateMachine {
     { from: "FINALIZADO", to: "AGUARDANDO_AVALIACAO" }
   ];
 
-  static canTransition(from: OSStatus, to: OSStatus): boolean {
+  static async canTransition(from: OSStatus, to: OSStatus): Promise<boolean> {
     if (from === to) return true; // Nenhuma mudança real
+
+    try {
+      const setting = await prisma.officeSetting.findUnique({
+        where: { key: "OS_ALLOWED_TRANSITIONS" }
+      });
+
+      if (setting && setting.value) {
+        const allowedTransitions = JSON.parse(setting.value) as StateTransition[];
+        return allowedTransitions.some(t => t.from === from && t.to === to);
+      }
+    } catch (error) {
+      console.error("[OSStateMachine] Erro ao buscar transições dinâmicas. Usando padrões.", error);
+    }
+
     return this.validTransitions.some(t => t.from === from && t.to === to);
   }
 }
