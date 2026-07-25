@@ -2,16 +2,9 @@ import fs from 'fs';
 import * as path from 'path';
 import xlsx from 'xlsx';
 
-// Importação compatível com CJS (esbuild bundle) e ESM
-let pdf: any;
-try {
-  // Em ambiente CJS (produção bundled), require já existe globalmente
-  pdf = typeof require !== 'undefined'
-    ? require('pdf-parse')
-    : (await import('pdf-parse')).default;
-} catch {
-  pdf = null;
-}
+// pdf-parse via require (compatível com bundle CJS do esbuild)
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const pdf = require('pdf-parse');
 
 export interface CaixaEntry {
   filePath: string;
