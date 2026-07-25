@@ -1,10 +1,17 @@
 import fs from 'fs';
-import { createRequire } from 'module';
 import * as path from 'path';
 import xlsx from 'xlsx';
 
-const require = createRequire(import.meta.url);
-const pdf = require('pdf-parse');
+// Importação compatível com CJS (esbuild bundle) e ESM
+let pdf: any;
+try {
+  // Em ambiente CJS (produção bundled), require já existe globalmente
+  pdf = typeof require !== 'undefined'
+    ? require('pdf-parse')
+    : (await import('pdf-parse')).default;
+} catch {
+  pdf = null;
+}
 
 export interface CaixaEntry {
   filePath: string;
