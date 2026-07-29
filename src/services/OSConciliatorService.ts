@@ -2,8 +2,8 @@ import fs from 'fs';
 import * as path from 'path';
 import xlsx from 'xlsx';
 
-// pdf-parse via require (compatível com bundle CJS do esbuild)
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
 const pdf = require('pdf-parse');
 
 export interface CaixaEntry {
