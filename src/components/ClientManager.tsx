@@ -6,6 +6,7 @@
 import React, { useState } from "react";
 import { Client, Device, UserRole, OrdemServico } from "../types";
 import { useFeatureFlags } from "../contexts/FeatureFlagContext";
+import { matchClient, SearchScope } from "../utils/searchUtils";
 
 
 interface ClientManagerProps {
@@ -21,6 +22,7 @@ interface ClientManagerProps {
 }
 
 export default function ClientManager({ clients, userRole, isOffline, onRefresh, limit, onLimitChange, searchTerm, onSearchChange, totalItems }: ClientManagerProps) {
+  const [searchScope, setSearchScope] = useState<SearchScope>("all");
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDeviceModal, setShowDeviceModal] = useState(false);
   const [activeClientForDevice, setActiveClientForDevice] = useState<string | null>(null);
@@ -574,15 +576,7 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
       return false;
     }
 
-    const hasMatch = c.name.toLowerCase().includes(searchLow) || 
-                     c.cpfCnpj.includes(searchLow) || 
-                     c.email.toLowerCase().includes(searchLow) ||
-                     c.devices.some(d => 
-                       d.brand.toLowerCase().includes(searchLow) || 
-                       d.model.toLowerCase().includes(searchLow) || 
-                       d.serialNumber.toLowerCase().includes(searchLow)
-                     );
-    return hasMatch && !c.deletedAt;
+    return matchClient(c, searchTerm, searchScope);
   });
 
   return (
@@ -604,19 +598,41 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
         )}
       </div>
 
-      {/* Search Header */}
-      <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center">
-        <div className="relative shadow-sm rounded-xl flex-1">
-          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-            <span className="material-symbols-outlined text-[18px]">search</span>
+      {/* Search Header with Scope Dropdown Selector */}
+      <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center">
+        <div className="flex flex-col sm:flex-row items-center gap-2 flex-1">
+          <div className="relative shadow-sm rounded-xl flex-1 w-full">
+            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+              <span className="material-symbols-outlined text-[18px]">search</span>
+            </div>
+            <input
+              type="text"
+              placeholder={
+                searchScope === "name" ? "Filtrar exclusivamente por nome do cliente..." :
+                searchScope === "phone" ? "Filtrar por número ou dígitos do telefone..." :
+                searchScope === "document" ? "Filtrar por CPF ou CNPJ (números ou formatado)..." :
+                searchScope === "address" ? "Filtrar por endereço, bairro ou cidade..." :
+                searchScope === "device" ? "Filtrar por marca, modelo ou nº de série do equipamento..." :
+                "Filtrar por nome, CPF/CNPJ, telefone, e-mail, marca, modelo ou nº de série..."
+              }
+              value={searchTerm}
+              onChange={(e) => onSearchChange(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 placeholder:text-slate-400 font-semibold transition"
+            />
           </div>
-          <input
-            type="text"
-            placeholder="Filtrar por nome, CPF/CNPJ, e-mail, marca, modelo ou nº de série do equipamento..."
-            value={searchTerm}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 placeholder:text-slate-400 font-semibold transition"
-          />
+
+          <select
+            value={searchScope}
+            onChange={(e) => setSearchScope(e.target.value as SearchScope)}
+            className="w-full sm:w-auto px-3.5 py-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition shrink-0 cursor-pointer shadow-sm"
+          >
+            <option value="all">🔍 Todos os Campos</option>
+            <option value="name">👤 Nome do Cliente</option>
+            <option value="phone">📞 Telefone</option>
+            <option value="document">📄 CPF / CNPJ</option>
+            <option value="address">📍 Endereço</option>
+            <option value="device">💻 Equipamento / Série</option>
+          </select>
         </div>
         {is360Enabled && (
           <button

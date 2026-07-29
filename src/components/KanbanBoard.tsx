@@ -7,6 +7,7 @@ import React, { useState, useEffect } from "react";
 import { useFeatureFlags } from "../contexts/FeatureFlagContext";
 import { OrdemServico, OSStatus, Part, UsedPart, UserRole, Client, Device, ChecklistItem, EntradaFoto, AvulsoCategory } from "../types";
 import OSWhatsAppPanel from "./OSWhatsAppPanel";
+import { matchOS, SearchScope } from "../utils/searchUtils";
 
 
 interface KanbanBoardProps {
@@ -455,6 +456,7 @@ export default function KanbanBoard({
 
   // Search States
   const [searchTerm, setSearchTerm] = useState("");
+  const [searchScope, setSearchScope] = useState<SearchScope>("all");
   const [isSearching, setIsSearching] = useState(false);
   const [globalSearchResults, setGlobalSearchResults] = useState<OrdemServico[] | null>(null);
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
@@ -1204,16 +1206,7 @@ export default function KanbanBoard({
     }
   };
 
-  const localFilteredOS = ordensServico.filter(os => {
-    if (!searchTerm) return true;
-    const term = searchTerm.toLowerCase();
-    return (
-      os.osNumber.toLowerCase().includes(term) ||
-      ((os as any).client?.name || "").toLowerCase().includes(term) ||
-      ((os as any).device?.brand || "").toLowerCase().includes(term) ||
-      ((os as any).device?.model || "").toLowerCase().includes(term)
-    );
-  });
+  const localFilteredOS = ordensServico.filter(os => matchOS(os, searchTerm, searchScope));
 
   const dataSource = globalSearchResults !== null ? globalSearchResults : localFilteredOS;
   const canUseAdvancedSearch = ["OWNER", "ADMIN", "ATTENDANT"].includes(userRole);
@@ -1228,29 +1221,53 @@ export default function KanbanBoard({
         </div>
       )}
 
-      {/* Search Bar */}
+      {/* Search Bar with Scope Dropdown Selector */}
       <div className="flex flex-col sm:flex-row items-center gap-3 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-sm relative z-10">
-        <div className="flex-1 relative w-full group">
-          <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors">search</span>
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              if (globalSearchResults !== null) setGlobalSearchResults(null);
-            }}
-            placeholder="Pesquisar OS, Cliente ou Equipamento (Filtro Instantâneo)..."
-            className="w-full pl-12 pr-10 py-3 bg-slate-50/50 border border-slate-200 rounded-xl text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-medium text-slate-800 placeholder:text-slate-400"
-          />
-          {searchTerm && (
-            <button 
-              type="button" 
-              onClick={() => { setSearchTerm(""); setGlobalSearchResults(null); }}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-full p-1 transition"
-            >
-              <span className="material-symbols-outlined text-[16px] block">close</span>
-            </button>
-          )}
+        <div className="flex-1 relative w-full group flex flex-col sm:flex-row items-center gap-2">
+          <div className="relative w-full flex-1">
+            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors">search</span>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                if (globalSearchResults !== null) setGlobalSearchResults(null);
+              }}
+              placeholder={
+                searchScope === "osNumber" ? "Filtrar por número da OS (ex: 0042)..." :
+                searchScope === "name" ? "Filtrar por nome do cliente..." :
+                searchScope === "phone" ? "Filtrar por número ou dígitos do telefone..." :
+                searchScope === "document" ? "Filtrar por CPF ou CNPJ..." :
+                searchScope === "address" ? "Filtrar por endereço ou bairro..." :
+                searchScope === "device" ? "Filtrar por marca, modelo ou nº de série do equipamento..." :
+                "Pesquisar OS, Cliente ou Equipamento (Filtro Instantâneo)..."
+              }
+              className="w-full pl-12 pr-10 py-3 bg-slate-50/50 border border-slate-200 rounded-xl text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-medium text-slate-800 placeholder:text-slate-400"
+            />
+            {searchTerm && (
+              <button 
+                type="button" 
+                onClick={() => { setSearchTerm(""); setGlobalSearchResults(null); }}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-full p-1 transition"
+              >
+                <span className="material-symbols-outlined text-[16px] block">close</span>
+              </button>
+            )}
+          </div>
+
+          <select
+            value={searchScope}
+            onChange={(e) => setSearchScope(e.target.value as SearchScope)}
+            className="w-full sm:w-auto px-4 py-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition shrink-0 cursor-pointer shadow-xs"
+          >
+            <option value="all">🔍 Todos os Campos</option>
+            <option value="osNumber">📋 Nº da OS</option>
+            <option value="name">👤 Nome do Cliente</option>
+            <option value="phone">📞 Telefone</option>
+            <option value="document">📄 CPF / CNPJ</option>
+            <option value="address">📍 Endereço</option>
+            <option value="device">💻 Equipamento / Série</option>
+          </select>
         </div>
         
         {canUseAdvancedSearch && searchTerm.length >= 2 && globalSearchResults === null && (

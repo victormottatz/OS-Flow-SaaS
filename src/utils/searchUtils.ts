@@ -5,6 +5,8 @@
 
 import { Client, Device } from "../types";
 
+export type SearchScope = "all" | "name" | "phone" | "document" | "address" | "device" | "osNumber";
+
 /**
  * Remove acentuação e converte para minúsculas
  */
@@ -29,7 +31,11 @@ export function extractDigits(text: string | null | undefined): string {
 /**
  * Verifica se uma busca bate com os dados de um cliente ou de seus equipamentos vinculados
  */
-export function matchClient(client: (Client & { devices?: Device[]; phone2?: string }) | null | undefined, query: string): boolean {
+export function matchClient(
+  client: (Client & { devices?: Device[]; phone2?: string }) | null | undefined,
+  query: string,
+  scope: SearchScope = "all"
+): boolean {
   if (!client) return false;
   if (!query || !query.trim()) return true;
   if ((client as any).deletedAt) return false;
@@ -37,6 +43,63 @@ export function matchClient(client: (Client & { devices?: Device[]; phone2?: str
   const queryClean = normalizeText(query);
   const queryDigits = extractDigits(query);
 
+  if (scope === "name") {
+    const nameClean = normalizeText(client.name);
+    return nameClean.includes(queryClean);
+  }
+
+  if (scope === "phone") {
+    const phone1Clean = normalizeText(client.phone);
+    const phone1Digits = extractDigits(client.phone);
+    if (phone1Clean.includes(queryClean) || (queryDigits && phone1Digits.includes(queryDigits))) {
+      return true;
+    }
+    if (client.phone2) {
+      const phone2Clean = normalizeText(client.phone2);
+      const phone2Digits = extractDigits(client.phone2);
+      if (phone2Clean.includes(queryClean) || (queryDigits && phone2Digits.includes(queryDigits))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  if (scope === "document") {
+    const docClean = normalizeText(client.cpfCnpj);
+    const docDigits = extractDigits(client.cpfCnpj);
+    return docClean.includes(queryClean) || (queryDigits.length > 0 && docDigits.includes(queryDigits));
+  }
+
+  if (scope === "address") {
+    const addressClean = normalizeText(client.address);
+    return addressClean.includes(queryClean);
+  }
+
+  if (scope === "device") {
+    if (client.devices && Array.isArray(client.devices)) {
+      return client.devices.some(d => {
+        if ((d as any).deletedAt) return false;
+        const brandClean = normalizeText(d.brand);
+        const modelClean = normalizeText(d.model);
+        const serialClean = normalizeText(d.serialNumber);
+        const typeClean = normalizeText(d.type);
+        const descClean = normalizeText(d.description);
+        const serialDigits = extractDigits(d.serialNumber);
+
+        return (
+          brandClean.includes(queryClean) ||
+          modelClean.includes(queryClean) ||
+          serialClean.includes(queryClean) ||
+          typeClean.includes(queryClean) ||
+          descClean.includes(queryClean) ||
+          (queryDigits.length >= 2 && serialDigits.includes(queryDigits))
+        );
+      });
+    }
+    return false;
+  }
+
+  // Default / Fallback 'all':
   // 1. Nome, E-mail, Endereço
   const nameClean = normalizeText(client.name);
   const emailClean = normalizeText(client.email);
@@ -50,14 +113,14 @@ export function matchClient(client: (Client & { devices?: Device[]; phone2?: str
     return true;
   }
 
-  // 2. CPF/CNPJ (Bate por texto formatado ou por sequência numérica)
+  // 2. CPF/CNPJ
   const docClean = normalizeText(client.cpfCnpj);
   const docDigits = extractDigits(client.cpfCnpj);
   if (docClean.includes(queryClean) || (queryDigits && docDigits.includes(queryDigits))) {
     return true;
   }
 
-  // 3. Telefones (phone e phone2) - aceita qualquer trecho de dígitos ou texto formatado
+  // 3. Telefones
   const phone1Clean = normalizeText(client.phone);
   const phone1Digits = extractDigits(client.phone);
   if (phone1Clean.includes(queryClean) || (queryDigits && phone1Digits.includes(queryDigits))) {
@@ -72,7 +135,7 @@ export function matchClient(client: (Client & { devices?: Device[]; phone2?: str
     }
   }
 
-  // 4. Equipamentos vinculados (Marca, Modelo, Nº de Série, Tipo, Descrição)
+  // 4. Equipamentos vinculados
   if (client.devices && Array.isArray(client.devices)) {
     const hasDeviceMatch = client.devices.some(d => {
       if ((d as any).deletedAt) return false;
@@ -89,7 +152,7 @@ export function matchClient(client: (Client & { devices?: Device[]; phone2?: str
         serialClean.includes(queryClean) ||
         typeClean.includes(queryClean) ||
         descClean.includes(queryClean) ||
-        (queryDigits && serialDigits.length >= 2 && serialDigits.includes(queryDigits))
+        (queryDigits.length >= 2 && serialDigits.includes(queryDigits))
       );
     });
 
@@ -102,7 +165,7 @@ export function matchClient(client: (Client & { devices?: Device[]; phone2?: str
 /**
  * Verifica se uma busca bate com os dados de uma Ordem de Serviço
  */
-export function matchOS(os: any, query: string): boolean {
+export function matchOS(os: any, query: string, scope: SearchScope = "all"): boolean {
   if (!os) return false;
   if (!query || !query.trim()) return true;
   if (os.deletedAt) return false;
@@ -110,7 +173,54 @@ export function matchOS(os: any, query: string): boolean {
   const queryClean = normalizeText(query);
   const queryDigits = extractDigits(query);
 
-  // 1. Nº da OS (ex: "OS-0001", "0001" ou "1")
+  if (scope === "osNumber") {
+    const osNumClean = normalizeText(os.osNumber);
+    const osNumDigits = extractDigits(os.osNumber);
+    return osNumClean.includes(queryClean) || (queryDigits.length > 0 && osNumDigits.includes(queryDigits));
+  }
+
+  if (scope === "name") {
+    return os.client ? matchClient(os.client, query, "name") : false;
+  }
+
+  if (scope === "phone") {
+    return os.client ? matchClient(os.client, query, "phone") : false;
+  }
+
+  if (scope === "document") {
+    return os.client ? matchClient(os.client, query, "document") : false;
+  }
+
+  if (scope === "address") {
+    return os.client ? matchClient(os.client, query, "address") : false;
+  }
+
+  if (scope === "device") {
+    const deviceMatchInClient = os.client ? matchClient(os.client, query, "device") : false;
+    if (deviceMatchInClient) return true;
+
+    if (os.device) {
+      const brandClean = normalizeText(os.device.brand);
+      const modelClean = normalizeText(os.device.model);
+      const serialClean = normalizeText(os.device.serialNumber);
+      const typeClean = normalizeText(os.device.type);
+      const descClean = normalizeText(os.device.description);
+      const serialDigits = extractDigits(os.device.serialNumber);
+
+      return (
+        brandClean.includes(queryClean) ||
+        modelClean.includes(queryClean) ||
+        serialClean.includes(queryClean) ||
+        typeClean.includes(queryClean) ||
+        descClean.includes(queryClean) ||
+        (queryDigits.length >= 2 && serialDigits.includes(queryDigits))
+      );
+    }
+    return false;
+  }
+
+  // Fallback / Default 'all':
+  // 1. Nº da OS
   const osNumClean = normalizeText(os.osNumber);
   const osNumDigits = extractDigits(os.osNumber);
   if (osNumClean.includes(queryClean) || (queryDigits && osNumDigits.includes(queryDigits))) {
@@ -133,7 +243,7 @@ export function matchOS(os: any, query: string): boolean {
   }
 
   // 3. Cliente associado à OS
-  if (os.client && matchClient(os.client, query)) {
+  if (os.client && matchClient(os.client, query, "all")) {
     return true;
   }
 

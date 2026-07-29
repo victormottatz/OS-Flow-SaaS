@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from "react";
 import { OrdemServico, OSStatus, EntradaFoto } from "../types";
 import { useOSList } from "../hooks/useOSList";
+import { SearchScope } from "../utils/searchUtils";
 
 interface OSListProps {
   userRole: string;
@@ -68,6 +69,7 @@ export default function OSList({ isOffline, onRefresh, userRole }: OSListProps) 
   const [activePrintOS, setActivePrintOS] = useState<OrdemServico | null>(null);
   const [lightboxPhoto, setLightboxPhoto] = useState<EntradaFoto | null>(null);
   const [modalTab, setModalTab] = useState<"laudo" | "pecas" | "entrada" | "saida">("laudo");
+  const [searchScope, setSearchScope] = useState<SearchScope>("all");
 
   const pageSize = 50;
 
@@ -213,25 +215,49 @@ export default function OSList({ isOffline, onRefresh, userRole }: OSListProps) 
 
       {/* Control Panel (Search + Status Filter) */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col lg:flex-row items-center gap-4">
-        {/* Search Field */}
-        <div className="flex-1 relative w-full group">
-          <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors">search</span>
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Pesquisar por OS, cliente, aparelho, laudo ou sintomas..."
-            className="w-full pl-12 pr-10 py-3 bg-slate-50/50 border border-slate-200 rounded-xl text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-medium text-slate-800 placeholder:text-slate-400"
-          />
-          {searchTerm && (
-            <button 
-              type="button" 
-              onClick={() => setSearchTerm("")}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-750 bg-slate-100 hover:bg-slate-200 rounded-full p-1 transition"
-            >
-              <span className="material-symbols-outlined text-[16px] block">close</span>
-            </button>
-          )}
+        {/* Search Field with Scope Dropdown Selector */}
+        <div className="flex-1 relative w-full group flex flex-col sm:flex-row items-center gap-2">
+          <div className="relative w-full flex-1">
+            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors">search</span>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder={
+                searchScope === "osNumber" ? "Pesquisar por número da OS..." :
+                searchScope === "name" ? "Pesquisar por nome do cliente..." :
+                searchScope === "phone" ? "Pesquisar por número ou dígitos do telefone..." :
+                searchScope === "document" ? "Pesquisar por CPF ou CNPJ..." :
+                searchScope === "address" ? "Pesquisar por endereço..." :
+                searchScope === "device" ? "Pesquisar por marca, modelo ou nº de série..." :
+                "Pesquisar por OS, cliente, aparelho, laudo ou sintomas..."
+              }
+              className="w-full pl-12 pr-10 py-3 bg-slate-50/50 border border-slate-200 rounded-xl text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-medium text-slate-800 placeholder:text-slate-400"
+            />
+            {searchTerm && (
+              <button 
+                type="button" 
+                onClick={() => setSearchTerm("")}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-750 bg-slate-100 hover:bg-slate-200 rounded-full p-1 transition"
+              >
+                <span className="material-symbols-outlined text-[16px] block">close</span>
+              </button>
+            )}
+          </div>
+
+          <select
+            value={searchScope}
+            onChange={(e) => setSearchScope(e.target.value as SearchScope)}
+            className="w-full sm:w-auto px-3.5 py-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition shrink-0 cursor-pointer shadow-xs"
+          >
+            <option value="all">🔍 Todos os Campos</option>
+            <option value="osNumber">📋 Nº da OS</option>
+            <option value="name">👤 Nome do Cliente</option>
+            <option value="phone">📞 Telefone</option>
+            <option value="document">📄 CPF / CNPJ</option>
+            <option value="address">📍 Endereço</option>
+            <option value="device">💻 Equipamento / Série</option>
+          </select>
         </div>
 
         {/* Filter Buttons */}
