@@ -179,7 +179,7 @@ router.post("/bling/sync/catalog/stop", (req, res) => {
 
 router.post("/bling/sync/:osId", async (req, res) => {
   const { osId } = req.params;
-  const { clientIcmsType, clientStateInscription, natureOperation } = req.body;
+  const { clientIcmsType, clientStateInscription, natureOperation, invoiceType } = req.body;
   try {
     const os = await prisma.ordemServico.findUnique({ where: { id: osId } });
     if (!os) {
@@ -204,17 +204,28 @@ router.post("/bling/sync/:osId", async (req, res) => {
     const result = await sendOsToBling(os, client, partsDb, true, {
       clientIcmsType,
       clientStateInscription,
-      natureOperation
+      natureOperation,
+      invoiceType
     });
     
     if (result.success) {
+      let sefazMsg = "";
+      if (result.notaFiscalId) sefazMsg += `NF-e/NFC-e: ${result.notaFiscalId}. `;
+      if (result.servicesNotaFiscalId) sefazMsg += `NFS-e: ${result.servicesNotaFiscalId}.`;
+      if (!sefazMsg) sefazMsg = "Faturamento realizado com sucesso no Bling.";
+
+      const keyParts: string[] = [];
+      if (result.notaFiscalId) keyParts.push(`NFe:${result.notaFiscalId}`);
+      if (result.servicesNotaFiscalId) keyParts.push(`NFSe:${result.servicesNotaFiscalId}`);
+      const finalBlingKey = keyParts.length > 0 ? keyParts.join(" | ") : (result.notaFiscalId || result.servicesNotaFiscalId || null);
+
       await prisma.ordemServico.update({
         where: { id: osId },
         data: {
           billingStatus: "FATURADO",
-          blingId: result.blingId,
-          blingKey: result.notaFiscalId,
-          sefazErrorMessage: result.notaFiscalId ? `NF-e gerada com sucesso (ID: ${result.notaFiscalId})` : "Pedido faturado com sucesso no Bling."
+          blingId: result.blingId || result.servicesBlingId,
+          blingKey: finalBlingKey || undefined,
+          sefazErrorMessage: sefazMsg
         }
       });
       res.json({ status: "ok", os: { ...os, billingStatus: "FATURADO", billingLogs: ["Sucesso na integração manual."] } });

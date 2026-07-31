@@ -43,6 +43,10 @@ export class ClientsController {
           phone: c.phone,
           email: c.email,
           address: c.address,
+          city: c.city,
+          state: c.state,
+          zipCode: c.zipCode,
+          rg: c.rg,
           deletedAt: null,
           devices: c.devices.map(d => ({
             id: d.id,
@@ -63,7 +67,7 @@ export class ClientsController {
   }
 
   async create(req: Request, res: Response) {
-    const { name, cpfCnpj, phone, phone2, email, address, devices } = req.body;
+    const { name, cpfCnpj, phone, phone2, email, address, city, state, zipCode, rg, stateInscription, devices } = req.body;
     
     if (!name || !cpfCnpj || !phone || !email || !address) {
       res.status(422).json({ error: "Parâmetros incorretos. Todos os campos de cadastro do cliente são obrigatórios." });
@@ -87,7 +91,18 @@ export class ClientsController {
       }
 
       const client = await prisma.client.create({
-        data: { name, cpfCnpj, phone, phone2: phone2 || "", email, address }
+        data: {
+          name,
+          cpfCnpj,
+          phone,
+          phone2: phone2 || "",
+          email,
+          address,
+          city: city || "",
+          state: state || "",
+          zipCode: zipCode || "",
+          rg: stateInscription || rg || ""
+        }
       });
 
       const insertedDevices: any[] = [];
@@ -142,7 +157,7 @@ export class ClientsController {
 
   async update(req: Request, res: Response) {
     const { id } = req.params;
-    const { name, cpfCnpj, phone, phone2, email, address } = req.body;
+    const { name, cpfCnpj, phone, phone2, email, address, city, state, zipCode, stateInscription } = req.body;
 
     try {
       const client = await prisma.client.findUnique({ where: { id } });
@@ -166,9 +181,15 @@ export class ClientsController {
         return;
       }
 
+      const updateData: any = { name, cpfCnpj, phone, phone2: phone2 || "", email, address };
+      if (city !== undefined) updateData.city = city;
+      if (state !== undefined) updateData.state = state;
+      if (zipCode !== undefined) updateData.zipCode = zipCode;
+      if (stateInscription !== undefined) updateData.rg = stateInscription;
+
       const updated = await prisma.client.update({
         where: { id },
-        data: { name, cpfCnpj, phone, phone2: phone2 || "", email, address }
+        data: updateData
       });
 
       const responsePayload = {
@@ -179,10 +200,13 @@ export class ClientsController {
         phone2: updated.phone2,
         email: updated.email,
         address: updated.address,
+        city: updated.city,
+        state: updated.state,
+        zipCode: updated.zipCode,
+        rg: updated.rg,
         deletedAt: null
       };
 
-      // Dispara evento de auditoria CLIENT_UPDATED
       eventBus.emit(Events.CLIENT_UPDATED, {
         id: crypto.randomUUID(),
         timestamp: new Date().toISOString(),
@@ -196,7 +220,11 @@ export class ClientsController {
             phone: client.phone,
             phone2: client.phone2,
             email: client.email,
-            address: client.address
+            address: client.address,
+            city: client.city,
+            state: client.state,
+            zipCode: client.zipCode,
+            rg: client.rg
           },
           after: {
             name: updated.name,
@@ -204,7 +232,11 @@ export class ClientsController {
             phone: updated.phone,
             phone2: updated.phone2,
             email: updated.email,
-            address: updated.address
+            address: updated.address,
+            city: updated.city,
+            state: updated.state,
+            zipCode: updated.zipCode,
+            rg: updated.rg
           }
         },
         version: 1
@@ -300,6 +332,40 @@ export class ClientsController {
       });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
+    }
+  }
+
+  async consultCNPJ(req: Request, res: Response) {
+    const { cnpj } = req.params;
+    const cleanCnpj = cnpj.replace(/\D/g, "");
+    
+    if (cleanCnpj.length !== 14) {
+      res.status(400).json({ error: "CNPJ inválido. Deve conter 14 dígitos." });
+      return;
+    }
+
+    try {
+      const { default: axios } = await import("axios");
+      const response = await axios.get(`https://receitaws.com.br/v1/cnpj/${cleanCnpj}`);
+      
+      if (response.data.status === "ERROR") {
+        res.status(400).json({ error: response.data.message || "Erro ao consultar CNPJ." });
+        return;
+      }
+
+      const data = response.data;
+      res.json({
+        name: data.nome || "",
+        fantasy: data.fantasia || "",
+        address: `${data.logradouro || ""}, ${data.numero || ""}${data.complemento ? ` - ${data.complemento}` : ""}`,
+        bairro: data.bairro || "",
+        city: data.municipio || "",
+        state: data.uf || "",
+        zipCode: data.cep ? data.cep.replace(/\D/g, "") : ""
+      });
+    } catch (err: any) {
+      console.error("Erro ao consultar CNPJ:", err.message);
+      res.status(500).json({ error: "Erro ao consultar CNPJ na Receitaws." });
     }
   }
 }

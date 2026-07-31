@@ -31,6 +31,7 @@ export default function BlingSandbox({ ordensServico, isOffline, onRefresh }: Bl
   const [clientIcmsType, setClientIcmsType] = useState("9");
   const [clientStateInscription, setClientStateInscription] = useState("");
   const [natureOperation, setNatureOperation] = useState("Venda de Peças e Serviços");
+  const [invoiceType, setInvoiceType] = useState("bifasico");
 
   // DANFE view states
   const [activeDanfeOS, setActiveDanfeOS] = useState<OrdemServico | null>(null);
@@ -228,7 +229,8 @@ export default function BlingSandbox({ ordensServico, isOffline, onRefresh }: Bl
           forceErrorType: forceErrorType === "MOCK_TIMEOUT" ? "" : forceErrorType,
           clientIcmsType: extraOptions?.clientIcmsType,
           clientStateInscription: extraOptions?.clientStateInscription,
-          natureOperation: extraOptions?.natureOperation
+          natureOperation: extraOptions?.natureOperation,
+          invoiceType: extraOptions?.invoiceType
         })
       });
 
@@ -768,6 +770,21 @@ export default function BlingSandbox({ ordensServico, isOffline, onRefresh }: Bl
 
             <div className="space-y-4 text-xs">
               <div>
+                <label className="block font-bold text-slate-700 mb-1">Tipo de Emissão Fiscal:</label>
+                <select
+                  value={invoiceType}
+                  onChange={(e) => setInvoiceType(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800"
+                >
+                  <option value="nenhum">🚫 Não emitir documento (já emitido anteriormente)</option>
+                  <option value="bifasico">🧾 Faturamento Bifásico (Peças + Mão de Obra)</option>
+                  <option value="nfe">📦 Apenas NF-e (Modelo 55 - Produtos/Peças)</option>
+                  <option value="nfce">🎫 Apenas NFC-e (Modelo 65 - Cupom Fiscal)</option>
+                  <option value="nfse">⚙️ Apenas NFS-e (Serviços/Mão de Obra)</option>
+                </select>
+              </div>
+
+              <div>
                 <label className="block font-bold text-slate-700 mb-1">Indicador de Inscrição Estadual (IE):</label>
                 <select
                   value={clientIcmsType}
@@ -815,7 +832,8 @@ export default function BlingSandbox({ ordensServico, isOffline, onRefresh }: Bl
                   triggerBlingInvoice(billingOSId, {
                     clientIcmsType,
                     clientStateInscription,
-                    natureOperation
+                    natureOperation,
+                    invoiceType
                   });
                 }}
                 className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl cursor-pointer shadow-lg shadow-indigo-600/20 transition"

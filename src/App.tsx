@@ -19,6 +19,8 @@ import StockManager from "./components/StockManager";
 import PublicPortal from "./components/PublicPortal";
 import SettingsView from "./components/SettingsView";
 import ProfileSettings from "./components/ProfileSettings";
+import FiscalPanel from "./components/FiscalPanel";
+import WorkflowVisualizer from "./components/WorkflowVisualizer";
 
 const getInitialTab = () => {
   const path = window.location.pathname;
@@ -28,6 +30,8 @@ const getInitialTab = () => {
   if (path === "/kanban") return "kanban";
   if (path === "/estoque") return "estoque";
   if (path === "/bling") return "bling";
+  if (path === "/fiscal") return "fiscal";
+  if (path === "/processos") return "workflow";
   if (path === "/settings") return "settings";
   if (path === "/perfil") return "profile";
   return "dashboard";
@@ -76,6 +80,8 @@ export default function App() {
     else if (tab === "kanban") path = "/kanban";
     else if (tab === "estoque") path = "/estoque";
     else if (tab === "bling") path = "/bling";
+    else if (tab === "fiscal") path = "/fiscal";
+    else if (tab === "workflow") path = "/processos";
     else if (tab === "settings") path = "/settings";
     else if (tab === "profile") path = "/perfil";
     
@@ -317,6 +323,19 @@ export default function App() {
             onRefresh={loadDatabase}
             userRole={user.role}
           />
+        )}
+
+        {currentTab === "fiscal" && (
+          <FiscalPanel
+            parts={parts}
+            clients={clients}
+            isOffline={isOffline}
+            onRefresh={loadDatabase}
+          />
+        )}
+
+        {currentTab === "workflow" && (
+          <WorkflowVisualizer />
         )}
 
         {currentTab === "settings" && (

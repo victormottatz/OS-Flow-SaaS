@@ -71,6 +71,22 @@ export class PartsController {
     }
   }
 
+  async getById(req: Request, res: Response) {
+    const { id } = req.params;
+    try {
+      const part = await prisma.part.findUnique({
+        where: { id, deletedAt: null }
+      });
+      if (!part) {
+        res.status(404).json({ error: "Peça não encontrada no estoque." });
+        return;
+      }
+      res.json(part);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+
   async create(req: Request, res: Response) {
     const { name, code, sku, barcode, stock, stockMin, cost, price, requiresSerial, supplier, location,
       unit, gtin, ncm, cest, manufacturerCode, manufacturer, cnpjFab, partGroup, partSubgroup,

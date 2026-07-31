@@ -46,6 +46,10 @@ export default function Navbar({
         return "Gestão de Estoque";
       case "bling":
         return "Integração Fiscal & Bling";
+      case "fiscal":
+        return "Painel Fiscal de Produtividade";
+      case "workflow":
+        return "Mapa de Processos do Sistema";
       case "settings":
         return "Configurações do Sistema";
       case "profile":
@@ -95,7 +99,9 @@ export default function Navbar({
             ...((user.role === UserRole.OWNER || user.role === UserRole.ATTENDANT) ? [{ id: "os", label: "Listagem de OS", icon: "view_list" }] : []),
             { id: "kanban", label: "Ordens de Serviço", icon: "assignment" },
             { id: "estoque", label: "Estoque", icon: "inventory_2" },
+            ...((user.role === UserRole.OWNER || user.role === UserRole.FINANCIAL || user.role === UserRole.ADMIN) ? [{ id: "fiscal", label: "Painel Fiscal", icon: "request_quote" }] : []),
             ...((user.role === UserRole.OWNER || user.role === UserRole.FINANCIAL) ? [{ id: "bling", label: "Integração Fiscal", icon: "sync_alt" }] : []),
+            { id: "workflow", label: "Mapa de Processos", icon: "account_tree" },
             ...((user.role === UserRole.OWNER || user.role === UserRole.ADMIN) ? [{ id: "settings", label: "Configurações", icon: "settings" }] : [])
           ].map((item) => {
             const active = currentTab === item.id;
@@ -255,7 +261,9 @@ export default function Navbar({
           ...((user.role === UserRole.OWNER || user.role === UserRole.ATTENDANT) ? [{ id: "os", label: "Listagem OS", icon: "view_list" }] : []),
           { id: "kanban", label: "Ordens OS", icon: "assignment" },
           { id: "estoque", label: "Estoque", icon: "inventory_2" },
+          ...((user.role === UserRole.OWNER || user.role === UserRole.FINANCIAL || user.role === UserRole.ADMIN) ? [{ id: "fiscal", label: "Painel Fiscal", icon: "request_quote" }] : []),
           ...((user.role === UserRole.OWNER || user.role === UserRole.FINANCIAL) ? [{ id: "bling", label: "Fiscal", icon: "sync_alt" }] : []),
+          { id: "workflow", label: "Processos", icon: "account_tree" },
           ...((user.role === UserRole.OWNER || user.role === UserRole.ADMIN) ? [{ id: "settings", label: "Config", icon: "settings" }] : []),
           { id: "profile", label: "Perfil", icon: "person" }
         ].map((tab) => {

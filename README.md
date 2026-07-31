@@ -63,3 +63,18 @@ Este repositório está perfeitamente configurado para deploy contínuo usando a
 4. O Render detectará automaticamente o arquivo `render.yaml` na raiz do projeto.
 5. Siga as instruções na tela. O Blueprint solicitará que você defina os valores reais das variáveis de ambiente críticas para o funcionamento (que jamais devem ir para o GitHub).
 6. Clique em **Apply** para finalizar. O Render criará o Web Service e começará o deploy em instantes!
+
+## Integração Fiscal e Emissão de Notas (Bling V3)
+
+O sistema possui uma automação robusta integrada ao ERP Bling V3 para faturar Ordens de Serviço:
+
+### 1. Faturamento Bifásico (Peças + Serviços)
+Para cumprir as diretrizes tributárias do município de Ribeirão Preto (SP), o sistema separa automaticamente os itens da OS no momento do fechamento:
+- **Produtos/Peças:** Emite uma **NF-e** (Modelo 55) ou **NFC-e** (Modelo 65 - Cupom Fiscal).
+- **Mão de Obra/Serviços:** Emite uma **NFS-e** (Nota Municipal de Serviços).
+Ambas as notas são geradas e transmitidas de forma independente via API e seus IDs e logs são persistidos no banco de dados local da OS.
+
+### 2. Validador Fiscal e Modal de Ajuste Cadastral
+Para evitar rejeições de transmissão por erros cadastrais (como CPF/CNPJ inválido matematicamente ou CEP/endereço incompleto), implementamos:
+- **Validação Síncrona:** O validador local analisa o cadastro do cliente e os NCMs de 8 dígitos de cada peça utilizada na OS.
+- **Modal de Ajuste Rápido:** Caso existam dados pendentes, o Kanban exibe um modal interativo na tela de checkout. O atendente pode corrigir os dados do cliente e realizar busca automática de endereço via CEP (ViaCEP). As alterações são salvas diretamente no banco e o faturamento prossegue automaticamente.

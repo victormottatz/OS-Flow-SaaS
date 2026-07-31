@@ -8,6 +8,7 @@ import { useFeatureFlags } from "../contexts/FeatureFlagContext";
 import { OrdemServico, OSStatus, Part, UsedPart, UserRole, Client, Device, ChecklistItem, EntradaFoto, AvulsoCategory } from "../types";
 import OSWhatsAppPanel from "./OSWhatsAppPanel";
 import { matchOS, SearchScope } from "../utils/searchUtils";
+import { validateFiscalData } from "../services/nfeService";
 
 
 interface KanbanBoardProps {
@@ -515,6 +516,97 @@ export default function KanbanBoard({
   const [closingOS, setClosingOS] = useState<OrdemServico | null>(null);
   const [paymentModalOS, setPaymentModalOS] = useState<any | null>(null);
   const [paymentMethod, setPaymentMethod] = useState("");
+  const [invoiceType, setInvoiceType] = useState("nenhum");
+  const [showFiscalFixModal, setShowFiscalFixModal] = useState(false);
+  const [fiscalFixClient, setFiscalFixClient] = useState<any | null>(null);
+  const [fiscalFixData, setFiscalFixData] = useState<any>({
+    name: "",
+    cpfCnpj: "",
+    stateInscription: "",
+    address: "",
+    city: "",
+    state: "",
+    zipCode: ""
+  });
+  const [fiscalFixErrors, setFiscalFixErrors] = useState<string[]>([]);
+  const [fiscalFixWarnings, setFiscalFixWarnings] = useState<string[]>([]);
+  const [fiscalFixPendingOSId, setFiscalFixPendingOSId] = useState<string>("");
+  const [fiscalFixPendingStatus, setFiscalFixPendingStatus] = useState<OSStatus | null>(null);
+  const [fiscalFixLoading, setFiscalFixLoading] = useState(false);
+
+  const handleCepSearch = async (cepValue: string) => {
+    const cleanCep = cepValue.replace(/\D/g, "");
+    if (cleanCep.length !== 8) {
+      alert("CEP deve possuir 8 dígitos.");
+      return;
+    }
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+      const data = await response.json();
+      if (!data.erro) {
+        setFiscalFixData((prev: any) => ({
+          ...prev,
+          address: data.logradouro ? `${data.logradouro}, ` : prev.address,
+          city: data.localidade || prev.city,
+          state: data.uf || prev.state,
+          zipCode: cepValue
+        }));
+      } else {
+        alert("CEP não encontrado.");
+      }
+    } catch (err) {
+      console.error("Erro ao buscar CEP:", err);
+      alert("Erro ao buscar CEP na rede.");
+    }
+  };
+
+  const handleSaveFiscalFix = async () => {
+    if (!fiscalFixClient) return;
+    setFiscalFixLoading(true);
+    try {
+      const token = localStorage.getItem("mgv_token") || "";
+      const res = await fetch(`/api/clients/${fiscalFixClient.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: fiscalFixData.name,
+          cpfCnpj: fiscalFixData.cpfCnpj,
+          stateInscription: fiscalFixData.stateInscription,
+          address: fiscalFixData.address,
+          city: fiscalFixData.city,
+          state: fiscalFixData.state,
+          zipCode: fiscalFixData.zipCode
+        })
+      });
+      
+      if (!res.ok) {
+        const errData = await res.json();
+        alert(errData.error || "Erro ao salvar dados do cliente.");
+      } else {
+        const updatedClientData = await res.json();
+        ordensServico.forEach((os: any) => {
+          if (os.clientId === fiscalFixClient.id) {
+            os.client = {
+              ...os.client,
+              ...updatedClientData
+            };
+          }
+        });
+        setShowFiscalFixModal(false);
+        if (fiscalFixPendingOSId && fiscalFixPendingStatus) {
+          handleStatusChangeBtn(fiscalFixPendingOSId, fiscalFixPendingStatus);
+        }
+      }
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setFiscalFixLoading(false);
+    }
+  };
+
   const [showSemReparoModal, setShowSemReparoModal] = useState(false);
   const [semReparoOS, setSemReparoOS] = useState<OrdemServico | null>(null);
   const [selectedClosingReason, setSelectedClosingReason] = useState<any>('ORCAMENTO_RECUSADO');
@@ -879,6 +971,30 @@ export default function KanbanBoard({
     if (isOffline) return;
 
     const osToMove = ordensServico.find(o => o.id === id);
+
+    // Intercepta transição para FINALIZADO para validar dados fiscais do cliente
+    if (newStatus === "FINALIZADO" && osToMove) {
+      const isNfc = invoiceType === "nfce";
+      const validation = validateFiscalData(osToMove, osToMove.client, parts, { isNfc });
+      if (!validation.isValid) {
+        setFiscalFixPendingOSId(id);
+        setFiscalFixPendingStatus(newStatus);
+        setFiscalFixClient(osToMove.client);
+        setFiscalFixData({
+          name: osToMove.client.name || "",
+          cpfCnpj: osToMove.client.cpfCnpj || "",
+          stateInscription: osToMove.client.stateInscription || osToMove.client.rg || "",
+          address: osToMove.client.address || "",
+          city: osToMove.client.city || "",
+          state: osToMove.client.state || "",
+          zipCode: osToMove.client.zipCode || ""
+        });
+        setFiscalFixErrors(validation.errors);
+        setFiscalFixWarnings(validation.warnings);
+        setShowFiscalFixModal(true);
+        return;
+      }
+    }
     if (osToMove) {
       const isOrigemSemReparo = osToMove.status === "AGUARDANDO_AVALIACAO" || osToMove.status === "AGUARDANDO_AUTORIZACAO";
       if (newStatus === "FINALIZADO" && isOrigemSemReparo) {
@@ -3144,6 +3260,23 @@ export default function KanbanBoard({
               ))}
             </div>
 
+            {paymentModalOS.targetStatus === "FINALIZADO" && (
+              <div className="space-y-2 border-t border-slate-100 pt-3">
+                <label className="block text-xs font-extrabold text-slate-700">Tipo de Emissão Fiscal:</label>
+                <select
+                  value={invoiceType}
+                  onChange={(e) => setInvoiceType(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                >
+                  <option value="nenhum">🚫 Não emitir documento (já emitido anteriormente)</option>
+                  <option value="bifasico">🧾 Faturamento Bifásico (Peças + Mão de Obra)</option>
+                  <option value="nfe">📦 Apenas NF-e (Modelo 55 - Produtos/Peças)</option>
+                  <option value="nfce">🎫 Apenas NFC-e (Modelo 65 - Cupom Fiscal)</option>
+                  <option value="nfse">⚙️ Apenas NFS-e (Serviços/Mão de Obra)</option>
+                </select>
+              </div>
+            )}
+
             <div className="flex gap-3 pt-3 border-t border-slate-100">
               <button
                 type="button"
@@ -3167,7 +3300,8 @@ export default function KanbanBoard({
                       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
                       body: JSON.stringify({ 
                         status: paymentModalOS.targetStatus,
-                        paymentMethod: paymentMethod
+                        paymentMethod: paymentMethod,
+                        invoiceType: invoiceType
                       })
                     });
                     if (!res.ok) {
@@ -3191,6 +3325,149 @@ export default function KanbanBoard({
               >
                 <span className="material-symbols-outlined text-[16px]">task_alt</span>
                 <span>Finalizar OS</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showFiscalFixModal && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60] animate-fadeIn">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
+                <span className="material-symbols-outlined text-[20px] text-amber-500">warning</span>
+                <span>Dados Fiscais do Cliente Pendentes</span>
+              </h3>
+              <button 
+                onClick={() => { setShowFiscalFixModal(false); setFiscalFixPendingOSId(""); setFiscalFixPendingStatus(null); }} 
+                className="text-slate-400 hover:text-slate-650 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 space-y-1.5 text-xs text-amber-800">
+              <p className="font-bold">O Bling rejeitará o faturamento devido às seguintes pendências:</p>
+              <ul className="list-disc pl-4 space-y-1">
+                {fiscalFixErrors.map((err, i) => (
+                  <li key={i} className="font-medium">{err}</li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                <div className="space-y-1 md:col-span-2">
+                  <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-600">Nome / Razão Social</label>
+                  <input
+                    type="text"
+                    value={fiscalFixData.name}
+                    onChange={(e) => setFiscalFixData({ ...fiscalFixData, name: e.target.value })}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-600">CPF ou CNPJ</label>
+                  <input
+                    type="text"
+                    value={fiscalFixData.cpfCnpj}
+                    onChange={(e) => setFiscalFixData({ ...fiscalFixData, cpfCnpj: e.target.value })}
+                    placeholder="Somente números"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-600">Inscrição Estadual / RG</label>
+                  <input
+                    type="text"
+                    value={fiscalFixData.stateInscription}
+                    onChange={(e) => setFiscalFixData({ ...fiscalFixData, stateInscription: e.target.value })}
+                    placeholder="Isento ou Nº"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div className="space-y-1 md:col-span-2">
+                  <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-600">CEP</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={fiscalFixData.zipCode}
+                      onChange={(e) => setFiscalFixData({ ...fiscalFixData, zipCode: e.target.value })}
+                      placeholder="99999-999"
+                      className="flex-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleCepSearch(fiscalFixData.zipCode)}
+                      className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-4 py-2.5 rounded-xl transition cursor-pointer text-xs flex items-center gap-1"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">search</span>
+                      <span>Buscar</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1 md:col-span-2">
+                  <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-600">Endereço (Rua, Número, Bairro)</label>
+                  <input
+                    type="text"
+                    value={fiscalFixData.address}
+                    onChange={(e) => setFiscalFixData({ ...fiscalFixData, address: e.target.value })}
+                    placeholder="Ex: Rua das Flores, 123 - Centro"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-600">Cidade</label>
+                  <input
+                    type="text"
+                    value={fiscalFixData.city}
+                    onChange={(e) => setFiscalFixData({ ...fiscalFixData, city: e.target.value })}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-600">Estado (UF)</label>
+                  <input
+                    type="text"
+                    value={fiscalFixData.state}
+                    onChange={(e) => setFiscalFixData({ ...fiscalFixData, state: e.target.value.toUpperCase() })}
+                    maxLength={2}
+                    placeholder="SP"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => { setShowFiscalFixModal(false); setFiscalFixPendingOSId(""); setFiscalFixPendingStatus(null); }}
+                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-3 rounded-xl transition cursor-pointer text-xs"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveFiscalFix}
+                disabled={fiscalFixLoading}
+                className="flex-1 bg-emerald-650 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition cursor-pointer text-xs flex items-center justify-center gap-1.5 disabled:bg-slate-200 disabled:text-slate-400"
+              >
+                {fiscalFixLoading ? (
+                  <span>Salvando...</span>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-[16px]">save</span>
+                    <span>Salvar e Continuar</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

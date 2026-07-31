@@ -31,3 +31,12 @@ Para maximizar a eficiência e minimizar o consumo de tokens:
 3. **Explicação de Impacto**:
    - Após propor ou realizar uma mudança de código, explicar sucintamente o que foi alterado e como testar/verificar o resultado.
 
+## 📣 Protocolo de Notificação de Atualização (WhatsApp)
+
+Sempre que concluir e aplicar uma nova funcionalidade, correção ou deploy no sistema de produção, o agente deve gerar de forma proativa uma sugestão de mensagem estruturada para que o proprietário envie no WhatsApp para a equipe da assistência técnica:
+- **Formato:** Texto formatado com negritos (`*texto*`) compatíveis com o WhatsApp.
+- **Estrutura:**
+  - Título chamativo com emojis (ex: `📢 *MGV SISTEMA INTEGRADO — ATUALIZAÇÃO* 🚀`).
+  - Resumo didático e direto de "O que muda na prática para vocês?".
+  - Ações imediatas ou cuidados necessários (ex: recarregar a tela com Ctrl+F5, preencher NCM ou CEP).
+  - Linguagem amigável, clara e acessível a leigos (atendentes e técnicos).

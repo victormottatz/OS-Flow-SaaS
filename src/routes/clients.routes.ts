@@ -9,5 +9,6 @@ router.post("/", checkPermission("clients.manage"), clientsController.create.bin
 router.put("/:id", checkPermission("clients.manage"), clientsController.update.bind(clientsController));
 router.delete("/:id", checkPermission("clients.manage"), clientsController.delete.bind(clientsController));
 router.get("/:id/360", checkPermission("clients.view"), clientsController.get360.bind(clientsController));
+router.get("/cnpj/:cnpj", checkPermission("clients.manage"), clientsController.consultCNPJ.bind(clientsController));
 
 export default router;

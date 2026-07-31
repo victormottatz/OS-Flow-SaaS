@@ -965,7 +965,7 @@ export class OSController {
 
   async updateStatus(req: Request, res: Response) {
     const { id } = req.params;
-    const { status, closingReason, paymentMethod } = req.body;
+    const { status, closingReason, paymentMethod, invoiceType } = req.body;
 
     if (!status) {
       res.status(400).json({ error: "Status é obrigatório." });
@@ -1123,14 +1123,27 @@ export class OSController {
                 usedParts: osUsedParts
               };
 
-              const result = await sendOsToBling(osSnapshot, clientSnapshot, partsDbSnapshot);
+              const result = await sendOsToBling(osSnapshot, clientSnapshot, partsDbSnapshot, true, { invoiceType });
               if (result.success) {
+                let sefazMsg = "";
+                if (result.notaFiscalId) sefazMsg += `NF-e/NFC-e: ${result.notaFiscalId}. `;
+                if (result.servicesNotaFiscalId) sefazMsg += `NFS-e: ${result.servicesNotaFiscalId}.`;
+                if (!sefazMsg) sefazMsg = "Faturamento realizado com sucesso no Bling.";
+                if (result.error) sefazMsg += ` (${result.error})`;
+
+                const keyParts: string[] = [];
+                if (result.notaFiscalId) keyParts.push(`NFe:${result.notaFiscalId}`);
+                if (result.servicesNotaFiscalId) keyParts.push(`NFSe:${result.servicesNotaFiscalId}`);
+                const finalBlingKey = keyParts.length > 0 ? keyParts.join(" | ") : (result.notaFiscalId || result.servicesNotaFiscalId || null);
+
                 await prisma.ordemServico.update({
                   where: { id: updated.id },
                   data: {
                     billingStatus: "FATURADO",
-                    blingId: result.blingId,
-                    sefazErrorMessage: result.error ? result.error : (result.notaFiscalId ? `NF-e gerada com sucesso (ID: ${result.notaFiscalId})` : "Pedido faturado com sucesso no Bling.")
+                    blingId: result.blingId || result.servicesBlingId,
+                    blingKey: finalBlingKey || undefined,
+                    sefazErrorMessage: sefazMsg,
+                    billingLogs: [...initialLogs, `Sucesso: Pedido ${result.blingId || result.servicesBlingId || 'N/A'} gerado.`, `Nota Fiscal: ${finalBlingKey || 'N/A'}`]
                   }
                 }).catch((err) => console.warn("[Bling Worker] Ignorando falha de update assíncrono (OS deletada):", err.message));
               } else {
@@ -1138,7 +1151,8 @@ export class OSController {
                   where: { id: updated.id },
                   data: {
                     billingStatus: "REJEITADO",
-                    sefazErrorMessage: result.error
+                    sefazErrorMessage: result.error,
+                    billingLogs: [...initialLogs, `Erro de faturamento: ${result.error}`]
                   }
                 }).catch((err) => console.warn("[Bling Worker] Ignorando falha de update assíncrono (OS deletada):", err.message));
               }
@@ -1148,7 +1162,8 @@ export class OSController {
                 where: { id: updated.id },
                 data: {
                   billingStatus: "REJEITADO",
-                  sefazErrorMessage: e.message
+                  sefazErrorMessage: e.message,
+                  billingLogs: [...initialLogs, `Erro crítico: ${e.message}`]
                 }
               }).catch((err) => console.warn("[Bling Worker Error] Ignorando falha de update assíncrono no tratamento de erro:", err.message));
             }

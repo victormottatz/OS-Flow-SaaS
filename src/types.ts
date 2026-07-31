@@ -32,6 +32,11 @@ export interface Client {
   phone2?: string;
   email: string;
   address: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  stateInscription?: string;
+  rg?: string;
   deletedAt?: string | null;
 }
 

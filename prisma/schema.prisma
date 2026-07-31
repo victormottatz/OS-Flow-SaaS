@@ -55,6 +55,7 @@ model Client {
   suframa      String         @default("")
   website      String         @default("")
   zipCode      String         @default("")
+  blingContactId String?
   devices      Device[]
   orders       OrdemServico[]
 

@@ -121,3 +121,56 @@ export function checkPermission(...requiredPermissions: string[]) {
     }
   };
 }
+
+/**
+ * Middleware de autorização OR: autoriza se o usuário possui PELO MENOS UMA
+ * das permissões listadas. Útil para rotas compartilhadas entre módulos
+ * (ex: peças acessíveis tanto por quem gerencia estoque quanto por quem gerencia OS).
+ */
+export function checkAnyPermission(...requiredPermissions: string[]) {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const userId = req.headers["x-user-id"] as string;
+    const userRole = req.headers["x-user-role"] as string;
+
+    if (!userId) {
+      res.status(401).json({ error: "Usuário não autenticado." });
+      return;
+    }
+
+    if (userRole === "OWNER") {
+      return next();
+    }
+
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { permissions: true }
+      });
+
+      if (!user) {
+        res.status(401).json({ error: "Usuário não encontrado." });
+        return;
+      }
+
+      const rolePermissions = await prisma.rolePermission.findMany({
+        where: { role: userRole as any },
+        select: { permission: true }
+      });
+
+      const allPermissions = [
+        ...(user.permissions || []),
+        ...rolePermissions.map(rp => rp.permission)
+      ];
+
+      const hasAny = requiredPermissions.some(p => allPermissions.includes(p));
+      if (!hasAny) {
+        res.status(403).json({ error: "Acesso negado. Permissão insuficiente para o recurso." });
+        return;
+      }
+
+      next();
+    } catch (err: any) {
+      res.status(500).json({ error: "Erro ao verificar permissões do usuário." });
+    }
+  };
+}
