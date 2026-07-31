@@ -2446,8 +2446,8 @@ export default function KanbanBoard({
                   <span>Excluir OS (Soft Delete)</span>
                 </button>
 
-                <div className="flex space-x-2 w-full sm:w-auto justify-end">
-                  {(selectedOS.status === "PRONTO_RETIRADA" || selectedOS.status === "FINALIZADO") && (
+                <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-end">
+                  {selectedOS.status === "PRONTO_RETIRADA" || selectedOS.status === "FINALIZADO" ? (
                     <button
                       type="button"
                       onClick={() => handlePrintRecibo(selectedOS)}
@@ -2455,6 +2455,15 @@ export default function KanbanBoard({
                     >
                       <span className="material-symbols-outlined text-[16px]">print</span>
                       <span>Imprimir Recibo & Garantia</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handlePrintRecibo(selectedOS)}
+                      className="px-4 py-2 bg-slate-900 hover:bg-slate-850 text-white font-bold text-sm rounded-lg transition flex items-center space-x-1.5 cursor-pointer shadow-sm"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">print</span>
+                      <span>Imprimir Orçamento</span>
                     </button>
                   )}
                   <button
@@ -2782,7 +2791,7 @@ export default function KanbanBoard({
               </div>
               <div className="flex flex-col items-end text-right w-full sm:w-auto">
                 <span className="text-[10px] font-bold uppercase text-emerald-700 bg-emerald-50 border border-emerald-100 px-3 py-1 rounded-full font-mono">
-                  RECIBO DE ENTREGA E GARANTIA
+                  {activePrintOS.status === "PRONTO_RETIRADA" || activePrintOS.status === "FINALIZADO" ? "RECIBO DE ENTREGA E GARANTIA" : "ORÇAMENTO DE ASSISTÊNCIA TÉCNICA"}
                 </span>
                 <p className="text-3xl font-mono font-bold mt-3 text-slate-950 tracking-tight">{activePrintOS.osNumber}</p>
                 <p className="text-[10px] text-slate-400 font-mono mt-1">

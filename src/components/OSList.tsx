@@ -730,7 +730,7 @@ export default function OSList({ isOffline, onRefresh, userRole }: OSListProps) 
                 onClick={() => handlePrintReceipt(selectedOS)}
                 className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-sm"
               >
-                <span className="material-symbols-outlined text-[16px]">print</span> Imprimir Termo/Recibo
+                <span className="material-symbols-outlined text-[16px]">print</span> {selectedOS.status === "PRONTO_RETIRADA" || selectedOS.status === "FINALIZADO" ? "Imprimir Termo/Recibo" : "Imprimir Orçamento"}
               </button>
               <button
                 onClick={() => setSelectedOS(null)}
@@ -780,7 +780,7 @@ export default function OSList({ isOffline, onRefresh, userRole }: OSListProps) 
             </div>
             <div className="text-right">
               <span className="text-[9px] font-bold uppercase text-slate-700 border border-slate-300 px-2 py-0.5 rounded font-mono">
-                RECIBO DE ORDEM DE SERVIÇO
+                {activePrintOS.status === "PRONTO_RETIRADA" || activePrintOS.status === "FINALIZADO" ? "RECIBO DE ORDEM DE SERVIÇO" : "ORÇAMENTO DE ASSISTÊNCIA TÉCNICA"}
               </span>
               <p className="text-2xl font-mono font-bold mt-2 text-slate-950">{activePrintOS.osNumber}</p>
               <p className="text-[9px] text-slate-500 font-mono mt-0.5">
