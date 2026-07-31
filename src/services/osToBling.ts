@@ -313,13 +313,15 @@ export async function sendOsToBling(
             valor: item.valor * item.quantidade
           }));
 
-          // Contato inline — Bling NFS-e exige cpfCnpj
+          // Contato inline — Bling NFS-e exige numeroDocumento e dados cadastrais inline (passamos o ID e omitimos cpfCnpj para evitar erro de duplicidade)
           const nfseContato: any = {
             id: contatoId,
             nome: client.name,
             email: client.nfeEmail || client.email || ""
           };
-          if (client.cpfCnpj) nfseContato.cpfCnpj = client.cpfCnpj.replace(/[^\d]/g, "");
+          if (client.cpfCnpj) {
+            nfseContato.numeroDocumento = client.cpfCnpj;
+          }
           if (client.phone) nfseContato.telefone = client.phone;
           if (client.neighborhood || client.city || client.state) {
             nfseContato.endereco = {
