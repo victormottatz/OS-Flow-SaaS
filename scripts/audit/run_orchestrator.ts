@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 
 // Função helper para esperar o servidor responder
-async function waitPort3000(timeoutMs = 15000): Promise<boolean> {
+async function waitPort3000(timeoutMs = 30000): Promise<boolean> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     try {

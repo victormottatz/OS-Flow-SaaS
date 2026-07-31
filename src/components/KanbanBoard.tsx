@@ -62,7 +62,9 @@ const KanbanCard = React.memo(({
   isSelected?: boolean;
   onSelectToggle?: (e: React.MouseEvent, id: string) => void;
 }) => {
-  const total = (os.usedParts?.reduce((s, i) => s + (i.price * i.quantity), 0) || 0) + (os.laborCost || 0);
+  const total = os.totalCost !== undefined && os.totalCost !== null && os.totalCost > 0
+    ? os.totalCost
+    : Math.max(0, (os.usedParts?.filter(i => i.category !== "SERVICO").reduce((s, i) => s + (i.price * i.quantity), 0) || 0) + (os.laborCost || 0) - (os.discount || 0));
 
   // Calcular status do teste de estresse
   const getStressTestBadge = () => {
@@ -99,7 +101,7 @@ const KanbanCard = React.memo(({
           onClick(os);
         }
       }} 
-      className={`bg-white rounded-2xl border p-5.5 shadow-sm cursor-pointer transition-all duration-300 hover:shadow-md hover:scale-[1.01] flex flex-col space-y-3.5 select-none ${
+      className={`bg-white rounded-2xl border p-5.5 shadow-sm cursor-pointer transition-all duration-300 hover:shadow-md hover:scale-[1.01] flex flex-col space-y-3.5 select-text ${
         isSelected ? "border-l-4 border-rose-500 bg-rose-50/5 ring-2 ring-rose-500/20" : getOSCardBorders(os.status)
       }`}
     >
@@ -275,7 +277,7 @@ const StressTestWidget: React.FC<StressTestWidgetProps> = ({ os, onStartStress }
 
   if (!os.stressTestStartedAt) {
     return (
-      <div className="bg-slate-900/60 backdrop-blur-md p-4 rounded-xl border border-indigo-500/30 flex flex-col sm:flex-row items-center justify-between gap-3 select-none transition hover:border-indigo-500/50">
+      <div className="bg-slate-900/60 backdrop-blur-md p-4 rounded-xl border border-indigo-500/30 flex flex-col sm:flex-row items-center justify-between gap-3 select-text transition hover:border-indigo-500/50">
         <div className="flex items-center space-x-3">
           <span className="material-symbols-outlined text-[20px] text-indigo-400 animate-pulse">timer</span>
           <div>
@@ -306,7 +308,7 @@ const StressTestWidget: React.FC<StressTestWidgetProps> = ({ os, onStartStress }
   };
 
   return (
-    <div className={`p-4 rounded-xl border select-none transition ${
+    <div className={`p-4 rounded-xl border select-text transition ${
       isFinished 
         ? "bg-emerald-950/40 border-emerald-500/30 text-emerald-100" 
         : "bg-indigo-950/40 border-indigo-500/30 text-indigo-100"
@@ -495,6 +497,12 @@ export default function KanbanBoard({
 
   const handlePrintRecibo = (os: OrdemServico) => {
     setActivePrintOS(os);
+    document.body.classList.add("printing-recibo");
+    const cleanup = () => {
+      document.body.classList.remove("printing-recibo");
+      window.removeEventListener("afterprint", cleanup);
+    };
+    window.addEventListener("afterprint", cleanup);
     setTimeout(() => {
       window.print();
     }, 150);
@@ -1735,7 +1743,7 @@ export default function KanbanBoard({
               )}
 
               {/* Status information banner */}
-              <div className="bg-white p-4 rounded-xl border border-slate-200/80 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs select-none">
+              <div className="bg-white p-4 rounded-xl border border-slate-200/80 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs select-text">
                 <p><span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block">Cliente proprietário</span> <strong className="text-slate-800 text-sm mt-0.5 block">{(selectedOS as any).client?.name}</strong></p>
                 <p><span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block">Dispositivo em conserto</span> <strong className="text-slate-800 text-sm mt-0.5 block">{(selectedOS as any).device?.type} {(selectedOS as any).device?.brand} ({(selectedOS as any).device?.model})</strong></p>
                 <p className="sm:col-span-2 border-t border-slate-100 pt-2"><span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block">Sintoma Narrado pelo Solicitante</span> <span className="text-slate-600 italic block mt-1 font-mono">"{(selectedOS as any).reportedDefect}"</span></p>
@@ -1782,7 +1790,7 @@ export default function KanbanBoard({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 items-center">
                     <div>
                       <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">Valor da Mão de Obra (R$)</label>
-                      <div className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-650 font-mono font-bold select-none shadow-inner">
+                      <div className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-650 font-mono font-bold select-text shadow-inner">
                         R$ {computedLaborCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                       </div>
                       <p className="text-[10px] text-slate-450 mt-1.5 font-semibold">Calculado automaticamente a partir dos serviços lançados.</p>
@@ -1799,7 +1807,7 @@ export default function KanbanBoard({
                       />
                     </div>
 
-                    <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-2xl p-4 flex flex-col justify-center items-end text-right border border-slate-850 shadow-md select-none sm:col-span-2">
+                    <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-2xl p-4 flex flex-col justify-center items-end text-right border border-slate-850 shadow-md select-text sm:col-span-2">
                       <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-indigo-300">Total do Conserto</span>
                       <p className="text-2xl font-mono font-bold text-white mt-1">
                         R$ {computedTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
@@ -2504,7 +2512,7 @@ export default function KanbanBoard({
                      <div className="mt-6 p-4 bg-indigo-50 border border-indigo-100 rounded-xl">
                        <p className="text-[10px] uppercase font-bold tracking-wider text-indigo-500 mb-1">Custo Total Atual</p>
                        <p className="text-xl font-bold text-indigo-700 font-mono">
-                         R$ {((selectedOS.usedParts?.reduce((s, i) => s + (i.price * i.quantity), 0) || 0) + (selectedOS.laborCost || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                         R$ {computedTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                        </p>
                      </div>
                    </div>
@@ -2726,24 +2734,31 @@ export default function KanbanBoard({
       <style>{`
         @media print {
           @page {
-            margin: 0.5cm;
+            margin: 8mm;
             size: auto;
           }
-          body * {
-            visibility: hidden;
+          html, body {
+            background: #ffffff !important;
+            height: auto !important;
+            min-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          body *:not(:has(#printable-recibo)):not(#printable-recibo):not(#printable-recibo *) {
+            display: none !important;
           }
           #printable-recibo, #printable-recibo * {
-            visibility: visible;
+            visibility: visible !important;
+            display: block !important;
           }
           #printable-recibo {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
+            position: static !important;
+            width: 100% !important;
             border: none !important;
             box-shadow: none !important;
             padding: 0 !important;
             margin: 0 !important;
+            background: #ffffff !important;
           }
         }
       `}</style>
@@ -2870,14 +2885,18 @@ export default function KanbanBoard({
               </div>
 
               {/* Signatures */}
-              <div className="mt-14 grid grid-cols-2 gap-12 text-center text-xs">
-                <div className="border-t border-slate-350 pt-3">
-                  <p className="font-semibold text-slate-800">Técnico MGV Responsável</p>
-                  <p className="text-[10px] text-slate-400 font-medium">Assinatura / Carimbo</p>
+              <div className="mt-14 grid grid-cols-2 gap-12 text-center text-[11px]">
+                <div className="border-t-2 border-slate-700 pt-3">
+                  <p className="font-bold text-slate-900">Técnico MGV Responsável</p>
+                  <p className="text-[9px] text-slate-500 font-medium mt-0.5">Assinatura / Carimbo</p>
                 </div>
-                <div className="border-t border-slate-350 pt-3">
-                  <p className="font-semibold text-slate-800">Assinatura do Cliente</p>
-                  <p className="text-[10px] text-slate-400 font-medium">De acordo de recebimento do ativo</p>
+                <div className="border-t-2 border-slate-700 pt-3">
+                  <p className="font-bold text-slate-900">
+                    {(activePrintOS as any).client?.name ? (activePrintOS as any).client?.name : "Assinatura do Cliente"}
+                  </p>
+                  <p className="text-[9px] text-slate-500 font-medium mt-0.5">
+                    {(activePrintOS as any).client?.name ? "Assinatura do Cliente (De acordo)" : "De acordo de recebimento do ativo"}
+                  </p>
                 </div>
               </div>
             </div>

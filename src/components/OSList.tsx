@@ -104,14 +104,25 @@ export default function OSList({ isOffline, onRefresh, userRole }: OSListProps) 
 
   const handlePrintReceipt = (os: OrdemServico) => {
     setActivePrintOS(os);
+    document.body.classList.add("printing-recibo");
+    const cleanup = () => {
+      document.body.classList.remove("printing-recibo");
+      window.removeEventListener("afterprint", cleanup);
+    };
+    window.addEventListener("afterprint", cleanup);
     setTimeout(() => {
       window.print();
     }, 150);
   };
 
   const getOSTotal = (os: OrdemServico) => {
-    const partsTotal = os.usedParts?.reduce((s, i) => s + (i.price * i.quantity), 0) || 0;
-    return partsTotal + (os.laborCost || 0);
+    if (os.totalCost !== undefined && os.totalCost !== null && os.totalCost > 0) {
+      return os.totalCost;
+    }
+    const partsTotal = os.usedParts?.filter(i => i.category !== "SERVICO").reduce((s, i) => s + (i.price * i.quantity), 0) || 0;
+    const labor = os.laborCost || 0;
+    const discount = os.discount || 0;
+    return Math.max(0, partsTotal + labor - discount);
   };
 
   const renderPageNumbers = (current: number, total: number, goTo: (p: number) => void) => {
@@ -165,21 +176,32 @@ export default function OSList({ isOffline, onRefresh, userRole }: OSListProps) 
       {/* Print styles override */}
       <style>{`
         @media print {
-          body * {
-            visibility: hidden;
+          @page {
+            margin: 8mm;
+            size: auto;
+          }
+          html, body {
+            background: #ffffff !important;
+            height: auto !important;
+            min-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          body *:not(:has(#printable-recibo)):not(#printable-recibo):not(#printable-recibo *) {
+            display: none !important;
           }
           #printable-recibo, #printable-recibo * {
-            visibility: visible;
+            visibility: visible !important;
+            display: block !important;
           }
           #printable-recibo {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
+            position: static !important;
+            width: 100% !important;
             border: none !important;
             box-shadow: none !important;
             padding: 0 !important;
             margin: 0 !important;
+            background: #ffffff !important;
           }
         }
       `}</style>
@@ -833,12 +855,18 @@ export default function OSList({ isOffline, onRefresh, userRole }: OSListProps) 
               </span>
             </div>
 
-            <div className="mt-14 grid grid-cols-2 gap-12 text-center text-[10px]">
-              <div className="border-t border-slate-350 pt-2">
-                <p className="font-bold text-slate-800">Técnico MGV Responsável</p>
+            <div className="mt-14 grid grid-cols-2 gap-12 text-center text-[11px]">
+              <div className="border-t-2 border-slate-700 pt-3">
+                <p className="font-bold text-slate-900">Técnico MGV Responsável</p>
+                <p className="text-[9px] text-slate-500 font-medium mt-0.5">Assinatura / Carimbo</p>
               </div>
-              <div className="border-t border-slate-350 pt-2">
-                <p className="font-bold text-slate-800">Assinatura do Cliente</p>
+              <div className="border-t-2 border-slate-700 pt-3">
+                <p className="font-bold text-slate-900">
+                  {(activePrintOS as any).client?.name ? (activePrintOS as any).client?.name : "Assinatura do Cliente"}
+                </p>
+                <p className="text-[9px] text-slate-500 font-medium mt-0.5">
+                  {(activePrintOS as any).client?.name ? "Assinatura do Cliente (De acordo)" : "De acordo / Recebimento"}
+                </p>
               </div>
             </div>
           </div>

@@ -1,6 +1,8 @@
 import { Router } from "express";
+import { XMLParser } from "fast-xml-parser";
 import prisma from "../database/prisma";
 import { convertXmlCfop } from "../utils/tax.utils";
+import { syncPartToBling, updateBlingStock } from "../services/bling";
 
 const router = Router();
 
@@ -95,29 +97,83 @@ router.get("/bling/sync/catalog/progress", (req, res) => {
 
 router.post("/bling/sync/catalog", async (req, res) => {
   try {
-    const totalParts = await prisma.part.count({ where: { deletedAt: null } });
+    const parts = await prisma.part.findMany({ where: { deletedAt: null } });
+    
+    // Inicializa o estado de progresso da sincronização
     catalogSyncState = {
       isSyncing: true,
-      total: totalParts,
-      processed: totalParts,
-      successCount: totalParts,
+      total: parts.length,
+      processed: 0,
+      successCount: 0,
       errorCount: 0,
       currentType: "peças",
       logs: [
-        `[${new Date().toLocaleTimeString()}] Iniciando sincronização de catálogo com o Bling...`,
-        `[${new Date().toLocaleTimeString()}] Total de ${totalParts} peças processadas com sucesso.`
+        `[${new Date().toLocaleTimeString()}] Iniciando sincronização real de catálogo e estoques com o Bling...`,
+        `[${new Date().toLocaleTimeString()}] Total de peças localizadas no MGV: ${parts.length}`
       ]
     };
+
+    // Responde imediatamente para liberar a UI e permitir polling de progresso
     res.json({ message: "Sincronização de catálogo iniciada com sucesso.", state: catalogSyncState });
+
+    // Inicia a execução em background para evitar timeout do Express
+    (async () => {
+      const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+      for (const part of parts) {
+        // Verifica se houve requisição de interrupção
+        if (!catalogSyncState.isSyncing) {
+          catalogSyncState.logs.push(`[${new Date().toLocaleTimeString()}] ⏹️ Sincronização cancelada pelo usuário.`);
+          break;
+        }
+
+        try {
+          const codeClean = part.code ? part.code.trim() : `SKU-${part.id.substring(0, 8)}`;
+          const nameClean = part.name ? part.name.trim() : "Peça Sem Nome";
+          const validPrice = part.price > 0 ? part.price : (part.cost > 0 ? part.cost * 1.5 : 1.0);
+
+          // 1. Cadastra/Atualiza o produto (peça) no Bling
+          const productId = await syncPartToBling({
+            code: codeClean,
+            name: nameClean,
+            price: validPrice
+          });
+
+          // 2. Lança o saldo de estoque atual no Bling
+          await updateBlingStock(productId, part.stock, validPrice);
+
+          catalogSyncState.successCount++;
+          catalogSyncState.logs.push(`[${new Date().toLocaleTimeString()}] ✓ Peça: ${codeClean} (${nameClean}) - Estoque: ${part.stock} atualizado.`);
+        } catch (err: any) {
+          catalogSyncState.errorCount++;
+          catalogSyncState.logs.push(`[${new Date().toLocaleTimeString()}] ❌ Erro na peça ${part.code} (${part.name}): ${err.message}`);
+        } finally {
+          catalogSyncState.processed++;
+        }
+
+        // Aguarda 600ms para respeitar os limites de requisições por segundo (Rate Limit) do Bling
+        await sleep(600);
+      }
+
+      catalogSyncState.isSyncing = false;
+      catalogSyncState.currentType = "idle";
+      catalogSyncState.logs.push(`[${new Date().toLocaleTimeString()}] Sincronização concluída. Sucessos: ${catalogSyncState.successCount}, Erros: ${catalogSyncState.errorCount}`);
+    })().catch(err => {
+      console.error("[Bling Background Sync] Erro grave:", err);
+      catalogSyncState.isSyncing = false;
+      catalogSyncState.currentType = "idle";
+      catalogSyncState.logs.push(`[${new Date().toLocaleTimeString()}] [FATAL] Erro na sincronização: ${err.message}`);
+    });
+
   } catch (err: any) {
-    res.status(500).json({ error: "Erro ao sincronizar catálogo com o Bling: " + err.message });
+    res.status(500).json({ error: "Erro ao iniciar sincronização de catálogo com o Bling: " + err.message });
   }
 });
 
 router.post("/bling/sync/catalog/stop", (req, res) => {
   catalogSyncState.isSyncing = false;
   catalogSyncState.currentType = "idle";
-  catalogSyncState.logs.push(`[${new Date().toLocaleTimeString()}] Sincronização interrompida.`);
+  catalogSyncState.logs.push(`[${new Date().toLocaleTimeString()}] Solicitação de interrupção recebida.`);
   res.json({ message: "Sincronização interrompida.", state: catalogSyncState });
 });
 
@@ -259,69 +315,86 @@ router.post("/fix-clients-batch", async (_req, res) => {
   }
 });
 
-// Helper function to parse XML NFe
+// Helper function to find infNFe recursively in the parsed object
+function findInfNFe(obj: any): any {
+  if (!obj || typeof obj !== "object") return null;
+  if (obj.infNFe) return obj.infNFe;
+  for (const key of Object.keys(obj)) {
+    const res = findInfNFe(obj[key]);
+    if (res) return res;
+  }
+  return null;
+}
+
+// Helper function to parse XML NFe using fast-xml-parser
 function parseXmlNfe(xml: string) {
-  const emitMatch = xml.match(/<emit>([\s\S]*?)<\/emit>/);
-  let supplier = "Fornecedor Desconhecido";
-  if (emitMatch) {
-    const xNomeMatch = emitMatch[1].match(/<xNome>([^<]+)<\/xNome>/);
-    if (xNomeMatch) supplier = xNomeMatch[1].trim();
-  }
+  try {
+    const parser = new XMLParser({
+      ignoreAttributes: false,
+      removeNSPrefix: true
+    });
+    const jsonObj = parser.parse(xml);
+    const infNFe = findInfNFe(jsonObj);
 
-  const ideMatch = xml.match(/<ide>([\s\S]*?)<\/ide>/);
-  let nNF = "S/N";
-  if (ideMatch) {
-    const nNFMatch = ideMatch[1].match(/<nNF>([^<]+)<\/nNF>/);
-    if (nNFMatch) nNF = nNFMatch[1].trim();
-  }
-
-  const items: any[] = [];
-  const genericDetMatches = xml.matchAll(/<det\b[^>]*>([\s\S]*?)<\/det>/g);
-  
-  for (const m of genericDetMatches) {
-    const detBlock = m[1];
-    const prodMatch = detBlock.match(/<prod>([\s\S]*?)<\/prod>/);
-    if (!prodMatch) continue;
-    const prodBlock = prodMatch[1];
-
-    const cProd = (prodBlock.match(/<cProd>([^<]+)<\/cProd>/)?.[1] || "").trim();
-    const xProd = (prodBlock.match(/<xProd>([^<]+)<\/xProd>/)?.[1] || "").trim();
-    const qCom = parseFloat(prodBlock.match(/<qCom>([^<]+)<\/qCom>/)?.[1] || "0");
-    const vUnCom = parseFloat(prodBlock.match(/<vUnCom>([^<]+)<\/vUnCom>/)?.[1] || "0");
-    
-    const uCom = (prodBlock.match(/<uCom>([^<]+)<\/uCom>/)?.[1] || "UN").trim();
-    const NCM = (prodBlock.match(/<NCM>([^<]+)<\/NCM>/)?.[1] || "").trim();
-    const cEAN = (prodBlock.match(/<cEAN>([^<]+)<\/cEAN>/)?.[1] || "").trim();
-    const cfopFornecedor = (prodBlock.match(/<CFOP>([^<]+)<\/CFOP>/)?.[1] || "").trim();
-
-    // Lógica De/Para de CFOP de Entrada movida para utilitário de domínio (Clean Architecture)
-    const taxData = convertXmlCfop(cfopFornecedor);
-
-    if (cProd && xProd) {
-      items.push({
-        code: cProd,
-        name: xProd,
-        quantity: qCom,
-        cost: vUnCom,
-        unit: uCom,
-        ncm: NCM,
-        barcode: (cEAN && cEAN !== "SEM GTIN") ? cEAN : null,
-        cfopFornecedor,
-        ...taxData
-      });
+    if (!infNFe) {
+      throw new Error("Estrutura infNFe não encontrada no XML da NF-e.");
     }
-  }
 
-  return { supplier, nNF, items };
+    const supplier = infNFe.emit?.xNome || infNFe.emit?.xFant || "Fornecedor Desconhecido";
+    const nNF = String(infNFe.ide?.nNF || "S/N");
+
+    let detList = infNFe.det;
+    if (!detList) detList = [];
+    if (!Array.isArray(detList)) detList = [detList];
+
+    const items: any[] = [];
+    for (const det of detList) {
+      const prod = det.prod || {};
+      const cProd = String(prod.cProd || "").trim();
+      const xProd = String(prod.xProd || "").trim();
+      const qCom = parseFloat(String(prod.qCom || "0"));
+      const vUnCom = parseFloat(String(prod.vUnCom || "0"));
+      const uCom = String(prod.uCom || "UN").trim();
+      const NCM = String(prod.NCM || "").trim();
+      const cEAN = String(prod.cEAN || "").trim();
+      const cfopFornecedor = String(prod.CFOP || "").trim();
+
+      // Lógica De/Para de CFOP de Entrada movida para utilitário de domínio (Clean Architecture)
+      const taxData = convertXmlCfop(cfopFornecedor);
+
+      if (cProd && xProd) {
+        items.push({
+          code: cProd,
+          name: xProd,
+          quantity: qCom,
+          cost: vUnCom,
+          unit: uCom,
+          ncm: NCM,
+          barcode: (cEAN && cEAN !== "SEM GTIN") ? cEAN : null,
+          cfopFornecedor,
+          ...taxData
+        });
+      }
+    }
+
+    return { supplier, nNF, items };
+  } catch (err: any) {
+    console.error("[parseXmlNfe] Erro ao parsear XML:", err);
+    throw new Error(`Falha no processamento do XML da NF-e: ${err.message}`);
+  }
 }
 
 // Rota de importação de XML de Nota Fiscal de Entrada
 router.post("/bling/import-xml", async (req, res) => {
-  const { xmlContent } = req.body;
+  const { xmlContent, markup } = req.body;
   if (!xmlContent) {
     res.status(400).json({ error: "Conteúdo XML não fornecido." });
     return;
   }
+
+  // Define a margem de markup (padrão 50% se não especificado)
+  const markupPercent = markup !== undefined ? parseFloat(markup) : 50;
+  const markupMultiplier = 1 + (markupPercent / 100);
 
   try {
     const { supplier, nNF, items } = parseXmlNfe(xmlContent);
@@ -381,8 +454,8 @@ router.post("/bling/import-xml", async (req, res) => {
           cfopEntrada: item.cfopEntrada
         });
       } else {
-        // Peças não cadastradas são inseridas automaticamente com 50% de margem no preço de venda
-        const price = item.cost * 1.5;
+        // Peças não cadastradas são inseridas automaticamente com markup dinâmico
+        const price = item.cost * markupMultiplier;
         creates.push(
           prisma.part.create({
             data: {
@@ -424,6 +497,34 @@ router.post("/bling/import-xml", async (req, res) => {
     // Executa em uma única transação
     await prisma.$transaction([...updates, ...creates]);
 
+    // Busca os produtos atualizados e novos para sincronizar estoque com o Bling em background
+    const processedParts = await prisma.part.findMany({
+      where: { code: { in: itemCodes }, deletedAt: null }
+    });
+
+    // Inicia sincronização em segundo plano para não travar a resposta do Express
+    (async () => {
+      const { syncPartToBling, updateBlingStock } = await import("../services/bling.js");
+      const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+      
+      console.log(`[Bling Auto-Sync XML] Iniciando sincronização automática de ${processedParts.length} produtos...`);
+      
+      for (const part of processedParts) {
+        try {
+          const productId = await syncPartToBling(part);
+          await updateBlingStock(productId, part.stock, part.price);
+          console.log(`[Bling Auto-Sync XML] ✓ Peça ${part.code} sincronizada com estoque ${part.stock} no Bling.`);
+        } catch (err: any) {
+          console.error(`[Bling Auto-Sync XML] ❌ Falha ao sincronizar peça ${part.code}:`, err.message);
+        }
+        // Throttle para respeitar o Rate Limit do Bling
+        await sleep(600);
+      }
+      console.log("[Bling Auto-Sync XML] Sincronização automática em background concluída.");
+    })().catch(err => {
+      console.error("[Bling Auto-Sync XML] Erro na execução em segundo plano:", err);
+    });
+
     res.json({
       nNF,
       supplier,
@@ -434,7 +535,7 @@ router.post("/bling/import-xml", async (req, res) => {
     });
   } catch (error: any) {
     console.error("[Bling Import XML] Erro:", error);
-    res.status(500).json({ error: "Erro ao processar e importar o XML de NFe." });
+    res.status(500).json({ error: "Erro ao processar e importar o XML de NFe: " + error.message });
   }
 });
 

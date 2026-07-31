@@ -120,8 +120,9 @@ async function startServer() {
   app.use("/api", apiRoutes);
 
   if (process.env.NODE_ENV !== "production") {
+    const hmrPort = PORT ? 24678 + (PORT - 3000) : 24678;
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, hmr: { port: hmrPort } },
       appType: "spa",
     });
     app.use(vite.middlewares);

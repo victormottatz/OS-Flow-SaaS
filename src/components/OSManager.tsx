@@ -282,21 +282,32 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
       {/* Printable Area overrides shown inside modal / container */}
       <style>{`
         @media print {
-          body * {
-            visibility: hidden;
+          @page {
+            margin: 8mm;
+            size: auto;
+          }
+          html, body {
+            background: #ffffff !important;
+            height: auto !important;
+            min-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          body *:not(:has(#printable-termo)):not(#printable-termo):not(#printable-termo *) {
+            display: none !important;
           }
           #printable-termo, #printable-termo * {
-            visibility: visible;
+            visibility: visible !important;
+            display: block !important;
           }
           #printable-termo {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
+            position: static !important;
+            width: 100% !important;
             border: none !important;
             box-shadow: none !important;
             padding: 0 !important;
             margin: 0 !important;
+            background: #ffffff !important;
           }
         }
       `}</style>
@@ -570,14 +581,18 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
             </div>
 
             {/* Signature workspace block */}
-            <div className="mt-14 grid grid-cols-2 gap-12 text-center text-xs">
-              <div className="border-t border-slate-300 pt-3">
-                <p className="font-semibold text-slate-800">Representante Técnico MGV</p>
-                <p className="text-[10px] text-slate-400 font-medium">Assinatura autorizada</p>
+            <div className="mt-14 grid grid-cols-2 gap-12 text-center text-[11px]">
+              <div className="border-t-2 border-slate-700 pt-3">
+                <p className="font-bold text-slate-900">Representante Técnico MGV</p>
+                <p className="text-[9px] text-slate-500 font-medium mt-0.5">Assinatura autorizada</p>
               </div>
-              <div className="border-t border-slate-300 pt-3">
-                <p className="font-semibold text-slate-800">Proprietário do Ativo</p>
-                <p className="text-[10px] text-slate-400 font-medium">De acordo com as cláusulas</p>
+              <div className="border-t-2 border-slate-700 pt-3">
+                <p className="font-bold text-slate-900">
+                  {clients.find(c => c.id === createdOS.clientId)?.name || "Proprietário do Ativo"}
+                </p>
+                <p className="text-[9px] text-slate-500 font-medium mt-0.5">
+                  {clients.find(c => c.id === createdOS.clientId)?.name ? "Assinatura do Cliente (De acordo)" : "De acordo com as cláusulas"}
+                </p>
               </div>
             </div>
           </div>

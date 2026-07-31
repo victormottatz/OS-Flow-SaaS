@@ -2,9 +2,7 @@ import fs from 'fs';
 import * as path from 'path';
 import xlsx from 'xlsx';
 
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-const pdf = require('pdf-parse');
+import { PDFParse } from 'pdf-parse';
 
 export interface CaixaEntry {
   filePath: string;
@@ -232,8 +230,7 @@ export class OSConciliatorService {
   private static async parseCaixaPdf(filePath: string): Promise<CaixaEntry[]> {
     const entries: CaixaEntry[] = [];
     try {
-      const parser = new pdf.PDFParse({ url: filePath, verbosity: 0 });
-      await parser.load();
+      const parser = new PDFParse({ url: filePath, verbosity: 0 });
       const result = await parser.getText();
       await parser.destroy();
 

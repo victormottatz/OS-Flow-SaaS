@@ -513,3 +513,65 @@ export async function fetchProductFromBling(productId: number): Promise<any> {
   return response.data?.data;
 }
 
+let cachedDepositId: number | null = null;
+
+/**
+ * Obtém o ID do depósito de estoque padrão no Bling V3 (com cache em memória).
+ */
+export async function getBlingDepositId(): Promise<number> {
+  if (cachedDepositId) return cachedDepositId;
+  const token = await getAccessToken();
+  if (!token) throw new Error("Não foi possível obter um token válido para o Bling.");
+
+  try {
+    const res = await requestWithRetry(() => axios.get("https://api.bling.com.br/Api/v3/depositos", {
+      headers: { Authorization: `Bearer ${token}` }
+    }));
+    const depositos = res.data?.data || [];
+    const defaultDep = depositos.find((d: any) => d.padrao) || depositos[0];
+    if (defaultDep?.id) {
+      cachedDepositId = defaultDep.id;
+      return defaultDep.id;
+    }
+  } catch (err: any) {
+    console.warn("[Bling Sync] Erro ao buscar depósitos no Bling, utilizando ID padrão:", err.message);
+  }
+
+  // Fallback para o ID de depósito padrão detectado na conta
+  return 14886602802;
+}
+
+/**
+ * Atualiza o estoque de um produto no Bling V3 usando a operação de Balanço (B).
+ */
+export async function updateBlingStock(productId: number, stockQty: number, price: number): Promise<void> {
+  const token = await getAccessToken();
+  if (!token) {
+    throw new Error("Não foi possível obter um token válido para o Bling.");
+  }
+
+  const depositId = await getBlingDepositId();
+
+  const payload = {
+    produto: { id: productId },
+    deposito: { id: depositId },
+    operacao: "B", // Balanço: substitui o estoque atual no Bling pelo saldo exato
+    quantidade: stockQty,
+    preco: price > 0 ? price : 1.0,
+    observacoes: "Atualizado via Sincronizador de Estoque MGV"
+  };
+
+  try {
+    await requestWithRetry(() => axios.post("https://api.bling.com.br/Api/v3/estoques", payload, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json"
+      }
+    }));
+  } catch (err: any) {
+    const errorMsg = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+    throw new Error(`Erro ao atualizar estoque do produto ID ${productId} no Bling: ${errorMsg}`);
+  }
+}
+
+

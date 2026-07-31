@@ -18,3 +18,16 @@ Para maximizar a eficiência e minimizar o consumo de tokens:
 
 4. **Memória de Longo Prazo**:
    - Manter decisões de arquitetura e progresso no `walkthrough.md`, `README.md` ou neste arquivo de regras (`AGENTS.md`).
+
+## 🎓 Diretrizes de Apoio a Desenvolvedores Iniciantes
+
+1. **Simplicidade de Código**:
+   - Evitar criar abstrações excessivas, padrões de design complexos ou "over-engineering".
+   - Priorizar código limpo, legível e de fácil manutenção por iniciantes.
+
+2. **Comentários Didáticos**:
+   - Sempre documentar blocos de lógica complexa com comentários curtos e didáticos diretamente no código (em português).
+
+3. **Explicação de Impacto**:
+   - Após propor ou realizar uma mudança de código, explicar sucintamente o que foi alterado e como testar/verificar o resultado.
+

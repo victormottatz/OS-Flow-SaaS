@@ -78,21 +78,55 @@
 
 /* Print CSS tweaks */
 @media print {
-  body {
-    background: white !important;
-    color: black !important;
+  @page {
+    margin: 8mm;
+    size: auto;
   }
-  header, footer, nav, button {
+
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  header, footer, nav, sidebar, button, .no-print {
     display: none !important;
   }
-  #printable-danfe, #printable-termo {
-    border: none !important;
-    padding: 0 !important;
-    margin: 0 !important;
+
+  /* Quando houver elemento imprimível, oconde todo o conteúdo da página que não seja o próprio elemento nem seus ancestrais */
+  body:has(#printable-recibo, #printable-termo, #printable-danfe, .printable-area)
+    *:not(:has(#printable-recibo, #printable-termo, #printable-danfe, .printable-area)):not(#printable-recibo, #printable-termo, #printable-danfe, .printable-area):not(#printable-recibo *, #printable-termo *, #printable-danfe *, .printable-area *) {
+    display: none !important;
+  }
+
+  body.printing-recibo *:not(:has(#printable-recibo)):not(#printable-recibo):not(#printable-recibo *) {
+    display: none !important;
+  }
+
+  #printable-recibo,
+  #printable-termo,
+  #printable-danfe,
+  .printable-area {
+    display: block !important;
+    visibility: visible !important;
+    position: static !important;
     width: 100% !important;
-    position: absolute !important;
-    top: 0 !important;
-    left: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+  }
+
+  #printable-recibo *,
+  #printable-termo *,
+  #printable-danfe *,
+  .printable-area * {
+    visibility: visible !important;
   }
 }
 
@@ -190,4 +224,16 @@
 .custom-scrollbar-horizontal::-webkit-scrollbar-thumb:hover {
   background-color: var(--color-indigo-600);
 }
+
+/* Global Text Selection Unblocker */
+p, span, strong, label, td, th, div, h1, h2, h3, h4, h5, h6, input, textarea, code, pre {
+  -webkit-user-select: text !important;
+  user-select: text !important;
+}
+
+button, .material-symbols-outlined {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 

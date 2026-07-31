@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import prisma from "../database/prisma";
 import { eventBus, Events } from "../events";
 import { getRecurrentAlert } from "./os.controller";
+import { isValidCpfOrCnpj } from "../utils/cpfCnpjValidator";
 
 export class ClientsController {
   async getAll(req: Request, res: Response) {
@@ -66,6 +67,12 @@ export class ClientsController {
     
     if (!name || !cpfCnpj || !phone || !email || !address) {
       res.status(422).json({ error: "Parâmetros incorretos. Todos os campos de cadastro do cliente são obrigatórios." });
+      return;
+    }
+
+    const docValidation = isValidCpfOrCnpj(cpfCnpj);
+    if (!docValidation.valid) {
+      res.status(422).json({ error: docValidation.message || "CPF/CNPJ inválido." });
       return;
     }
 
@@ -141,6 +148,12 @@ export class ClientsController {
       const client = await prisma.client.findUnique({ where: { id } });
       if (!client || client.deletedAt) {
         res.status(404).json({ error: "Cliente não encontrado." });
+        return;
+      }
+
+      const docValidation = isValidCpfOrCnpj(cpfCnpj);
+      if (!docValidation.valid) {
+        res.status(422).json({ error: docValidation.message || "CPF/CNPJ inválido." });
         return;
       }
 

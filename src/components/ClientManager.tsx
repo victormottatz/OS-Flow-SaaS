@@ -7,6 +7,7 @@ import React, { useState } from "react";
 import { Client, Device, UserRole, OrdemServico } from "../types";
 import { useFeatureFlags } from "../contexts/FeatureFlagContext";
 import { matchClient, SearchScope } from "../utils/searchUtils";
+import { isValidCpfOrCnpj } from "../utils/cpfCnpjValidator";
 
 
 interface ClientManagerProps {
@@ -391,6 +392,12 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
 
     if (!clientName || !clientCpfCnpj || !clientPhone || !clientEmail || !clientAddress) {
       setErrorMsg("Todos os campos do cliente são de preenchimento obrigatório.");
+      return;
+    }
+
+    const docValidation = isValidCpfOrCnpj(clientCpfCnpj);
+    if (!docValidation.valid) {
+      setErrorMsg(docValidation.message || "O CPF ou CNPJ informado é inválido.");
       return;
     }
 
