@@ -323,11 +323,14 @@ export async function sendOsToBling(
             nfseContato.numeroDocumento = client.cpfCnpj;
           }
           if (client.phone) nfseContato.telefone = client.phone;
-          if (client.neighborhood || client.city || client.state) {
+          if (client.address || client.neighborhood || client.city || client.state) {
             nfseContato.endereco = {
+              endereco: client.address || "",
+              numero: client.number || "SN",
               bairro: client.neighborhood || "",
               municipio: client.city || "",
-              uf: client.state || process.env.STORE_STATE || "SP"
+              uf: client.state || process.env.STORE_STATE || "SP",
+              cep: client.zipCode ? client.zipCode.replace(/[^\d]/g, "") : ""
             };
           }
 
