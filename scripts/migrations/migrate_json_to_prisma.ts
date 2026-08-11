@@ -1,6 +1,7 @@
 /**
  * Script para migrar dados de database.json para Supabase (Prisma)
  */
+import "dotenv/config";
 import fs from "fs/promises";
 import path from "path";
 import { PrismaClient } from "@prisma/client";
