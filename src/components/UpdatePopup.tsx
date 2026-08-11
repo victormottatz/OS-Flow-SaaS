@@ -26,7 +26,7 @@ export function UpdatePopup() {
           if (!current.some((n: any) => n.title === "🚀 MANCHETE: MGV One Hub V4.2!")) {
             addNotification(
               "🚀 MANCHETE: MGV One Hub V4.2!",
-              "Domínio próprio (mgvrp.com.br) e migração de banco de dados concluídos com sucesso.",
+              "Domínio próprio (sistema.mgvrp.com.br) e migração de banco de dados concluídos com sucesso.",
               "success"
             );
           }
@@ -92,7 +92,7 @@ export function UpdatePopup() {
                   <div>
                     <h3 className="text-slate-200 font-semibold text-base">Domínio Personalizado Próprio</h3>
                     <p className="text-slate-400 text-sm mt-0.5 leading-relaxed">
-                      O sistema agora é acessado oficialmente através do link exclusivo da empresa: **mgvrp.com.br**, com conexão HTTPS segura automática.
+                      O sistema agora é acessado oficialmente através do link exclusivo da empresa: **sistema.mgvrp.com.br**, com conexão HTTPS segura automática.
                     </p>
                   </div>
                 </li>
