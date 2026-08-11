@@ -2,10 +2,18 @@
 @import "tailwindcss";
 
 @theme {
+  /* GUIA: Fontes do sistema. Troque os nomes aqui e atualize o <link> de fontes no index.html.
+     - --font-sans: corpo do texto
+     - --font-display: títulos (h1-h6)
+     - --font-mono: textos técnicos/códigos/rodapé */
   --font-sans: "Lato", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", monospace;
   --font-display: "Poppins", sans-serif;
   
+  /* GUIA: CORES DA MARCA. Trocar o hex aqui muda o sistema INTEIRO.
+     - primary-container (#111111): fundos escuros / texto em botões amarelos
+     - secondary-container (#fbbb18): o AMARELO da marca (botões, destaques, sidebar)
+     - secondary-container-hover: amarelo mais escuro ao passar o mouse */
   /* Stitch Visual Identity Colors */
   --color-primary-container: #111111;
   --color-secondary-container: #fbbb18;
@@ -27,6 +35,10 @@
   --color-slate-250: #cbd5e1;
   --color-slate-medium: #828383;
   
+  /* GUIA: SOMBRAS dos cards/painéis. Quanto maior o primeiro número (0 20px), maior a sombra.
+     - shadow-premium: sombra normal dos cards
+     - shadow-premium-hover: sombra ao passar o mouse (com .hover-premium)
+     - shadow-premium-dark: sombra para elementos escuros */
   /* Premium Shadow System */
   --shadow-premium: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
   --shadow-premium-hover: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -6px rgba(0, 0, 0, 0.1);
@@ -35,6 +47,7 @@
 
 @layer base {
   body {
+    /* GUIA: FONTE e COR DE FUNDO GLOBAL da aplicação. Troque #f8fafc para mudar o fundo de todas as telas. */
     font-family: var(--font-sans);
     background-color: #f8fafc;
   }
@@ -47,6 +60,7 @@
   }
 }
 
+/* GUIA: Efeito vidro fosco (glassmorphism). Ajuste a transparência em background e o blur para mudar a intensidade. */
 /* Glassmorphism Utilities */
 .glassmorphism {
   background: rgba(255, 255, 255, 0.75);
@@ -76,6 +90,10 @@
   transform: scale(0.97);
 }
 
+/* GUIA: PRINT CSS. Ao imprimir, o sistema esconde tudo exceto elementos com
+   id="printable-recibo"/"printable-termo"/"printable-danfe" ou classe .printable-area.
+   - Para esconder um elemento também na impressão, adicione a classe "no-print" nele.
+   - Para mudar a margem do papel, ajuste "margin" da regra @page abaixo. */
 /* Print CSS tweaks */
 @media print {
   @page {
@@ -100,10 +118,6 @@
   /* Quando houver elemento imprimível, oconde todo o conteúdo da página que não seja o próprio elemento nem seus ancestrais */
   body:has(#printable-recibo, #printable-termo, #printable-danfe, .printable-area)
     *:not(:has(#printable-recibo, #printable-termo, #printable-danfe, .printable-area)):not(#printable-recibo, #printable-termo, #printable-danfe, .printable-area):not(#printable-recibo *, #printable-termo *, #printable-danfe *, .printable-area *) {
-    display: none !important;
-  }
-
-  body.printing-recibo *:not(:has(#printable-recibo)):not(#printable-recibo):not(#printable-recibo *) {
     display: none !important;
   }
 

@@ -5,9 +5,11 @@
 
 import React, { useState } from "react";
 import { Client, Device, UserRole, OrdemServico } from "../types";
+import TagSelector from "./TagSelector";
 import { useFeatureFlags } from "../contexts/FeatureFlagContext";
 import { matchClient, SearchScope } from "../utils/searchUtils";
 import { isValidCpfOrCnpj } from "../utils/cpfCnpjValidator";
+import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
 
 
 interface ClientManagerProps {
@@ -25,6 +27,8 @@ interface ClientManagerProps {
 export default function ClientManager({ clients, userRole, isOffline, onRefresh, limit, onLimitChange, searchTerm, onSearchChange, totalItems }: ClientManagerProps) {
   const [searchScope, setSearchScope] = useState<SearchScope>("all");
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditClientModal, setShowEditClientModal] = useState(false);
+  const [editClientId, setEditClientId] = useState("");
   const [showDeviceModal, setShowDeviceModal] = useState(false);
   const [activeClientForDevice, setActiveClientForDevice] = useState<string | null>(null);
 
@@ -39,6 +43,9 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
   const [client360Data, setClient360Data] = useState<any | null>(null);
   const [is360Loading, setIs360Loading] = useState(false);
   const [visao360Tab, setVisao360Tab] = useState<"devices" | "history">("devices");
+  // Etiquetas editáveis do cliente na visão 360
+  const [client360TagIds, setClient360TagIds] = useState<string[]>([]);
+  const [saving360Tags, setSaving360Tags] = useState(false);
 
   // Edição de Dispositivo da Base Instalada (Prioridade 3)
   const [showEditDeviceModal, setShowEditDeviceModal] = useState(false);
@@ -64,6 +71,9 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
   const [clientEmail, setClientEmail] = useState("");
   const [clientAddress, setClientAddress] = useState("");
   const [clientCep, setClientCep] = useState("");
+  const [clientCity, setClientCity] = useState("");
+  const [clientState, setClientState] = useState("");
+  const [clientTagIds, setClientTagIds] = useState<string[]>([]);
   const [isCepLoading, setIsCepLoading] = useState(false);
   const [isCnpjLoading, setIsCnpjLoading] = useState(false);
   
@@ -81,6 +91,42 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // --- Guarda de alterações não salvas (beforeunload) ---
+  // Marca como "sujo" apenas quando o modal de Novo Cliente ou Editar Cliente está aberto e
+  // existe algum campo preenchido (ou equipamento adicionado).
+  const clientFormDirty =
+    (showAddModal || showEditClientModal) &&
+    (clientName.trim() !== "" ||
+      clientCpfCnpj.trim() !== "" ||
+      clientPhone.trim() !== "" ||
+      clientPhone2.trim() !== "" ||
+      clientEmail.trim() !== "" ||
+      clientAddress.trim() !== "" ||
+      clientCep.trim() !== "" ||
+      tempDevices.length > 0);
+
+  // Modal de Novo Dispositivo (individual)
+  const deviceFormDirty =
+    showDeviceModal &&
+    (devExtraType.trim() !== "" ||
+      devBrand.trim() !== "" ||
+      devModel.trim() !== "" ||
+      devSerial.trim() !== "" ||
+      devDesc.trim() !== "");
+
+  // Modal de Edição de Dispositivo
+  const editDeviceFormDirty =
+    showEditDeviceModal &&
+    (editDevExtraType.trim() !== "" ||
+      editDevBrand.trim() !== "" ||
+      editDevModel.trim() !== "" ||
+      editDevSerial.trim() !== "" ||
+      editDevDesc.trim() !== "");
+
+  useUnsavedChangesGuard(clientFormDirty);
+  useUnsavedChangesGuard(deviceFormDirty);
+  useUnsavedChangesGuard(editDeviceFormDirty);
 
   const handleCepLookup = async () => {
     const cleanCep = clientCep.replace(/\D/g, "");
@@ -105,6 +151,10 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
       // Pre-fill address formatting: Rua, [nº] - Bairro - Cidade / UF
       const preFilled = `${data.logradouro},  - ${data.bairro} - ${data.localidade} / ${data.uf}`;
       setClientAddress(preFilled);
+      // Persistir CEP/cidade/UF nos campos separados (antes eram descartados ao salvar)
+      setClientCep(cleanCep);
+      setClientCity(data.localidade || "");
+      setClientState(data.uf || "");
     } catch (err: any) {
       setErrorMsg(err.message || "Ocorreu um erro ao consultar o CEP.");
     } finally {
@@ -175,6 +225,12 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
       if (cep) {
         setClientCep(cep.replace(/\D/g, ""));
       }
+      if (data.municipio) {
+        setClientCity(data.municipio);
+      }
+      if (data.uf) {
+        setClientState(data.uf);
+      }
 
       setSuccessMsg("Dados do CNPJ importados com sucesso!");
     } catch (err: any) {
@@ -188,6 +244,9 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
   const [prontuarioData, setProntuarioData] = useState<any | null>(null);
   const [newNoteContent, setNewNoteContent] = useState("");
   const [isSavingNote, setIsSavingNote] = useState(false);
+
+  // Nota de prontuário técnico (drawer de histórico do dispositivo)
+  useUnsavedChangesGuard(newNoteContent.trim() !== "");
 
   const openDeviceHistory = async (dev: Device) => {
     if (isOffline) {
@@ -298,6 +357,7 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
       if (res.ok) {
         const data = await res.json();
         setClient360Data(data);
+        setClient360TagIds((data?.client?.tags || []).map((t: any) => t.id));
       } else {
         console.error("Falha ao recuperar dados unificados.");
       }
@@ -305,6 +365,38 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
       console.error(err);
     } finally {
       setIs360Loading(false);
+    }
+  };
+
+  // Salva apenas as etiquetas do cliente (visão 360) sem exigir o formulário completo
+  const handleSaveClient360Tags = async () => {
+    if (!activeClient360Id) return;
+    setSaving360Tags(true);
+    try {
+      const token = localStorage.getItem("mgv_token") || "";
+      const res = await fetch(`/api/clients/${activeClient360Id}/tags`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ tagIds: client360TagIds })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setClient360Data((prev: any) =>
+          prev ? { ...prev, client: { ...prev.client, tags: data.tags || [] } } : prev
+        );
+        onRefresh();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || "Erro ao salvar etiquetas do cliente.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert("Erro ao salvar etiquetas: " + err.message);
+    } finally {
+      setSaving360Tags(false);
     }
   };
 
@@ -364,6 +456,13 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
   const formatCpfCnpj = (val: string) => {
     // Basic format filter
     return val.replace(/\D/g, "");
+  };
+
+  // Helper formatação de CEP (00000-000)
+  const formatCep = (cep?: string | null) => {
+    const digits = (cep || "").replace(/\D/g, "");
+    if (digits.length < 8) return cep || "";
+    return `${digits.slice(0, 5)}-${digits.slice(5, 8)}`;
   };
 
   const addTempDeviceField = () => {
@@ -427,6 +526,10 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
           phone2: clientPhone2,
           email: clientEmail,
           address: clientAddress,
+          city: clientCity,
+          state: clientState,
+          zipCode: clientCep.replace(/\D/g, ""),
+          tagIds: clientTagIds,
           devices: tempDevices.map(d => ({
             type: d.extraType?.trim() ? `${d.type} / ${d.extraType.trim()}` : d.type,
             brand: d.brand,
@@ -456,7 +559,91 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
         setClientEmail("");
         setClientAddress("");
         setClientCep("");
+        setClientCity("");
+        setClientState("");
+        setClientTagIds([]);
         setTempDevices([]);
+        setSuccessMsg("");
+      }, 1500);
+
+    } catch (err: any) {
+      setErrorMsg(err.message || "Erro inesperado.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openEditClientModal = (client: any) => {
+    setEditClientId(client.id);
+    setClientName(client.name);
+    setClientCpfCnpj(client.cpfCnpj);
+    setClientPhone(client.phone);
+    setClientPhone2(client.phone2 || "");
+    setClientEmail(client.email || "");
+    setClientAddress(client.address || "");
+    setClientCep(client.zipCode || "");
+    setClientCity(client.city || "");
+    setClientState(client.state || "");
+    setClientTagIds(client.tags?.map((t: any) => t.id) || []);
+    setShowEditClientModal(true);
+  };
+
+  const handleEditClientSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg("");
+    setSuccessMsg("");
+
+    if (isOffline) {
+      setErrorMsg("Ação indisponível: Sistema offline.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const token = localStorage.getItem("mgv_token") || "";
+      const response = await fetch(`/api/clients/${editClientId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: clientName,
+          cpfCnpj: clientCpfCnpj,
+          phone: clientPhone,
+          phone2: clientPhone2,
+          email: clientEmail,
+          address: clientAddress,
+          city: clientCity,
+          state: clientState,
+          zipCode: clientCep.replace(/\D/g, ""),
+          tagIds: clientTagIds
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Erro ao editar cliente.");
+      }
+
+      setSuccessMsg("Cliente atualizado com sucesso!");
+      onRefresh();
+      
+      setTimeout(() => {
+        setShowEditClientModal(false);
+        setEditClientId("");
+        setClientName("");
+        setClientCpfCnpj("");
+        setClientPhone("");
+        setClientPhone2("");
+        setClientEmail("");
+        setClientAddress("");
+        setClientCep("");
+        setClientCity("");
+        setClientState("");
+        setClientTagIds([]);
         setSuccessMsg("");
       }, 1500);
 
@@ -712,16 +899,25 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
                       <td className="p-3.5 text-right pr-5">
                         <div className="flex justify-end items-center gap-2">
                           {(userRole === UserRole.OWNER || userRole === UserRole.ATTENDANT) && (
-                            <button
-                              onClick={() => {
-                                setActiveClientForDevice(client.id);
-                                setShowDeviceModal(true);
-                              }}
-                              className="p-1 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded transition"
-                              title="Vincular Novo Ativo"
-                            >
-                              <span className="material-symbols-outlined text-[16px]">laptop_mac</span>
-                            </button>
+                            <>
+                              <button
+                                onClick={() => openEditClientModal(client)}
+                                className="p-1 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded transition"
+                                title="Editar Cliente"
+                              >
+                                <span className="material-symbols-outlined text-[16px]">edit</span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setActiveClientForDevice(client.id);
+                                  setShowDeviceModal(true);
+                                }}
+                                className="p-1 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded transition"
+                                title="Vincular Novo Ativo"
+                              >
+                                <span className="material-symbols-outlined text-[16px]">laptop_mac</span>
+                              </button>
+                            </>
                           )}
                           <button
                             onClick={() => openClient360(client.id)}
@@ -785,8 +981,11 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
                       {client.phone2 ? ` / ${client.phone2}` : ""}
                     </span>
                   </p>
-                  <p><span className="text-slate-400 block text-[9px] uppercase tracking-wider">E-mail</span> <span className="text-slate-800 block mt-0.5">{client.email}</span></p>
-                  <p className="sm:col-span-2"><span className="text-slate-400 block text-[9px] uppercase tracking-wider">Endereço de Entrega</span> <span className="text-slate-800 block mt-0.5">{client.address}</span></p>
+                  <p><span className="text-slate-400 block text-[9px] uppercase tracking-wider">E-mail</span> <span className="text-slate-800 block mt-0.5 break-words">{client.email}</span></p>
+                  <p className="sm:col-span-2"><span className="text-slate-400 block text-[9px] uppercase tracking-wider">Endereço de Entrega</span> <span className="text-slate-800 block mt-0.5 break-words">{client.address}</span></p>
+                  {client.zipCode ? (
+                    <p><span className="text-slate-400 block text-[9px] uppercase tracking-wider">CEP</span> <span className="text-slate-800 block mt-0.5 font-mono">{formatCep(client.zipCode)}</span></p>
+                  ) : null}
                 </div>
 
                 <div className="pt-4 border-t border-slate-100">
@@ -905,7 +1104,10 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
               )}
 
               <div className="space-y-4">
-                <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-100 pb-2">Proprietário / Cadastros Base</h4>
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Proprietário / Cadastros Base</h4>
+                  <TagSelector selectedTagIds={clientTagIds} onChange={setClientTagIds} scope="CLIENT" />
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Nome Completo</label>
@@ -1060,6 +1262,9 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
                               <option value="Radiofrequência">Radiofrequência</option>
                               <option value="Eletroestimulador / Correntes">Eletroestimulador / Correntes</option>
                               <option value="Laserterapia / LED">Laserterapia / LED</option>
+                              <option value="Laser de Diodo">Laser de Diodo</option>
+                              <option value="Luz Intensa Pulsada (IPL)">Luz Intensa Pulsada (IPL)</option>
+                              <option value="Laser de Baixa Intensidade (LLLT)">Laser de Baixa Intensidade (LLLT)</option>
                               <option value="Vapor de Ozônio">Vapor de Ozônio</option>
                               <option value="Gerador de Ozônio">Gerador de Ozônio</option>
                               <option value="Alta Frequência">Alta Frequência</option>
@@ -1143,7 +1348,163 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
                   disabled={loading}
                   className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-sm rounded-lg transition hover-premium active-premium"
                 >
-                  {loading ? "Gravando Fichas no Banco..." : "Salvar no Supabase"}
+                  {loading ? "Gravando Fichas no Banco..." : "Salvar Cadastro"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDIT CLIENT */}
+      {showEditClientModal && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[90vh] overflow-y-auto anim-slideup">
+            <div className="px-6 py-4.5 bg-gradient-to-r from-slate-900 to-indigo-950 text-white flex items-center justify-between rounded-t-2xl sticky top-0 z-10 border-b border-slate-800">
+              <div className="flex items-center space-x-2.5">
+                <span className="material-symbols-outlined text-teal-400 text-[20px]">edit_note</span>
+                <h3 className="font-bold text-base font-display">Editar Dados do Cliente</h3>
+              </div>
+              <button onClick={() => setShowEditClientModal(false)} className="text-slate-400 hover:text-white transition cursor-pointer">
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleEditClientSubmit} className="p-6 space-y-6">
+              {errorMsg && (
+                <div className="bg-red-50 border border-red-200/30 p-3.5 rounded-xl text-xs text-red-700 font-semibold flex items-start gap-2">
+                  <span className="material-symbols-outlined text-[16px] text-rose-600 shrink-0 mt-0.5">shield_alert</span>
+                  <span>{errorMsg}</span>
+                </div>
+              )}
+
+              {successMsg && (
+                <div className="bg-green-50 border border-green-200/30 p-3.5 rounded-xl text-xs text-emerald-700 font-semibold flex items-start gap-2">
+                  <span className="material-symbols-outlined text-[16px] text-emerald-600 shrink-0 mt-0.5">check_circle</span>
+                  <span>{successMsg}</span>
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Informações do Cliente</h4>
+                  <TagSelector selectedTagIds={clientTagIds} onChange={setClientTagIds} scope="CLIENT" />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Nome Completo</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ex: Carlos Roberto Silva"
+                      value={clientName}
+                      onChange={(e) => setClientName(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">CPF / CNPJ (Somente Números)</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        required
+                        placeholder="Ex: 14259388210"
+                        value={clientCpfCnpj}
+                        onChange={(e) => setClientCpfCnpj(e.target.value)}
+                        className="flex-1 min-w-0 px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none transition"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleCnpjLookup}
+                        disabled={isCnpjLoading || !clientCpfCnpj}
+                        className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-[10px] uppercase tracking-wider px-3.5 rounded-lg transition disabled:bg-slate-200 disabled:text-slate-400 cursor-pointer shrink-0"
+                      >
+                        {isCnpjLoading ? "Buscando..." : "Buscar Receita"}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Telefone / Fone Oficina</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ex: (11) 98112-2233"
+                      value={clientPhone}
+                      onChange={(e) => setClientPhone(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Telefone Adicional / WhatsApp (Opcional)</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: (11) 99999-8888"
+                      value={clientPhone2}
+                      onChange={(e) => setClientPhone2(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Email Principal</label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="Ex: carlos@silva.com"
+                      value={clientEmail}
+                      onChange={(e) => setClientEmail(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-650 uppercase tracking-wider mb-1">CEP de Busca (ViaCEP)</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Ex: 01310-100"
+                        maxLength={9}
+                        value={clientCep}
+                        onChange={(e) => setClientCep(e.target.value)}
+                        className="flex-1 min-w-0 px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none transition"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleCepLookup}
+                        disabled={isCepLoading || !clientCep}
+                        className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-[10px] uppercase tracking-wider px-3.5 rounded-lg transition disabled:bg-slate-200 disabled:text-slate-400 cursor-pointer shrink-0"
+                      >
+                        {isCepLoading ? "Consultando..." : "Buscar"}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="hidden sm:block"></div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">Endereço Residencial/Comercial Completo</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ex: Av. Paulista, 1000 - Ap 21 - CEP 01310-100, São Paulo SP"
+                      value={clientAddress}
+                      onChange={(e) => setClientAddress(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none transition"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-2 border-t border-slate-100 pt-4.5">
+                <button
+                  type="button"
+                  onClick={() => setShowEditClientModal(false)}
+                  className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-sm rounded-lg transition hover-premium active-premium"
+                >
+                  {loading ? "Salvando Alterações..." : "Salvar Cadastro"}
                 </button>
               </div>
             </form>
@@ -1186,6 +1547,17 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white text-slate-800"
                 >
                   <option value="Ultrassom (Fisio/Estética)">Ultrassom (Fisio/Estética)</option>
+                  <option value="Radiofrequência">Radiofrequência</option>
+                  <option value="Eletroestimulador / Correntes">Eletroestimulador / Correntes</option>
+                  <option value="Laserterapia / LED">Laserterapia / LED</option>
+                  <option value="Laser de Diodo">Laser de Diodo</option>
+                  <option value="Luz Intensa Pulsada (IPL)">Luz Intensa Pulsada (IPL)</option>
+                  <option value="Laser de Baixa Intensidade (LLLT)">Laser de Baixa Intensidade (LLLT)</option>
+                  <option value="Vapor de Ozônio">Vapor de Ozônio</option>
+                  <option value="Gerador de Ozônio">Gerador de Ozônio</option>
+                  <option value="Alta Frequência">Alta Frequência</option>
+                  <option value="Criolipólise / Estética">Criolipólise / Estética</option>
+                  <option value="Pressoterapia">Pressoterapia</option>
                   <option value="Carboxiterapia">Carboxiterapia</option>
                   <option value="Outro">Outro</option>
                 </select>
@@ -1298,13 +1670,13 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
                   <div className="flex gap-4 bg-white p-3 rounded-xl border border-slate-200 shadow-xs self-stretch md:self-auto justify-around text-center">
                     <div>
                       <span className="text-[9px] text-slate-400 uppercase tracking-widest font-bold block">Total OSs</span>
-                      <p className="text-base font-bold text-indigo-700">{prontuarioData.stats.totalOrders}</p>
+                      <p className="text-base font-bold text-indigo-700">{prontuarioData.stats?.totalOrders || 0}</p>
                     </div>
                     <div className="border-l border-slate-100 px-3">
                       <span className="text-[9px] text-slate-400 uppercase tracking-widest font-bold block">Investido</span>
-                      <p className="text-base font-bold text-slate-800 font-mono">R$ {prontuarioData.stats.totalSpent.toFixed(2)}</p>
+                      <p className="text-base font-bold text-slate-800 font-mono">R$ {(prontuarioData.stats?.totalSpent || 0).toFixed(2)}</p>
                     </div>
-                    {prontuarioData.stats.recurrenceAlert && (
+                    {prontuarioData.stats?.recurrenceAlert && (
                       <div className="border-l border-slate-100 pl-3">
                         <span className="text-[9px] text-rose-500 uppercase tracking-widest font-bold block">Recorrência</span>
                         <span className="text-xs font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-150 inline-block mt-0.5 animate-pulse">Crítico (90d)</span>
@@ -1728,12 +2100,38 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
                       </div>
                       <div>
                         <span className="text-slate-400 block text-[9px] uppercase tracking-wider">E-mail</span>
-                        <span className="text-slate-800 font-bold">{client360Data.client.email}</span>
+                        <span className="text-slate-800 font-bold break-words">{client360Data.client.email}</span>
                       </div>
                       <div className="col-span-2">
                         <span className="text-slate-400 block text-[9px] uppercase tracking-wider">Endereço</span>
-                        <span className="text-slate-800 font-bold">{client360Data.client.address}</span>
+                        <span className="text-slate-800 font-bold break-words">{client360Data.client.address}</span>
                       </div>
+                      <div>
+                        <span className="text-slate-400 block text-[9px] uppercase tracking-wider">CEP</span>
+                        <span className="text-slate-800 font-bold font-mono">{formatCep(client360Data.client.zipCode) || "—"}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[9px] uppercase tracking-wider">Cidade / UF</span>
+                        <span className="text-slate-800 font-bold">
+                          {[client360Data.client.city, client360Data.client.state].filter(Boolean).join(" / ") || "—"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Etiquetas do Cliente (editáveis em qualquer etapa) */}
+                    <div className="pt-2 border-t border-slate-100">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Etiquetas do Cliente</span>
+                        <button
+                          type="button"
+                          onClick={handleSaveClient360Tags}
+                          disabled={saving360Tags}
+                          className="text-[9px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition active:scale-95 cursor-pointer disabled:opacity-50"
+                        >
+                          {saving360Tags ? "Salvando..." : "Salvar Etiquetas"}
+                        </button>
+                      </div>
+                      <TagSelector selectedTagIds={client360TagIds} onChange={setClient360TagIds} scope="CLIENT" />
                     </div>
                   </div>
 
@@ -1868,9 +2266,17 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
                                       <span className="text-slate-400 text-[9px] uppercase tracking-wider block">Equipamento</span>
                                       <span className="text-slate-800 font-bold">{os.device ? `${os.device.brand} ${os.device.model} (S/N: ${os.device.serialNumber})` : "Não informado"}</span>
                                     </p>
-                                    <p>
-                                      <span className="text-slate-400 text-[9px] uppercase tracking-wider block">Defeito Relatado</span>
-                                      <span className="text-slate-800 italic">"{os.reportedDefect}"</span>
+                                    <p className="flex items-center gap-2">
+                                      <div>
+                                        <span className="text-slate-400 text-[9px] uppercase tracking-wider block">Defeito Relatado</span>
+                                        <span className="text-slate-800 italic">"{os.reportedDefect}"</span>
+                                      </div>
+                                      {os.recurrentAlert?.isRecurrent && (
+                                        <span className="ml-auto text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-150 animate-pulse flex items-center gap-1">
+                                          <span className="material-symbols-outlined text-[12px]">warning</span>
+                                          Recorrência (90d)
+                                        </span>
+                                      )}
                                     </p>
                                     {os.diagnostic && (
                                       <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 mt-2">
@@ -1948,6 +2354,9 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
                     <option value="Radiofrequência">Radiofrequência</option>
                     <option value="Eletroestimulador / Correntes">Eletroestimulador / Correntes</option>
                     <option value="Laserterapia / LED">Laserterapia / LED</option>
+                    <option value="Laser de Diodo">Laser de Diodo</option>
+                    <option value="Luz Intensa Pulsada (IPL)">Luz Intensa Pulsada (IPL)</option>
+                    <option value="Laser de Baixa Intensidade (LLLT)">Laser de Baixa Intensidade (LLLT)</option>
                     <option value="Vapor de Ozônio">Vapor de Ozônio</option>
                     <option value="Gerador de Ozônio">Gerador de Ozônio</option>
                     <option value="Alta Frequência">Alta Frequência</option>

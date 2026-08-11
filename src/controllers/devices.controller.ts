@@ -115,9 +115,24 @@ export class DevicesController {
         laudoFotos: typeof o.laudoFotos === "string" ? JSON.parse(o.laudoFotos || "[]") : o.laudoFotos || []
       }));
 
+      const totalOrders = parsedOrders.length;
+      const finishedOrders = parsedOrders.filter((o: any) => o.status === "FINALIZADO" || o.status === "PRONTO_RETIRADA");
+      const totalSpent = finishedOrders.reduce((sum: number, o: any) => sum + (o.totalCost || 0), 0);
+
+      // Motor de Recorrência: >2 OSs nos últimos 90 dias
+      const ninetyDaysAgo = new Date();
+      ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+      const recentOrdersCount = parsedOrders.filter((o: any) => new Date(o.createdAt) >= ninetyDaysAgo).length;
+      const recurrenceAlert = recentOrdersCount >= 3;
+
       res.json({
         ...device,
-        orders: parsedOrders
+        orders: parsedOrders,
+        stats: {
+          totalOrders,
+          totalSpent,
+          recurrenceAlert
+        }
       });
     } catch (err: any) {
       res.status(500).json({ error: err.message });

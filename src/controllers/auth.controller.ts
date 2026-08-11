@@ -4,6 +4,11 @@ import jwt from "jsonwebtoken";
 import prisma from "../database/prisma";
 import { UserRole } from "../types";
 import { supabaseStorageService } from "../services/supabaseStorage";
+import { diskStorageService } from "../services/diskStorage";
+
+// Decide dinamicamente qual storage utilizar com base no arquivo .env
+const storageService = process.env.STORAGE_TYPE === "supabase" ? supabaseStorageService : diskStorageService;
+
 
 
 const JWT_SECRET = process.env.JWT_SECRET || "mgv_tecnologia_super_secure_jwt_secret_key_123!";
@@ -15,40 +20,46 @@ export class AuthController {
       res.status(400).json({ error: "E-mail e senha são obrigatórios." });
       return;
     }
-    const user = await prisma.user.findUnique({
-      where: { email: email.toLowerCase() }
-    });
     
-    if (!user) {
-      res.status(401).json({ error: "Credenciais inválidas. Verifique seu e-mail e senha." });
-      return;
-    }
-
-    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
-    if (!isPasswordValid) {
-      res.status(401).json({ error: "Credenciais inválidas. Verifique seu e-mail e senha." });
-      return;
-    }
-
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
-      JWT_SECRET,
-      { expiresIn: "12h" }
-    );
-
-    res.json({
-      token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        phone: user.phone || "",
-        avatarUrl: user.avatarUrl || "",
-        bio: user.bio || "",
-        createdAt: user.createdAt.toISOString()
+    try {
+      const user = await prisma.user.findUnique({
+        where: { email: email.toLowerCase() }
+      });
+      
+      if (!user) {
+        res.status(401).json({ error: "Credenciais inválidas. Verifique seu e-mail e senha." });
+        return;
       }
-    });
+
+      const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+      if (!isPasswordValid) {
+        res.status(401).json({ error: "Credenciais inválidas. Verifique seu e-mail e senha." });
+        return;
+      }
+
+      const token = jwt.sign(
+        { id: user.id, email: user.email, role: user.role },
+        JWT_SECRET,
+        { expiresIn: "12h" }
+      );
+
+      res.json({
+        token,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          phone: user.phone || "",
+          avatarUrl: user.avatarUrl || "",
+          bio: user.bio || "",
+          createdAt: user.createdAt.toISOString()
+        }
+      });
+    } catch (err: any) {
+      console.error("[Auth Login Error]:", err);
+      res.status(503).json({ error: "Falha ao conectar com o banco de dados. Verifique a conexão do servidor ou se o Supabase está ativo no painel." });
+    }
   }
 
   async register(req: Request, res: Response): Promise<void> {
@@ -296,18 +307,18 @@ export class AuthController {
       if (avatarUrl !== undefined) {
         if (avatarUrl === "" || avatarUrl === null) {
           if (user.avatarUrl) {
-            await supabaseStorageService.deleteAvatar(user.avatarUrl);
+            await storageService.deleteAvatar(user.avatarUrl);
           }
           finalAvatarUrl = null;
         } else if (avatarUrl.startsWith("data:image/")) {
           if (user.avatarUrl) {
-            await supabaseStorageService.deleteAvatar(user.avatarUrl);
+            await storageService.deleteAvatar(user.avatarUrl);
           }
           try {
-            finalAvatarUrl = await supabaseStorageService.uploadAvatar(userId, avatarUrl);
+            finalAvatarUrl = await storageService.uploadAvatar(userId, avatarUrl);
           } catch (uploadErr: any) {
             console.error("[Profile Update Image Upload Error]:", uploadErr);
-            res.status(400).json({ error: uploadErr.message || "Falha ao carregar a foto no Supabase." });
+            res.status(400).json({ error: uploadErr.message || "Falha ao carregar a foto de perfil no storage do servidor." });
             return;
           }
         } else {
@@ -347,6 +358,55 @@ export class AuthController {
     } catch (err) {
       console.error("[Profile Update Error]:", err);
       res.status(500).json({ error: "Erro ao atualizar perfil." });
+    }
+  }
+
+  async impersonate(req: Request, res: Response): Promise<void> {
+    const { userId } = req.body;
+    if (!userId) {
+      res.status(400).json({ error: "O ID do usuário destino é obrigatório." });
+      return;
+    }
+
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId }
+      });
+
+      if (!user) {
+        res.status(404).json({ error: "Usuário destino não encontrado." });
+        return;
+      }
+
+      // Impede simular outro OWNER por motivos de segurança, a menos que o solicitante seja OWNER
+      const requesterRole = req.headers["x-user-role"] as string;
+      if (user.role === UserRole.OWNER && requesterRole !== UserRole.OWNER) {
+        res.status(403).json({ error: "Acesso negado. Apenas o Dono pode simular outro Dono." });
+        return;
+      }
+
+      const token = jwt.sign(
+        { id: user.id, email: user.email, role: user.role },
+        JWT_SECRET,
+        { expiresIn: "12h" }
+      );
+
+      res.json({
+        token,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          phone: user.phone || "",
+          avatarUrl: user.avatarUrl || "",
+          bio: user.bio || "",
+          createdAt: user.createdAt.toISOString()
+        }
+      });
+    } catch (err: any) {
+      console.error("[Auth Impersonate Error]:", err);
+      res.status(500).json({ error: "Erro interno no servidor ao simular perfil." });
     }
   }
 }

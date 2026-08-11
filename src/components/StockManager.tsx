@@ -3,7 +3,28 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
+import SupplierManager from "./SupplierManager";
+
+const DEFAULT_FORM_DATA = {
+  name: "", code: "", sku: "", barcode: "",
+  stock: 0, stockMin: 0, cost: 0, price: 0,
+  requiresSerial: false, supplier: "", supplierId: "", location: "",
+  // Campos Fiscais
+  unit: "UN", gtin: "", ncm: "", cest: "",
+  manufacturerCode: "", manufacturer: "", cnpjFab: "",
+  partGroup: "", partSubgroup: "",
+  weightGross: 0, weightNet: 0,
+  cstOrigem: "0", cstIcms: "000",
+  icmsAliq: 0, icmsStAliq: 0, icmsRedBc: 100,
+  cfopIntraEstadual: "5102", cfopInterEstadual: "6102",
+  ipiAliq: 0, ipiEnquadramento: "999",
+  pisAliq: 0, cofinsAliq: 0,
+  totalTributos: 0, cBenef: "", indEscala: "S",
+  bcStRetido: 0, icmsStRetido: 0, aliqSt: 0, icmsSubstituto: 0,
+  redBcEfet: 0, bcEfet: 0, icmsEfetAliq: 0, icmsEfetValor: 0
+};
 import { Part, UserRole } from "../types";
 import { useFeatureFlags } from "../contexts/FeatureFlagContext";
 
@@ -44,32 +65,38 @@ export default function StockManager({
   const [stockFilter, setStockFilter] = useState<StockFilter>("all");
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [activeSubTab, setActiveSubTab] = useState<"parts" | "suppliers">("parts");
+  const [suppliersList, setSuppliersList] = useState<{ id: string; name: string }[]>([]);
 
   // CRUD Modal State
   const [showModal, setShowModal] = useState(false);
   const [editingPart, setEditingPart] = useState<Part | null>(null);
-  const [formData, setFormData] = useState({
-    name: "", code: "", sku: "", barcode: "",
-    stock: 0, stockMin: 0, cost: 0, price: 0,
-    requiresSerial: false, supplier: "", location: "",
-    // Campos Fiscais
-    unit: "UN", gtin: "", ncm: "", cest: "",
-    manufacturerCode: "", manufacturer: "", cnpjFab: "",
-    partGroup: "", partSubgroup: "",
-    weightGross: 0, weightNet: 0,
-    cstOrigem: "0", cstIcms: "000",
-    icmsAliq: 0, icmsStAliq: 0, icmsRedBc: 100,
-    cfopIntraEstadual: "5102", cfopInterEstadual: "6102",
-    ipiAliq: 0, ipiEnquadramento: "999",
-    pisAliq: 0, cofinsAliq: 0,
-    totalTributos: 0, cBenef: "", indEscala: "S",
-    bcStRetido: 0, icmsStRetido: 0, aliqSt: 0, icmsSubstituto: 0,
-    redBcEfet: 0, bcEfet: 0, icmsEfetAliq: 0, icmsEfetValor: 0
-  });
+  const [formData, setFormData] = useState(DEFAULT_FORM_DATA);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [showFiscalSection, setShowFiscalSection] = useState(false);
+
+  // Carrega fornecedores para o dropdown ao abrir o modal
+  const fetchSuppliersList = async () => {
+    try {
+      const token = localStorage.getItem("mgv_token") || "";
+      const headers = { "Authorization": `Bearer ${token}` };
+      const response = await fetch("/api/suppliers?limit=all", { headers });
+      if (response.ok) {
+        const result = await response.json();
+        setSuppliersList(result.data || []);
+      }
+    } catch (e) {
+      console.error("Erro ao carregar fornecedores para select:", e);
+    }
+  };
+
+  useEffect(() => {
+    if (showModal) {
+      fetchSuppliersList();
+    }
+  }, [showModal]);
 
   // XML Import states (Fase 1 / Bling XML Purchase Import)
   const [showImportModal, setShowImportModal] = useState(false);
@@ -77,6 +104,12 @@ export default function StockManager({
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<any>(null);
   const [importError, setImportError] = useState("");
+
+  // --- Guarda de alterações não salvas (beforeunload) ---
+  const partFormDirty = showModal && JSON.stringify(formData) !== JSON.stringify(DEFAULT_FORM_DATA);
+  const xmlImportDirty = showImportModal && xmlContent.trim() !== "";
+  useUnsavedChangesGuard(partFormDirty);
+  useUnsavedChangesGuard(xmlImportDirty);
 
   const { isFeatureEnabled } = useFeatureFlags();
 
@@ -138,7 +171,7 @@ export default function StockManager({
     setFormData({
       name: "", code: "", sku: "", barcode: "",
       stock: 0, stockMin: 0, cost: 0, price: 0,
-      requiresSerial: false, supplier: "", location: "",
+      requiresSerial: false, supplier: "", supplierId: "", location: "",
       unit: "UN", gtin: "", ncm: "", cest: "",
       manufacturerCode: "", manufacturer: "", cnpjFab: "",
       partGroup: "", partSubgroup: "",
@@ -170,6 +203,7 @@ export default function StockManager({
       price: part.price,
       requiresSerial: part.requiresSerial || false,
       supplier: part.supplier || "",
+      supplierId: (part as any).supplierId || "",
       location: part.location || "",
       unit: part.unit || "UN",
       gtin: part.gtin || "",
@@ -280,6 +314,34 @@ export default function StockManager({
 
   return (
     <div className="space-y-6">
+      {/* Abas Secundárias de Navegação (Fase 1: Estoque & Compras) */}
+      <div className="flex border-b border-slate-200 gap-6 select-none">
+        <button
+          onClick={() => setActiveSubTab("parts")}
+          className={`pb-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+            activeSubTab === "parts"
+              ? "border-indigo-650 text-indigo-700 font-extrabold"
+              : "border-transparent text-slate-400 hover:text-slate-700"
+          }`}
+        >
+          Peças em Estoque
+        </button>
+        <button
+          onClick={() => setActiveSubTab("suppliers")}
+          className={`pb-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+            activeSubTab === "suppliers"
+              ? "border-indigo-650 text-indigo-700 font-extrabold"
+              : "border-transparent text-slate-400 hover:text-slate-700"
+          }`}
+        >
+          Gestão de Fornecedores
+        </button>
+      </div>
+
+      {activeSubTab === "suppliers" ? (
+        <SupplierManager userRole={userRole} isOffline={isOffline} />
+      ) : (
+        <>
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
@@ -589,8 +651,25 @@ export default function StockManager({
               {/* Row 5: Supplier + Location */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Fornecedor</label>
-                  <input type="text" value={formData.supplier} onChange={e => setFormData({...formData, supplier: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400" placeholder="Ex: Distribuidora XYZ" />
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Fornecedor Associado</label>
+                  <select
+                    value={formData.supplierId}
+                    onChange={e => {
+                      const selectedId = e.target.value;
+                      const selectedSup = suppliersList.find(s => s.id === selectedId);
+                      setFormData({
+                        ...formData,
+                        supplierId: selectedId,
+                        supplier: selectedSup ? selectedSup.name : ""
+                      });
+                    }}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 cursor-pointer"
+                  >
+                    <option value="">Selecione um fornecedor (Opcional)</option>
+                    {suppliersList.map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Localização Física</label>
@@ -977,6 +1056,8 @@ export default function StockManager({
             </div>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

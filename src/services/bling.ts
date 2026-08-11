@@ -17,6 +17,8 @@ export interface BlingProductPayload {
   tipo: "P" | "S"; // Produto ou Serviço
   formato: "S" | "V" | "E"; // Simples, Com variação, Com composição
   situacao: "A" | "I"; // Ativo ou Inativo
+  unidade?: string;
+  ncm?: string;
   tributacao?: {
     cfop: string;
     csosn: string;
@@ -408,6 +410,8 @@ export async function syncPartToBling(part: {
   name: string;
   code: string;
   price: number;
+  ncm?: string | null;
+  unit?: string | null;
 }, cfopCalculado?: string, cstIcms?: string): Promise<number> {
   const token = await getAccessToken();
   if (!token) {
@@ -440,6 +444,16 @@ export async function syncPartToBling(part: {
     formato: "S", // Simples
     situacao: "A"
   };
+
+  // NCM: envia apenas se for um código válido de 8 dígitos (normalizado) — um NCM
+  // inválido/vazio seria rejeitado pelo Bling e derrubaria a sincronização inteira.
+  const cleanNcm = (part.ncm || "").replace(/\D/g, "");
+  if (cleanNcm.length === 8) {
+    payload.ncm = cleanNcm;
+  }
+  if (part.unit) {
+    payload.unidade = part.unit;
+  }
 
   if (cfopCalculado || cstIcms) {
     payload.tributacao = {

@@ -3,10 +3,51 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
+
+import DocumentShell from "./DocumentShell";
+import { resolveTemplateForOS, DOCUMENT_TEMPLATES, DocumentTemplate } from "../config/documents.config";
+import { usePrintDocument } from "../hooks/usePrintDocument";
+import { downloadDocumentPdf } from "../utils/downloadDocument";
+
+const DEFAULT_ENTRADA_CHECKLIST: ChecklistItem[] = [
+  { id: "tela", label: "Tela / Display", status: "NA", observacao: "" },
+  { id: "teclado", label: "Touchscreen / Teclado", status: "NA", observacao: "" },
+  { id: "camera", label: "Câmera(s)", status: "NA", observacao: "" },
+  { id: "botoes", label: "Botões físicos (ligar, volume)", status: "NA", observacao: "" },
+  { id: "porta_carga", label: "Porta de carregamento", status: "NA", observacao: "" },
+  { id: "carcaca", label: "Carcaça / Tampa traseira", status: "NA", observacao: "" },
+  { id: "bateria", label: "Bateria / Nível de carga", status: "NA", observacao: "" },
+  { id: "carregador", label: "Adaptador / Carregador entregue", status: "NA", observacao: "" },
+  { id: "umidade", label: "Alta umidade / Corrosão", status: "NA", observacao: "" },
+  { id: "queda", label: "Sinais de queda ou impacto", status: "NA", observacao: "" },
+  { id: "temperatura", label: "Temperatura anormal", status: "NA", observacao: "" },
+  { id: "acessorios_extra", label: "Acessórios entregues junto", status: "NA", observacao: "" },
+  { id: "garantia", label: "Selo de garantia intacto", status: "NA", observacao: "" }
+];
+
+// Baseline dos campos semeados do modal de edição de OS: a guarda de alterações
+// não salvas só dispara quando o usuário realmente muda algo em relação ao que
+// foi carregado (evita falso positivo ao apenas abrir o modal).
+const captureEditBaseline = (src: any, saidaDefault: ChecklistItem[]) =>
+  JSON.stringify({
+    diagnostic: src.diagnostic || "",
+    laudoMacro: src.laudoMacro || "",
+    discount: src.discount || 0,
+    parts: (src.usedParts || []).map((p: any) => `${p.partId || p.id}:${p.quantity}`),
+    checklist: (src.checklistEntrada?.length ? src.checklistEntrada : DEFAULT_ENTRADA_CHECKLIST).map(
+      (i: ChecklistItem) => `${i.id}:${i.status}:${i.observacao || ""}`
+    ),
+    photos: (src.laudoFotos || []).length,
+    saida: (src.checklistSaida?.length ? src.checklistSaida : saidaDefault).map(
+      (i: ChecklistItem) => `${i.id}:${i.status}:${i.observacao || ""}`
+    )
+  });
 import { useFeatureFlags } from "../contexts/FeatureFlagContext";
 import { OrdemServico, OSStatus, Part, UsedPart, UserRole, Client, Device, ChecklistItem, EntradaFoto, AvulsoCategory } from "../types";
 import OSWhatsAppPanel from "./OSWhatsAppPanel";
+import TagSelector from "./TagSelector";
 import { matchOS, SearchScope } from "../utils/searchUtils";
 import { validateFiscalData } from "../services/nfeService";
 
@@ -23,14 +64,17 @@ interface KanbanBoardProps {
   countsByStatus: Record<string, number>;
 }
 
-const COLUMNS: { id: OSStatus; name: string; color: string; desc: string }[] = [
+const TECNICO_COLUMNS: { id: OSStatus; name: string; color: string; desc: string }[] = [
   { id: "AGUARDANDO_AVALIACAO", name: "Aguardando Avaliação", color: "border-t-slate-400 bg-slate-500/10", desc: "Equipamento em triagem inicial" },
   { id: "AGUARDANDO_AUTORIZACAO", name: "Aguardando Autorização", color: "border-t-blue-500 bg-blue-50/10", desc: "Orçamento pronto p/ aprovação" },
   { id: "AGUARDANDO_PECA", name: "Aguardando Peça", color: "border-t-amber-500 bg-amber-50/10", desc: "Fora de estoque local" },
   { id: "EM_MANUTENCAO", name: "Em Manutenção", color: "border-t-purple-500 bg-purple-50/10", desc: "Conserto ativo na bancada" },
+];
+
+const RECEPCAO_COLUMNS: { id: OSStatus; name: string; color: string; desc: string }[] = [
   { id: "PRONTO_RETIRADA", name: "Pronto p/ Retirada", color: "border-t-teal-500 bg-teal-50/10", desc: "Reparo efetuado" },
   { id: "PAGO_PRONTO_RETIRADA", name: "Pago Pronto p/ Retirada", color: "border-t-cyan-500 bg-cyan-50/10", desc: "Pago e pronto para busca" },
-  { id: "FINALIZADO", name: "Finalizado", color: "border-t-emerald-500 bg-emerald-50/10", desc: "Faturando no Bling" },
+  { id: "FINALIZADO", name: "Entregue / Finalizado", color: "border-t-emerald-500 bg-emerald-50/10", desc: "Equipamento já entregue" },
 ];
 
 const getOSCardBorders = (status: OSStatus) => {
@@ -50,6 +94,7 @@ const KanbanCard = React.memo(({
   os,
   hasRecurrence,
   onDragStart,
+  onDragEnd,
   onClick,
   isSelectMode,
   isSelected,
@@ -58,6 +103,7 @@ const KanbanCard = React.memo(({
   os: OrdemServico;
   hasRecurrence?: boolean;
   onDragStart: (e: React.DragEvent, id: string) => void;
+  onDragEnd: (e: React.DragEvent) => void;
   onClick: (os: OrdemServico) => void;
   isSelectMode?: boolean;
   isSelected?: boolean;
@@ -94,6 +140,7 @@ const KanbanCard = React.memo(({
     <div 
       draggable={!isSelectMode} 
       onDragStart={(e) => onDragStart(e, os.id)} 
+      onDragEnd={onDragEnd}
       onClick={(e) => {
         if (isSelectMode) {
           e.stopPropagation();
@@ -102,110 +149,135 @@ const KanbanCard = React.memo(({
           onClick(os);
         }
       }} 
-      className={`bg-white rounded-2xl border p-5.5 shadow-sm cursor-pointer transition-all duration-300 hover:shadow-md hover:scale-[1.01] flex flex-col space-y-3.5 select-text ${
+      className={`bg-white rounded-2xl border p-3.5 shadow-sm cursor-pointer transition-all duration-300 hover:shadow-md hover:scale-[1.01] flex flex-col space-y-2 select-text ${
         isSelected ? "border-l-4 border-rose-500 bg-rose-50/5 ring-2 ring-rose-500/20" : getOSCardBorders(os.status)
       }`}
     >
       {/* Header Row */}
-      <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-100 pb-2.5">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-100 pb-1.5">
+        <div className="flex items-center gap-1.5">
           {isSelectMode && (
             <input
               type="checkbox"
               checked={isSelected}
               onChange={() => {}}
               onClick={(e) => e.stopPropagation()}
-              className="w-4 h-4 rounded border-slate-350 text-rose-600 focus:ring-rose-500 cursor-pointer"
+              className="w-3.5 h-3.5 rounded border-slate-350 text-rose-600 focus:ring-rose-500 cursor-pointer"
             />
           )}
-          <span className="text-[10px] font-bold font-mono text-slate-800 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md shadow-xs">
+          <span className="text-[9px] font-bold font-mono text-slate-800 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md shadow-xs">
             {os.osNumber}
           </span>
+          {os.tags && os.tags.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1">
+              {os.tags.map((tag: any) => (
+                <span 
+                  key={tag.id} 
+                  className="text-[8px] font-bold px-1 py-0.5 rounded-md shadow-sm border text-white"
+                  style={{ backgroundColor: tag.colorHex, borderColor: tag.colorHex }}
+                  title={`Etiqueta: ${tag.name}`}
+                >
+                  {tag.name}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-1 flex-wrap">
           {stressBadge}
           {hasRecurrence && (
             <span 
-              className="text-[9px] bg-rose-50 border border-rose-200 text-rose-700 px-1.5 py-0.5 rounded-lg flex items-center font-bold gap-0.5 shadow-xs" 
+              className="text-[8px] bg-rose-50 border border-rose-200 text-rose-700 px-1 py-0.5 rounded-lg flex items-center font-bold gap-0.5 shadow-xs" 
               title={os.recurrentAlert ? `Alerta de Falha Crônica: Retornou ${os.recurrentAlert.count} vezes em 90 dias (${os.recurrentAlert.previousOsNumbers.join(", ")})` : "Recorrência: > 2 OS em 90 dias"}
             >
-              <span className="material-symbols-outlined text-[11px]">warning</span> Recorrente
+              <span className="material-symbols-outlined text-[10px]">warning</span> Recorrente
             </span>
           )}
           {[13, 16, 18, 23].includes(os.statusCode) && (
-            <span className="text-[9px] bg-indigo-50 border border-indigo-200 text-indigo-700 px-1.5 py-0.5 rounded-lg flex items-center font-bold gap-0.5 shadow-xs">
-              <span className="material-symbols-outlined text-[11px]">verified_user</span> Garantia
+            <span className="text-[8px] bg-indigo-50 border border-indigo-200 text-indigo-700 px-1 py-0.5 rounded-lg flex items-center font-bold gap-0.5 shadow-xs">
+              <span className="material-symbols-outlined text-[10px]">verified_user</span> Garantia
+            </span>
+          )}
+          {os.warrantyNotice && (
+            <span
+              className="text-[8px] bg-teal-50 border border-teal-200 text-teal-700 px-1 py-0.5 rounded-lg flex items-center font-bold gap-0.5 shadow-xs"
+              title={`Em garantia de 90 dias: OS #${os.warrantyNotice.osNumber} — sai em ${new Date(os.warrantyNotice.originalExitDate).toLocaleDateString("pt-BR")}, vence em ${new Date(os.warrantyNotice.warrantyExpiresAt).toLocaleDateString("pt-BR")}`}
+            >
+              <span className="material-symbols-outlined text-[10px]">verified</span> Garantia 90d
             </span>
           )}
           {[15, 17].includes(os.statusCode) && (
-            <span className="text-[9px] bg-amber-50 border border-amber-200 text-amber-700 px-1.5 py-0.5 rounded-lg flex items-center font-bold gap-0.5 shadow-xs animate-pulse">
-              <span className="material-symbols-outlined text-[11px]">payments</span> Pago Pendente
+            <span className="text-[8px] bg-amber-50 border border-amber-200 text-amber-700 px-1 py-0.5 rounded-lg flex items-center font-bold gap-0.5 shadow-xs animate-pulse">
+              <span className="material-symbols-outlined text-[10px]">payments</span> Pago Pendente
             </span>
           )}
           {os.statusCode === 9 && (
-            <span className="text-[9px] bg-slate-100 border border-slate-350 text-slate-700 px-1.5 py-0.5 rounded-lg flex items-center font-bold gap-0.5 shadow-xs">
-              <span className="material-symbols-outlined text-[11px]">cancel</span> Sem Conserto
+            <span className="text-[8px] bg-slate-100 border border-slate-350 text-slate-700 px-1 py-0.5 rounded-lg flex items-center font-bold gap-0.5 shadow-xs">
+              <span className="material-symbols-outlined text-[10px]">cancel</span> Sem Conserto
             </span>
           )}
           {os.statusCode === 25 && (
-            <span className="text-[9px] bg-blue-50 border border-blue-200 text-blue-700 px-1.5 py-0.5 rounded-lg flex items-center font-bold gap-0.5 shadow-xs">
-              <span className="material-symbols-outlined text-[11px]">fact_check</span> Conferência
+            <span className="text-[8px] bg-blue-50 border border-blue-200 text-blue-700 px-1 py-0.5 rounded-lg flex items-center font-bold gap-0.5 shadow-xs">
+              <span className="material-symbols-outlined text-[10px]">fact_check</span> Conferência
             </span>
           )}
         </div>
       </div>
 
       {/* Client Section */}
-      <div className="space-y-0.5">
-        <h4 className="font-extrabold text-slate-900 text-[13px] leading-tight truncate">
+      <div className="flex justify-between items-center gap-2">
+        <h4 className="font-extrabold text-slate-900 text-xs truncate">
           {(os as any).client?.name}
         </h4>
-        <p className="text-[10px] text-slate-400 font-mono">
-          TEL: {(os as any).client?.phone || "N/A"}
+        <p className="text-[9px] text-slate-400 font-mono shrink-0">
+          {(os as any).client?.phone || "S/ Tel"}
         </p>
       </div>
 
       {/* Equipment Section */}
-      <div className="bg-slate-50/50 p-2.5 rounded-xl border border-slate-150 space-y-1">
-        <div className="flex items-center gap-1.5">
-          <span className="material-symbols-outlined text-[14px] text-slate-450">devices</span>
-          <p className="text-[11px] text-slate-700 font-bold leading-tight">
-            {(os as any).device?.type} {(os as any).device?.brand}
-          </p>
+      <div className="bg-slate-50/50 p-1.5 rounded-xl border border-slate-150 text-[10px] space-y-0.5">
+        <div className="flex items-center gap-1">
+          <span className="material-symbols-outlined text-[12px] text-slate-400">devices</span>
+          <span className="font-bold text-slate-800 truncate">
+            {(os as any).device?.type} {(os as any).device?.brand} - {(os as any).device?.model}
+          </span>
         </div>
-        <div className="pl-5 text-[10px] text-slate-500 font-semibold space-y-0.5">
-          <p>Modelo: {(os as any).device?.model}</p>
-          <p className="font-mono text-[9px]">Série: <span className="bg-slate-150/70 px-1 py-0.5 rounded font-bold">{(os as any).device?.serialNumber || "Sem Série"}</span></p>
+        <div className="pl-4 text-[9px] text-slate-500 font-mono flex items-center justify-between">
+          <span>Série: <strong className="bg-slate-150/70 px-1 py-0.2 rounded">{(os as any).device?.serialNumber || "Sem Série"}</strong></span>
         </div>
+        
+        {/* Nova Visualização do benchLocation para a Recepção e Técnicos */}
+        {(os as any).benchLocation && (
+          <div className="pl-4 mt-1.5 pt-1.5 border-t border-slate-200/60 flex items-center gap-1.5">
+            <span className="material-symbols-outlined text-[11px] text-rose-500 shrink-0">pin_drop</span>
+            <span className="font-extrabold text-[10px] text-rose-700 uppercase tracking-widest break-words leading-tight">
+              LOCAL: {(os as any).benchLocation}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Symptom/Defect Section */}
       {os.reportedDefect && (
-        <div className="space-y-1">
-          <span className="text-[8px] font-bold text-slate-450 uppercase tracking-wider block">Sintoma Relatado</span>
-          <p className="text-[10.5px] text-slate-650 bg-slate-50/30 p-2.5 border border-slate-150/50 rounded-lg italic font-semibold line-clamp-2 leading-relaxed">
-            "{os.reportedDefect}"
-          </p>
+        <div className="text-[9px] text-slate-650 bg-slate-50/30 px-2 py-1 border border-slate-150/50 rounded-lg italic font-semibold line-clamp-1 leading-relaxed">
+          Defeito: "{os.reportedDefect}"
         </div>
       )}
 
       {/* Technical Diagnosis Section */}
       {os.diagnostic && (
-        <div className="space-y-1">
-          <span className="text-[8px] font-bold text-slate-450 uppercase tracking-wider block">Diagnóstico Técnico</span>
-          <p className="text-[10.5px] text-indigo-750 bg-indigo-50/20 p-2.5 border border-indigo-100/50 rounded-lg italic font-mono font-bold line-clamp-2 leading-relaxed">
-            {os.diagnostic}
-          </p>
+        <div className="text-[9px] text-indigo-750 bg-indigo-50/20 px-2 py-1 border border-indigo-100/50 rounded-lg italic font-mono font-bold line-clamp-1 leading-relaxed">
+          Laudo: {os.diagnostic}
         </div>
       )}
 
       {/* Footer Row */}
-      <div className="border-t border-slate-150 pt-3 flex justify-between items-center text-[10px]">
+      <div className="border-t border-slate-150 pt-2 flex justify-between items-center text-[9px]">
         <div className="flex items-center gap-1 text-slate-400 font-semibold">
-          <span className="material-symbols-outlined text-[13px]">calendar_today</span>
+          <span className="material-symbols-outlined text-[11px]">calendar_today</span>
           <span>{new Date(os.createdAt).toLocaleDateString()}</span>
         </div>
-        <span className="text-slate-900 font-extrabold text-xs bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200 shadow-xs">
+        <span className="text-slate-900 font-extrabold text-[11px] bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-200 shadow-xs">
           R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
         </span>
       </div>
@@ -379,6 +451,72 @@ export default function KanbanBoard({
   console.log("[KanbanBoard] countsByStatus recebido:", countsByStatus);
   const loadingMoreRef = React.useRef(false);
 
+  // Auto-scroll horizontal durante drag de card (Kanban)
+  const boardScrollRef = React.useRef<HTMLDivElement>(null);
+  const autoScrollDirRef = React.useRef<0 | -1 | 1>(0);
+  const autoScrollSpeedRef = React.useRef(0);
+  const autoScrollRafRef = React.useRef<number | null>(null);
+
+  const AUTO_SCROLL_EDGE_PX = 80;      // Largura da zona de gatilho nas bordas (px)
+  const AUTO_SCROLL_MAX_SPEED = 22;    // Velocidade máxima de rolagem (px/frame)
+
+  const stopAutoScroll = () => {
+    autoScrollDirRef.current = 0;
+    autoScrollSpeedRef.current = 0;
+    if (autoScrollRafRef.current != null) {
+      cancelAnimationFrame(autoScrollRafRef.current);
+      autoScrollRafRef.current = null;
+    }
+  };
+
+  const startAutoScroll = () => {
+    if (autoScrollRafRef.current != null) return;
+    const step = () => {
+      autoScrollRafRef.current = null;
+      const el = boardScrollRef.current;
+      const dir = autoScrollDirRef.current;
+      if (el && dir !== 0) {
+        el.scrollLeft += dir * autoScrollSpeedRef.current;
+        autoScrollRafRef.current = requestAnimationFrame(step);
+      }
+    };
+    autoScrollRafRef.current = requestAnimationFrame(step);
+  };
+
+  const handleBoardDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const el = boardScrollRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+
+    // Ignora a rolagem horizontal se o mouse estiver verticalmente fora do container do Kanban
+    if (e.clientY < rect.top || e.clientY > rect.bottom) {
+      stopAutoScroll();
+      return;
+    }
+
+    const left = e.clientX - rect.left;
+    const right = rect.right - e.clientX;
+
+    let dir: 0 | -1 | 1 = 0;
+    let speed = 0;
+    if (left < AUTO_SCROLL_EDGE_PX && el.scrollLeft > 0) {
+      dir = -1;
+      speed = Math.max(4, Math.round((1 - left / AUTO_SCROLL_EDGE_PX) * AUTO_SCROLL_MAX_SPEED));
+    } else if (right < AUTO_SCROLL_EDGE_PX && el.scrollLeft < el.scrollWidth - el.clientWidth - 1) {
+      dir = 1;
+      speed = Math.max(4, Math.round((1 - right / AUTO_SCROLL_EDGE_PX) * AUTO_SCROLL_MAX_SPEED));
+    }
+    autoScrollDirRef.current = dir;
+    autoScrollSpeedRef.current = speed;
+    startAutoScroll();
+  };
+
+  const handleDragEnd = () => {
+    setDraggingId(null);
+    stopAutoScroll();
+  };
+
   const handleColumnScroll = (e: React.UIEvent<HTMLDivElement>, status: OSStatus | string) => {
     const target = e.currentTarget;
     const threshold = 50; // pixels antes de atingir o fundo
@@ -407,8 +545,12 @@ export default function KanbanBoard({
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [modalTab, setModalTab] = useState<"laudo" | "pecas" | "entrada" | "saida">("laudo");
   
-  // Alternância de Kanban Técnico vs. Financeiro
-  const [viewMode, setViewMode] = useState<"tecnico" | "financeiro">("tecnico");
+  // Alternância de Visões segmentadas
+  const [viewMode, setViewMode] = useState<"tecnico" | "recepcao" | "financeiro">(() => {
+    if (userRole === "ATTENDANT") return "recepcao";
+    if (userRole === "FINANCIAL") return "financeiro";
+    return "tecnico";
+  });
 
   const FINANCIAL_COLUMNS: { id: string; name: string; color: string; desc: string }[] = [
     { id: "PENDENTE", name: "A Faturar", color: "border-t-indigo-400 bg-indigo-500/10", desc: "OSs pendentes de faturamento/pagamento" },
@@ -469,6 +611,11 @@ export default function KanbanBoard({
   const [editChecklistSaida, setEditChecklistSaida] = useState<ChecklistItem[]>([]);
   const [isEditingSaida, setIsEditingSaida] = useState(false);
 
+  // Opção A: quando a finalização (por arrasto ou pelo botão de status) é bloqueada pelo
+  // checklist de saída, guardamos o destino pendente para continuar a transição assim que
+  // o checklist for salvo.
+  const [pendingFinalize, setPendingFinalize] = useState<{ osId: string; targetStatus: OSStatus } | null>(null);
+
   useEffect(() => {
     const fetchCategories = async () => {
       try {
@@ -487,35 +634,70 @@ export default function KanbanBoard({
     fetchCategories();
   }, []);
 
+  // Cancela o loop de auto-scroll caso o componente seja desmontado durante um drag
+  useEffect(() => () => stopAutoScroll(), []);
+
   // Checklist & Photos states in modal
   const [isEditingEntrada, setIsEditingEntrada] = useState(false);
   const [editChecklist, setEditChecklist] = useState<ChecklistItem[]>([]);
   const [editPhotos, setEditPhotos] = useState<EntradaFoto[]>([]);
+  const [editAccessoriesLeft, setEditAccessoriesLeft] = useState("");
+  const [editPhysicalState, setEditPhysicalState] = useState("");
   const [lightboxPhoto, setLightboxPhoto] = useState<EntradaFoto | null>(null);
 
   // Print state
   const [activePrintOS, setActivePrintOS] = useState<OrdemServico | null>(null);
+  const [activePrintTemplate, setActivePrintTemplate] = useState<DocumentTemplate | null>(null);
 
-  const handlePrintRecibo = (os: OrdemServico) => {
-    setActivePrintOS(os);
-    document.body.classList.add("printing-recibo");
-    const cleanup = () => {
-      document.body.classList.remove("printing-recibo");
-      window.removeEventListener("afterprint", cleanup);
-    };
-    window.addEventListener("afterprint", cleanup);
-    setTimeout(() => {
-      window.print();
-    }, 150);
+  const printDocument = usePrintDocument();
+
+  const handlePrintRecibo = async (os: OrdemServico) => {
+    const template = resolveTemplateForOS(os);
+    // PDF real gerado no servidor (data de emissão = agora, como no recibo impresso);
+    // fallback para a impressão via navegador se o servidor falhar.
+    const ok = await downloadDocumentPdf(
+      template.id,
+      os.id,
+      `${template.nomeArquivo}-${os.osNumber}`,
+      new Date().toISOString()
+    );
+    if (!ok) {
+      setActivePrintOS(os);
+      setActivePrintTemplate(template);
+      printDocument(`${template.nomeArquivo}-${os.osNumber}`);
+    }
+  };
+
+  const handlePrintTermo = async (os: OrdemServico) => {
+    const template = DOCUMENT_TEMPLATES.termo;
+    // PDF real gerado no servidor; fallback para a impressão via navegador se falhar.
+    const ok = await downloadDocumentPdf(
+      template.id,
+      os.id,
+      `${template.nomeArquivo}-${os.osNumber}`
+    );
+    if (!ok) {
+      setActivePrintOS(os);
+      setActivePrintTemplate(template);
+      printDocument(`${template.nomeArquivo}-${os.osNumber}`);
+    }
   };
 
   // Form states
   const [diagnostic, setDiagnostic] = useState("");
   const [laudoMacro, setLaudoMacro] = useState("");
   const [discount, setDiscount] = useState(0);
+  const [benchLocation, setBenchLocation] = useState("");
+  const [returnMethod, setReturnMethod] = useState("");
+  const [packagingCleaned, setPackagingCleaned] = useState(false);
+  const [editTagIds, setEditTagIds] = useState<string[]>([]);
   const [closingOS, setClosingOS] = useState<OrdemServico | null>(null);
   const [paymentModalOS, setPaymentModalOS] = useState<any | null>(null);
   const [paymentMethod, setPaymentMethod] = useState("");
+  const [paymentNotes, setPaymentNotes] = useState("");
+  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().substring(0, 10));
+  const [paymentDetails, setPaymentDetails] = useState<{ method: string; amount: number }[]>([]);
+  const [paymentAmountInput, setPaymentAmountInput] = useState("");
   const [invoiceType, setInvoiceType] = useState("nenhum");
   const [showFiscalFixModal, setShowFiscalFixModal] = useState(false);
   const [fiscalFixClient, setFiscalFixClient] = useState<any | null>(null);
@@ -597,7 +779,9 @@ export default function KanbanBoard({
         });
         setShowFiscalFixModal(false);
         if (fiscalFixPendingOSId && fiscalFixPendingStatus) {
-          handleStatusChangeBtn(fiscalFixPendingOSId, fiscalFixPendingStatus);
+          // skipChecklistGate: para chegar à correção fiscal o gate do checklist já foi
+          // superado; evita que a listagem obsoleta reabra o gate.
+          handleStatusChangeBtn(fiscalFixPendingOSId, fiscalFixPendingStatus, { skipChecklistGate: true });
         }
       }
     } catch (e: any) {
@@ -684,6 +868,50 @@ export default function KanbanBoard({
   const [avulsoCost, setAvulsoCost] = useState(0);
   const [avulsoObs, setAvulsoObs] = useState("");
 
+  // --- Guarda de alterações não salvas (beforeunload) ---
+  const editModalBaselineRef = useRef<string>("");
+
+  const kanbanEditDirty =
+    showEditModal &&
+    (editModalBaselineRef.current === "" ||
+      JSON.stringify({
+        diagnostic,
+        laudoMacro,
+        discount,
+        parts: selectedParts.map((p) => `${(p as any).partId || (p as any).id}:${p.quantity}`),
+        checklist: editChecklist.map((i) => `${i.id}:${i.status}:${i.observacao || ""}`),
+        photos: editPhotos.length,
+        saida: editChecklistSaida.map((i) => `${i.id}:${i.status}:${i.observacao || ""}`)
+      }) !== editModalBaselineRef.current ||
+      isAddingAvulso ||
+      avulsoName.trim() !== "" ||
+      avulsoObs.trim() !== "" ||
+      isEditingEntrada ||
+      isEditingSaida);
+
+  const onboardingDirty =
+    showOnboardingModal &&
+    (onbExtraType.trim() !== "" ||
+      onbBrand.trim() !== "" ||
+      onbModel.trim() !== "" ||
+      onbSerial.trim() !== "" ||
+      onbDesc.trim() !== "");
+
+  // Modal de correção de dados fiscais do cliente (recepção antes do faturamento)
+  const fiscalFixDirty =
+    showFiscalFixModal &&
+    (fiscalFixData.name?.trim() !== "" ||
+      fiscalFixData.cpfCnpj?.trim() !== "" ||
+      fiscalFixData.stateInscription?.trim() !== "" ||
+      fiscalFixData.address?.trim() !== "" ||
+      fiscalFixData.city?.trim() !== "" ||
+      fiscalFixData.state?.trim() !== "" ||
+      fiscalFixData.zipCode?.trim() !== "");
+
+  useUnsavedChangesGuard(kanbanEditDirty);
+  useUnsavedChangesGuard(onboardingDirty);
+  useUnsavedChangesGuard(fiscalFixDirty);
+
   const handleStartStressTest = async () => {
     if (!selectedOS || isOffline) return;
     try {
@@ -728,6 +956,18 @@ export default function KanbanBoard({
         setSelectedOS({ ...selectedOS, checklistSaida: data.checklistSaida });
         setIsEditingSaida(false);
         onRefresh();
+
+        // Opção A: se o arrasto para FINALIZADO foi bloqueado pelo checklist, continua a
+        // transição reaproveitando a sequência do botão de status (validação fiscal → sem
+        // reparo → lucro → PUT /status → fiscal/Bling), sem o usuário precisar repetir a ação.
+        if (pendingFinalize && pendingFinalize.osId === selectedOS.id) {
+          const { osId, targetStatus } = pendingFinalize;
+          setPendingFinalize(null);
+          // skipChecklistGate: o checklist acabou de ser salvo; a listagem ainda está
+          // obsoleta e não deve reabrir o gate (evita loop).
+          await handleStatusChangeBtn(osId, targetStatus, { skipChecklistGate: true });
+          setShowEditModal(false);
+        }
       } else {
         const err = await res.json();
         setErrorMsg(err.error || "Erro ao salvar checklist de saída.");
@@ -738,6 +978,10 @@ export default function KanbanBoard({
   };
 
   const openOSDetails = (os: OrdemServico) => {
+    // Abrir os detalhes limpa qualquer finalização pendente de um arrasto anterior
+    // (evita retomar uma transição que o usuário já desistiu).
+    setPendingFinalize(null);
+
     // Scroll automatically to column center when opening OS
     const colElement = document.getElementById(`kanban-col-${os.status}`);
     if (colElement) {
@@ -748,23 +992,15 @@ export default function KanbanBoard({
     setDiagnostic(os.diagnostic || "");
     setLaudoMacro(os.laudoMacro || "");
     setDiscount(os.discount || 0);
+    setBenchLocation((os as any).benchLocation || "");
+    setReturnMethod((os as any).returnMethod || "");
+    setPackagingCleaned((os as any).packagingCleaned || false);
+    setEditTagIds(((os as any).tags || []).map((t: any) => t.id));
     setSelectedParts(os.usedParts || []);
-    setEditChecklist(os.checklistEntrada && os.checklistEntrada.length > 0 ? os.checklistEntrada : [
-      { id: "tela", label: "Tela / Display", status: "NA", observacao: "" },
-      { id: "teclado", label: "Touchscreen / Teclado", status: "NA", observacao: "" },
-      { id: "camera", label: "Câmera(s)", status: "NA", observacao: "" },
-      { id: "botoes", label: "Botões físicos (ligar, volume)", status: "NA", observacao: "" },
-      { id: "porta_carga", label: "Porta de carregamento", status: "NA", observacao: "" },
-      { id: "carcaca", label: "Carcaça / Tampa traseira", status: "NA", observacao: "" },
-      { id: "bateria", label: "Bateria / Nível de carga", status: "NA", observacao: "" },
-      { id: "carregador", label: "Adaptador / Carregador entregue", status: "NA", observacao: "" },
-      { id: "umidade", label: "Alta umidade / Corrosão", status: "NA", observacao: "" },
-      { id: "queda", label: "Sinais de queda ou impacto", status: "NA", observacao: "" },
-      { id: "temperatura", label: "Temperatura anormal", status: "NA", observacao: "" },
-      { id: "acessorios_extra", label: "Acessórios entregues junto", status: "NA", observacao: "" },
-      { id: "garantia", label: "Selo de garantia intacto", status: "NA", observacao: "" }
-    ]);
+    setEditChecklist(os.checklistEntrada && os.checklistEntrada.length > 0 ? os.checklistEntrada : DEFAULT_ENTRADA_CHECKLIST);
     setEditPhotos(os.laudoFotos || []);
+    setEditAccessoriesLeft(os.accessoriesLeft || "");
+    setEditPhysicalState(os.physicalState || "");
     setIsEditingEntrada(false);
 
     // Carregar detalhes completos (com fotos Base64) em background
@@ -782,6 +1018,12 @@ export default function KanbanBoard({
           setDiscount(fullOS.discount || 0);
           setDiagnostic(fullOS.diagnostic || "");
           setLaudoMacro(fullOS.laudoMacro || "");
+          setBenchLocation((fullOS as any).benchLocation || "");
+          setReturnMethod((fullOS as any).returnMethod || "");
+          setPackagingCleaned((fullOS as any).packagingCleaned || false);
+          setEditTagIds((fullOS.tags || []).map((t: any) => t.id));
+          setEditAccessoriesLeft(fullOS.accessoriesLeft || "");
+          setEditPhysicalState(fullOS.physicalState || "");
           onRefresh();
         }
       } catch (err) {
@@ -805,6 +1047,9 @@ export default function KanbanBoard({
     setErrorMsg("");
     setSuccessMsg("");
     setShowEditModal(true);
+
+    // Baseline da guarda de alterações não salvas (não disparar ao apenas abrir)
+    editModalBaselineRef.current = captureEditBaseline(os, defaultSaida);
   };
 
   const handleModalPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -858,7 +1103,12 @@ export default function KanbanBoard({
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({ checklistEntrada: editChecklist, laudoFotos: editPhotos })
+        body: JSON.stringify({ 
+          checklistEntrada: editChecklist, 
+          laudoFotos: editPhotos,
+          accessoriesLeft: editAccessoriesLeft,
+          physicalState: editPhysicalState
+        })
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -871,7 +1121,9 @@ export default function KanbanBoard({
       setSelectedOS({
         ...selectedOS,
         checklistEntrada: editChecklist,
-        laudoFotos: editPhotos
+        laudoFotos: editPhotos,
+        accessoriesLeft: editAccessoriesLeft,
+        physicalState: editPhysicalState
       });
       setIsEditingEntrada(false);
       setTimeout(() => setSuccessMsg(""), 1200);
@@ -883,6 +1135,31 @@ export default function KanbanBoard({
   };
 
 
+  // Gate do checklist de saída, compartilhado entre o arrasto e o botão de status:
+  // só bloqueia quando o checklist ainda NÃO foi salvo e o faturamento está pendente.
+  const needsChecklistSaidaGate = (os: OrdemServico) =>
+    !(Array.isArray(os.checklistSaida) && os.checklistSaida.length > 0) &&
+    (!os.billingStatus || os.billingStatus === "PENDENTE" || os.billingStatus === "REJEITADO");
+
+  // OS coberta por garantia — etiqueta automática "Em Garantia" injetada pelo backend
+  // (MGV 90 dias ou garantia do aparelho). Em garantia → sem cobrança.
+  const isWarrantyOS = (os: any) =>
+    Array.isArray(os?.tags) && (os.tags as any[]).some((t: any) => t.name === "Em Garantia");
+
+  // OS aberta no modal de pagamento + flag de garantia (derivado do card atual)
+  const getPaymentOS = (id: string) => ordensServico.find(o => o.id === id);
+  const isPaymentWarranty = (id: string) => isWarrantyOS(getPaymentOS(id));
+
+  // Abre a aba "Saída" em modo de edição e guarda o destino pendente (FINALIZADO).
+  const openChecklistGate = (os: OrdemServico) => {
+    setPendingFinalize({ osId: os.id, targetStatus: "FINALIZADO" });
+    setSelectedOS(os);
+    setEditTagIds(((os as any).tags || []).map((t: any) => t.id));
+    setModalTab("saida");
+    setIsEditingSaida(true);
+    setShowEditModal(true);
+  };
+
   const handleDragStart = (e: React.DragEvent, id: string) => {
     if (isOffline) { e.preventDefault(); return; }
     setDraggingId(id);
@@ -890,95 +1167,49 @@ export default function KanbanBoard({
 
   const handleDragOver = (e: React.DragEvent) => e.preventDefault();
 
-  const handleDrop = async (e: React.DragEvent, targetStatus: string) => {
-    e.preventDefault();
-    if (!draggingId || isOffline) return;
+  const executeStatusTransition = async (id: string, newStatus: string, opts?: { skipChecklistGate?: boolean }) => {
+    if (isOffline) return false;
 
     // Se estivermos no modo financeiro, atualizamos o status financeiro da OS
     if (viewMode === "financeiro") {
       try {
         const token = localStorage.getItem("mgv_token") || "";
-        const response = await fetch(`/api/ordens-servico/${draggingId}/financial-status`, {
+        const response = await fetch(`/api/ordens-servico/${id}/financial-status`, {
           method: "PUT",
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-          body: JSON.stringify({ financialStatus: targetStatus })
+          body: JSON.stringify({ financialStatus: newStatus })
         });
         if (!response.ok) {
           const errData = await response.json();
           alert(errData.error || "Erro ao atualizar status financeiro.");
+          return false;
         } else {
           onRefresh();
+          return true;
         }
       } catch (err: any) {
         alert(err.message);
-      } finally {
-        setDraggingId(null);
-      }
-      return;
-    }
-
-    const osToMove = ordensServico.find(o => o.id === draggingId);
-    if (osToMove) {
-      const isOrigemSemReparo = osToMove.status === "AGUARDANDO_AVALIACAO" || osToMove.status === "AGUARDANDO_AUTORIZACAO";
-      if (targetStatus === "FINALIZADO" && isOrigemSemReparo) {
-        setSemReparoOS(osToMove);
-        setSelectedClosingReason('ORCAMENTO_RECUSADO');
-        setSemReparoNotifyWhatsapp(true);
-        setShowSemReparoModal(true);
-        setDraggingId(null);
-        return;
+        return false;
       }
     }
-
-    const isProfitEnabled = isFeatureEnabled("OS_PROFITABILITY_CALC");
-    if (targetStatus === "FINALIZADO" && userRole === UserRole.OWNER && isProfitEnabled && osToMove) {
-      setClosingOS(osToMove);
-      setDraggingId(null);
-      return;
-    }
-
-    try {
-      const token = localStorage.getItem("mgv_token") || "";
-      const response = await fetch(`/api/ordens-servico/${draggingId}/status`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-        body: JSON.stringify({ status: targetStatus })
-      });
-      if (!response.ok) {
-        const errData = await response.json();
-        if (errData.code === "DEVICE_INCOMPLETE") {
-          setOnboardingOS(osToMove || null);
-          setOnboardingDevice(errData.device);
-          setOnboardingTargetStatus(targetStatus as OSStatus);
-          setOnbType(errData.device.type || "Ultrassom (Fisio/Estética)");
-          setOnbBrand(errData.device.brand === "Indefinido" ? "" : errData.device.brand);
-          setOnbModel(errData.device.model === "Indefinido" ? "" : errData.device.model);
-          setOnbSerial(errData.device.serialNumber === "Sem Série" ? "" : errData.device.serialNumber);
-          setOnbDesc(errData.device.description === "Sem observações." ? "" : errData.device.description);
-          setOnbErrorMsg("");
-          setOnbSuccessMsg("");
-          setShowOnboardingModal(true);
-        } else {
-          alert(errData.error || "Erro ao mover a OS.");
-        }
-      } else {
-        onRefresh();
-      }
-    } catch (err: any) { alert(err.message); } finally { setDraggingId(null); }
-  };
-
-  const handleStatusChangeBtn = async (id: string, newStatus: OSStatus) => {
-    if (isOffline) return;
 
     const osToMove = ordensServico.find(o => o.id === id);
+    if (!osToMove) return false;
 
-    // Intercepta transição para FINALIZADO para validar dados fiscais do cliente
-    if (newStatus === "FINALIZADO" && osToMove) {
+    // Gate 1: Checklist de Saída
+    // O gate do checklist só bloqueia quando o checklist ainda NÃO foi salvo (needsChecklistSaidaGate).
+    if (newStatus === "FINALIZADO" && !opts?.skipChecklistGate && needsChecklistSaidaGate(osToMove)) {
+      openChecklistGate(osToMove);
+      return false;
+    }
+
+    // Gate 2: Validação Fiscal de Cliente (pulada em OS cobertas por garantia — sem cobrança/nota fiscal)
+    if (newStatus === "FINALIZADO" && !isWarrantyOS(osToMove)) {
       const isNfc = invoiceType === "nfce";
       const validation = validateFiscalData(osToMove, osToMove.client, parts, { isNfc });
       if (!validation.isValid) {
         setFiscalFixPendingOSId(id);
-        setFiscalFixPendingStatus(newStatus);
+        setFiscalFixPendingStatus(newStatus as OSStatus);
         setFiscalFixClient(osToMove.client);
         setFiscalFixData({
           name: osToMove.client.name || "",
@@ -992,26 +1223,28 @@ export default function KanbanBoard({
         setFiscalFixErrors(validation.errors);
         setFiscalFixWarnings(validation.warnings);
         setShowFiscalFixModal(true);
-        return;
-      }
-    }
-    if (osToMove) {
-      const isOrigemSemReparo = osToMove.status === "AGUARDANDO_AVALIACAO" || osToMove.status === "AGUARDANDO_AUTORIZACAO";
-      if (newStatus === "FINALIZADO" && isOrigemSemReparo) {
-        setSemReparoOS(osToMove);
-        setSelectedClosingReason('ORCAMENTO_RECUSADO');
-        setSemReparoNotifyWhatsapp(true);
-        setShowSemReparoModal(true);
-        return;
+        return false;
       }
     }
 
+    // Gate 3: Encerramento Sem Reparo (Orçamento Recusado / Sem Conserto)
+    const isOrigemSemReparo = osToMove.status === "AGUARDANDO_AVALIACAO" || osToMove.status === "AGUARDANDO_AUTORIZACAO";
+    if (newStatus === "FINALIZADO" && isOrigemSemReparo) {
+      setSemReparoOS(osToMove);
+      setSelectedClosingReason('ORCAMENTO_RECUSADO');
+      setSemReparoNotifyWhatsapp(true);
+      setShowSemReparoModal(true);
+      return false;
+    }
+
+    // Gate 4: Cálculo de Rentabilidade (Apenas OWNER)
     const isProfitEnabled = isFeatureEnabled("OS_PROFITABILITY_CALC");
-    if (newStatus === "FINALIZADO" && userRole === UserRole.OWNER && isProfitEnabled && osToMove) {
+    if (newStatus === "FINALIZADO" && userRole === UserRole.OWNER && isProfitEnabled) {
       setClosingOS(osToMove);
-      return;
+      return false;
     }
 
+    // Transição Principal: Atualização do Banco de Dados via API e Gate 5 (Onboarding Base Instalada)
     try {
       const token = localStorage.getItem("mgv_token") || "";
       const response = await fetch(`/api/ordens-servico/${id}/status`, {
@@ -1019,12 +1252,13 @@ export default function KanbanBoard({
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
         body: JSON.stringify({ status: newStatus })
       });
+      
       if (!response.ok) {
         const errData = await response.json();
         if (errData.code === "DEVICE_INCOMPLETE") {
-          setOnboardingOS(osToMove || null);
+          setOnboardingOS(osToMove);
           setOnboardingDevice(errData.device);
-          setOnboardingTargetStatus(newStatus);
+          setOnboardingTargetStatus(newStatus as OSStatus);
           setOnbType(errData.device.type || "Ultrassom (Fisio/Estética)");
           setOnbBrand(errData.device.brand === "Indefinido" ? "" : errData.device.brand);
           setOnbModel(errData.device.model === "Indefinido" ? "" : errData.device.model);
@@ -1033,13 +1267,33 @@ export default function KanbanBoard({
           setOnbErrorMsg("");
           setOnbSuccessMsg("");
           setShowOnboardingModal(true);
+          return false;
         } else {
-          alert(errData.error || "Erro ao alterar status.");
+          alert(errData.error || "Erro ao alterar status da OS.");
+          return false;
         }
       } else {
         onRefresh();
+        return true;
       }
-    } catch (err: any) { alert(err.message); }
+    } catch (err: any) {
+      alert(err.message);
+      return false;
+    }
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetStatus: string) => {
+    e.preventDefault();
+    if (!draggingId || isOffline) return;
+
+    await executeStatusTransition(draggingId, targetStatus);
+    
+    setDraggingId(null);
+    stopAutoScroll();
+  };
+
+  const handleStatusChangeBtn = async (id: string, newStatus: OSStatus, opts?: { skipChecklistGate?: boolean }) => {
+    await executeStatusTransition(id, newStatus, opts);
   };
 
   const handleOnboardingSubmit = async (e: React.FormEvent) => {
@@ -1275,7 +1529,7 @@ export default function KanbanBoard({
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({ diagnostic, laudoMacro, usedParts: selectedParts, discount })
+        body: JSON.stringify({ diagnostic, laudoMacro, usedParts: selectedParts, discount, benchLocation, returnMethod, packagingCleaned, tagIds: editTagIds })
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -1333,11 +1587,11 @@ export default function KanbanBoard({
   const localFilteredOS = ordensServico.filter(os => matchOS(os, searchTerm, searchScope));
 
   const dataSource = globalSearchResults !== null ? globalSearchResults : localFilteredOS;
-  const canUseAdvancedSearch = ["OWNER", "ADMIN", "ATTENDANT"].includes(userRole);
+  const canUseAdvancedSearch = ["OWNER", "ADMIN", "ATTENDANT", "TECHNICIAN", "EDITOR", "SUPERVISOR", "FINANCIAL"].includes(userRole);
 
 
   return (
-    <div className="space-y-6">
+    <div className="h-full flex flex-col space-y-4 overflow-hidden">
       {isOffline && (
         <div className="bg-red-950/60 border border-red-500 rounded-xl p-3 text-red-200 text-xs flex items-center space-x-2 animate-pulse shadow-inner">
           <span className="material-symbols-outlined text-[16px] text-red-400 shrink-0">warning</span>
@@ -1442,31 +1696,54 @@ export default function KanbanBoard({
         )}
       </div>
 
-      {/* Seletor de Visão (Técnico / Financeiro) */}
-      <div className="flex bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/50 max-w-md shadow-sm">
-        <button
-          onClick={() => setViewMode("tecnico")}
-          className={`flex-1 py-2.5 px-4 text-xs font-extrabold rounded-xl transition flex items-center justify-center gap-2 cursor-pointer ${
-            viewMode === "tecnico"
-              ? "bg-white text-slate-900 shadow-sm border border-slate-200/50"
-              : "text-slate-500 hover:text-slate-800"
-          }`}
-        >
-          <span className="material-symbols-outlined text-[18px]">build</span>
-          <span>Fluxo Técnico</span>
-        </button>
-        <button
-          onClick={() => setViewMode("financeiro")}
-          className={`flex-1 py-2.5 px-4 text-xs font-extrabold rounded-xl transition flex items-center justify-center gap-2 cursor-pointer ${
-            viewMode === "financeiro"
-              ? "bg-white text-slate-900 shadow-sm border border-slate-200/50"
-              : "text-slate-500 hover:text-slate-800"
-          }`}
-        >
-          <span className="material-symbols-outlined text-[18px]">payments</span>
-          <span>Painel Financeiro</span>
-        </button>
-      </div>
+      {/* Seletor de Visão Consolidada do Gestor */}
+      {(userRole === "OWNER" || userRole === "ADMIN") && (
+        <div className="flex bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/50 max-w-xl shadow-sm">
+          <button
+            onClick={() => setViewMode("tecnico")}
+            className={`flex-1 py-2.5 px-4 text-[11px] font-extrabold rounded-xl transition flex items-center justify-center gap-2 cursor-pointer ${
+              viewMode === "tecnico"
+                ? "bg-white text-slate-900 shadow-sm border border-slate-200/50"
+                : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            <span className="material-symbols-outlined text-[16px]">build</span>
+            <span>Fluxo Técnico</span>
+          </button>
+          <button
+            onClick={() => setViewMode("recepcao")}
+            className={`flex-1 py-2.5 px-4 text-[11px] font-extrabold rounded-xl transition flex items-center justify-center gap-2 cursor-pointer ${
+              viewMode === "recepcao"
+                ? "bg-white text-slate-900 shadow-sm border border-slate-200/50"
+                : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            <span className="material-symbols-outlined text-[16px]">storefront</span>
+            <span>Recepção (Handoff)</span>
+          </button>
+          <button
+            onClick={() => setViewMode("financeiro")}
+            className={`flex-1 py-2.5 px-4 text-[11px] font-extrabold rounded-xl transition flex items-center justify-center gap-2 cursor-pointer ${
+              viewMode === "financeiro"
+                ? "bg-white text-slate-900 shadow-sm border border-slate-200/50"
+                : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            <span className="material-symbols-outlined text-[16px]">payments</span>
+            <span>Financeiro</span>
+          </button>
+        </div>
+      )}
+      {(userRole !== "OWNER" && userRole !== "ADMIN") && (
+        <div className="flex bg-slate-100/80 p-3 rounded-2xl border border-slate-200/50 shadow-sm items-center gap-2">
+          <span className="material-symbols-outlined text-indigo-500 text-xl">
+            {viewMode === "tecnico" ? "build" : viewMode === "recepcao" ? "front_desk" : "payments"}
+          </span>
+          <span className="font-extrabold text-slate-700 text-sm">
+            Seu Painel: {viewMode === "tecnico" ? "Fluxo Técnico" : viewMode === "recepcao" ? "Recepção e Handoff" : "Financeiro"}
+          </span>
+        </div>
+      )}
 
       {globalSearchResults !== null && (
         <div className="bg-indigo-50/80 border border-indigo-200/60 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
@@ -1526,14 +1803,19 @@ export default function KanbanBoard({
         </div>
       )}
 
-      <div className="flex overflow-x-auto gap-6 h-[calc(100vh-140px)] min-h-[500px] pb-4 snap-x snap-mandatory pr-2 custom-scrollbar-horizontal">
-        {(viewMode === "tecnico" ? COLUMNS : FINANCIAL_COLUMNS).map((column) => {
-          // No modo financeiro, listamos apenas OSs FINALIZADO. No modo técnico, filtramos pelo status operacional da coluna.
+      <div
+        ref={boardScrollRef}
+        onDragOver={handleBoardDragOver}
+        onDragEnd={handleDragEnd}
+        className={`flex-1 flex overflow-x-auto gap-6 pb-2 pr-2 custom-scrollbar-horizontal ${
+          draggingId ? "" : "snap-x snap-mandatory"
+        }`}
+      >
+        {(viewMode === "financeiro" ? FINANCIAL_COLUMNS : viewMode === "recepcao" ? RECEPCAO_COLUMNS : TECNICO_COLUMNS).map((column) => {
+          // No modo financeiro, listamos apenas OSs FINALIZADO. Nos outros, filtramos pelo status da coluna.
           const colOS = dataSource
             .filter(os => {
               if (viewMode === "financeiro") {
-                // Exibe no financeiro se estiver finalizada ou faturada, distribuída pelo status financeiro correspondente.
-                // Se a OS não tiver status financeiro definido, assume-se "PENDENTE" (A Faturar).
                 const osFinStatus = os.financialStatus || "PENDENTE";
                 return os.status === "FINALIZADO" && osFinStatus === column.id;
               } else {
@@ -1552,14 +1834,22 @@ export default function KanbanBoard({
             : (countsByStatus[column.id] || 0);
 
           return (
-            <div id={`kanban-col-${column.id}`} key={column.id} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, column.id)} className={`w-[360px] min-w-[360px] shrink-0 snap-center rounded-2xl border border-slate-200/85 border-t-4 p-4.5 flex flex-col h-full max-h-full gap-4 overflow-hidden ${column.color}`}>
+            <div 
+              id={`kanban-col-${column.id}`} 
+              key={column.id} 
+              onDragOver={handleDragOver} 
+              onDrop={(e) => handleDrop(e, column.id)} 
+              className={`w-[360px] min-w-[360px] shrink-0 rounded-2xl border border-slate-200/85 border-t-4 p-4.5 flex flex-col h-full max-h-full gap-4 overflow-hidden ${column.color} ${
+                draggingId ? "" : "snap-center"
+              }`}
+            >
               <div className="flex items-center justify-between border-b border-slate-200/60 pb-3 shrink-0">
                 <h3 className="font-bold text-sm text-slate-900">{column.name}</h3>
                 <span className="bg-slate-900 text-white font-mono text-[10px] px-2 py-0.5 rounded-full">{colCount}</span>
               </div>
               <div 
                 onScroll={(e) => handleColumnScroll(e, column.id as any)}
-                className="flex-1 space-y-4 overflow-y-auto pr-1 pb-2 custom-scrollbar"
+                className="flex-1 space-y-2.5 overflow-y-auto pr-1 pb-2 custom-scrollbar"
               >
                 {colOS.map((os) => {
                   // Motor de Recorrência
@@ -1587,6 +1877,7 @@ export default function KanbanBoard({
                         }
                       }}
                       onDragStart={handleDragStart} 
+                      onDragEnd={handleDragEnd}
                       onClick={openOSDetails} 
                     />
                   );
@@ -1609,7 +1900,7 @@ export default function KanbanBoard({
             const resDados = await fetch(`/api/ordens-servico/${selectedOS.id}`, {
               method: "PUT",
               headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-              body: JSON.stringify({ diagnostic, laudoMacro, usedParts: selectedParts, discount })
+              body: JSON.stringify({ diagnostic, laudoMacro, usedParts: selectedParts, discount, benchLocation, returnMethod, packagingCleaned, tagIds: editTagIds })
             });
             if (!resDados.ok) throw new Error("Erro ao gravar dados.");
             
@@ -1621,6 +1912,9 @@ export default function KanbanBoard({
                 ...selectedOS,
                 diagnostic,
                 laudoMacro,
+                benchLocation,
+                returnMethod,
+                packagingCleaned,
                 usedParts: selectedParts,
                 laborCost: computedLaborCost,
                 discount: Number(discount) || 0,
@@ -1642,6 +1936,9 @@ export default function KanbanBoard({
                 ...selectedOS,
                 diagnostic,
                 laudoMacro,
+                benchLocation,
+                returnMethod,
+                packagingCleaned,
                 usedParts: selectedParts,
                 laborCost: computedLaborCost,
                 discount: Number(discount) || 0,
@@ -1664,7 +1961,10 @@ export default function KanbanBoard({
               headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
               body: JSON.stringify({ status: newStatus })
             });
-            if (!resStatus.ok) throw new Error("Erro ao mudar fase.");
+            if (!resStatus.ok) {
+              const errData = await resStatus.json().catch(() => ({}));
+              throw new Error(errData.error || "Erro ao mudar fase.");
+            }
             
             setSuccessMsg(`Fase alterada com sucesso!`);
             onRefresh();
@@ -1862,6 +2162,23 @@ export default function KanbanBoard({
               <div className="bg-white p-4 rounded-xl border border-slate-200/80 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs select-text">
                 <p><span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block">Cliente proprietário</span> <strong className="text-slate-800 text-sm mt-0.5 block">{(selectedOS as any).client?.name}</strong></p>
                 <p><span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block">Dispositivo em conserto</span> <strong className="text-slate-800 text-sm mt-0.5 block">{(selectedOS as any).device?.type} {(selectedOS as any).device?.brand} ({(selectedOS as any).device?.model})</strong></p>
+                {(selectedOS as any).tags && (selectedOS as any).tags.length > 0 && (
+                  <p className="sm:col-span-2 border-t border-slate-100 pt-2">
+                    <span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block mb-1.5">Etiquetas</span>
+                    <span className="flex flex-wrap gap-1.5">
+                      {(selectedOS as any).tags.map((tag: any) => (
+                        <span
+                          key={tag.id}
+                          className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md text-white shadow-sm"
+                          style={{ backgroundColor: tag.colorHex }}
+                          title={tag.description || `Etiqueta: ${tag.name}`}
+                        >
+                          {tag.name}
+                        </span>
+                      ))}
+                    </span>
+                  </p>
+                )}
                 <p className="sm:col-span-2 border-t border-slate-100 pt-2"><span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block">Sintoma Narrado pelo Solicitante</span> <span className="text-slate-600 italic block mt-1 font-mono">"{(selectedOS as any).reportedDefect}"</span></p>
                 {(selectedOS as any).accessoriesLeft && (
                   <p className="border-t border-slate-100 pt-2"><span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block">Acessórios Deixados</span> <span className="text-slate-700 font-semibold block mt-0.5 font-mono">{(selectedOS as any).accessoriesLeft}</span></p>
@@ -1880,6 +2197,18 @@ export default function KanbanBoard({
               {/* TAB 1: LAUDO & CUSTOS */}
               {modalTab === "laudo" && (
                 <div className="space-y-5 anim-fadein">
+                  {/* Etiquetas da OS (editáveis em qualquer etapa do fluxo) */}
+                  <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[14px] text-indigo-500">sell</span>
+                        Etiquetas da OS
+                      </label>
+                      <span className="text-[9px] text-slate-400 font-semibold">salvas junto com o rascunho</span>
+                    </div>
+                    <TagSelector selectedTagIds={editTagIds} onChange={setEditTagIds} scope="ORDEM_SERVICO" />
+                  </div>
+
                   <div>
                     <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">Diagnóstico Pericial Técnico *</label>
                     <textarea
@@ -1901,6 +2230,51 @@ export default function KanbanBoard({
                       onChange={(e) => setLaudoMacro(e.target.value)}
                       className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none transition"
                     />
+                  </div>
+
+                  {/* Handoff / Logística */}
+                  <div className="bg-rose-50/50 border border-rose-200/60 rounded-xl p-4 space-y-3">
+                    <h4 className="text-[10px] font-bold text-rose-600 uppercase tracking-widest flex items-center gap-1.5 border-b border-rose-200/50 pb-2">
+                      <span className="material-symbols-outlined text-[16px]">local_shipping</span>
+                      Logística e Handoff (Recepção)
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">Local / Prateleira</label>
+                        <input
+                          type="text"
+                          placeholder="Ex: P2-A, Bancada 1"
+                          value={benchLocation}
+                          onChange={(e) => setBenchLocation(e.target.value)}
+                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition font-mono uppercase font-bold text-rose-700"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">Método de Retorno</label>
+                        <select
+                          value={returnMethod}
+                          onChange={(e) => setReturnMethod(e.target.value)}
+                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition"
+                        >
+                          <option value="">Selecione...</option>
+                          <option value="RETIRADA_BALCAO">Retirada no Balcão</option>
+                          <option value="CORREIOS">Correios / Transportadora</option>
+                          <option value="MOTOBOY">Motoboy</option>
+                        </select>
+                      </div>
+                      <div className="flex items-center space-x-2 pt-5">
+                        <input 
+                          type="checkbox"
+                          id="chkLimpeza"
+                          checked={packagingCleaned}
+                          onChange={(e) => setPackagingCleaned(e.target.checked)}
+                          className="w-4 h-4 text-rose-600 border-slate-300 rounded focus:ring-rose-500"
+                        />
+                        <label htmlFor="chkLimpeza" className="text-[10px] font-bold text-slate-700 cursor-pointer select-none">
+                          Higienizado para Entrega?
+                        </label>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 items-center">
@@ -2165,9 +2539,33 @@ export default function KanbanBoard({
 
                   {isEditingEntrada ? (
                     /* EDITING MODE */
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      {/* Checklist Section */}
-                      <div className="space-y-4">
+                    <div className="space-y-6">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Acessórios Deixados</label>
+                          <input
+                            type="text"
+                            value={editAccessoriesLeft}
+                            onChange={(e) => setEditAccessoriesLeft(e.target.value)}
+                            placeholder="Ex: Cabo de força, ponteira"
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Estado Físico / Balcão</label>
+                          <input
+                            type="text"
+                            value={editPhysicalState}
+                            onChange={(e) => setEditPhysicalState(e.target.value)}
+                            placeholder="Ex: Riscado na lateral, marcas de uso"
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* Checklist Section */}
+                        <div className="space-y-4">
                         <h5 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Checklist de Entrada</h5>
                         <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3 max-h-[350px] overflow-y-auto pr-2">
                           {editChecklist.map((item, idx) => (
@@ -2284,11 +2682,24 @@ export default function KanbanBoard({
                         </div>
                       </div>
                     </div>
+                  </div>
                   ) : (
                     /* VIEW-ONLY MODE */
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 bg-slate-50/50 p-4 rounded-xl border border-slate-200/80">
-                      {/* Checklist Summary */}
-                      <div className="space-y-4">
+                    <div className="space-y-6">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50/50 p-4 rounded-xl border border-slate-200/85">
+                        <div>
+                          <span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block">Acessórios Deixados</span>
+                          <span className="text-slate-700 font-semibold block mt-1 font-mono text-xs">{editAccessoriesLeft || "Nenhum acessório registrado"}</span>
+                        </div>
+                        <div>
+                          <span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block">Estado Físico / Balcão</span>
+                          <span className="text-slate-700 font-semibold block mt-1 font-mono text-xs">{editPhysicalState || "Nenhum estado registrado"}</span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 bg-slate-50/50 p-4 rounded-xl border border-slate-200/80">
+                        {/* Checklist Summary */}
+                        <div className="space-y-4">
                         <h5 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Estado Conferido na Entrada</h5>
                         <div className="grid grid-cols-1 gap-2.5 max-h-[400px] overflow-y-auto pr-1">
                           {editChecklist.map((item) => (
@@ -2335,6 +2746,7 @@ export default function KanbanBoard({
                         )}
                       </div>
                     </div>
+                  </div>
                   )}
                 </div>
               )}
@@ -2563,6 +2975,15 @@ export default function KanbanBoard({
                 </button>
 
                 <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-end">
+                  <button
+                    type="button"
+                    onClick={() => handlePrintTermo(selectedOS)}
+                    className="px-4 py-2 bg-indigo-650 hover:bg-indigo-700 text-white font-bold text-sm rounded-lg transition flex items-center space-x-1.5 cursor-pointer shadow-sm"
+                    title="Imprimir Termo de Recebimento"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">assignment</span>
+                    <span>Imprimir Termo de Recebimento</span>
+                  </button>
                   {selectedOS.status === "PRONTO_RETIRADA" || selectedOS.status === "FINALIZADO" ? (
                     <button
                       type="button"
@@ -2626,7 +3047,7 @@ export default function KanbanBoard({
                 <div className="p-6 flex-1 overflow-y-auto mt-0 md:mt-12">
                    <div className="flex items-center space-x-3 mb-6">
                       <span className="text-[10px] uppercase tracking-widest font-bold text-slate-500">Fase Atual</span>
-                      <span className={`text-[11px] font-bold px-3 py-1.5 rounded-md border ${selectedOS.status === 'AGUARDANDO_AVALIACAO' ? 'bg-slate-100 text-slate-800 border-slate-200' : selectedOS.status === 'AGUARDANDO_AUTORIZACAO' ? 'bg-blue-100 text-blue-800 border-blue-200' : selectedOS.status === 'AGUARDANDO_PECA' ? 'bg-amber-100 text-amber-800 border-amber-200' : selectedOS.status === 'EM_MANUTENCAO' ? 'bg-purple-100 text-purple-800 border-purple-200' : selectedOS.status === 'PRONTO_RETIRADA' ? 'bg-teal-100 text-teal-800 border-teal-200' : 'bg-emerald-100 text-emerald-800 border-emerald-200'}`}>{COLUMNS.find(c => c.id === selectedOS.status)?.name || selectedOS.status}</span>
+                      <span className={`text-[11px] font-bold px-3 py-1.5 rounded-md border ${selectedOS.status === 'AGUARDANDO_AVALIACAO' ? 'bg-slate-100 text-slate-800 border-slate-200' : selectedOS.status === 'AGUARDANDO_AUTORIZACAO' ? 'bg-blue-100 text-blue-800 border-blue-200' : selectedOS.status === 'AGUARDANDO_PECA' ? 'bg-amber-100 text-amber-800 border-amber-200' : selectedOS.status === 'EM_MANUTENCAO' ? 'bg-purple-100 text-purple-800 border-purple-200' : selectedOS.status === 'PRONTO_RETIRADA' ? 'bg-teal-100 text-teal-800 border-teal-200' : 'bg-emerald-100 text-emerald-800 border-emerald-200'}`}>{([...TECNICO_COLUMNS, ...RECEPCAO_COLUMNS].find(c => c.id === selectedOS.status)?.name) || selectedOS.status}</span>
                    </div>
 
                    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
@@ -2855,178 +3276,15 @@ export default function KanbanBoard({
         </div>
       )}
 
-      {/* Print Overrides styling */}
-      <style>{`
-        @media print {
-          @page {
-            margin: 8mm;
-            size: auto;
-          }
-          html, body {
-            background: #ffffff !important;
-            height: auto !important;
-            min-height: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-          }
-          body *:not(:has(#printable-recibo)):not(#printable-recibo):not(#printable-recibo *) {
-            display: none !important;
-          }
-          #printable-recibo, #printable-recibo * {
-            visibility: visible !important;
-            display: block !important;
-          }
-          #printable-recibo {
-            position: static !important;
-            width: 100% !important;
-            border: none !important;
-            box-shadow: none !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            background: #ffffff !important;
-          }
-        }
-      `}</style>
-
+      
       {/* Printable Exit Receipt Template */}
       {activePrintOS && (
-        <div id="printable-recibo" className="hidden print:block bg-white text-slate-900 font-sans p-8 print:p-0 print:border-none">
-          <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-premium text-slate-900 max-w-3xl mx-auto print:border-none print:shadow-none font-sans relative overflow-hidden">
-            {/* Watermark/Accent line */}
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-emerald-600" />
-            
-            <div className="flex flex-col sm:flex-row justify-between items-start border-b border-slate-200 pb-6 gap-4">
-              <div>
-                <h1 className="text-xl font-bold uppercase tracking-wide text-emerald-950 flex items-center">
-                  <span className="material-symbols-outlined text-[20px] mr-1.5 text-emerald-650">workspace_premium</span>
-                  MGV Tecnologia
-                </h1>
-                <p className="text-[10px] text-slate-400 mt-1 uppercase font-mono tracking-wider font-semibold">MOSAIAS LUIZ TEODORO LTDA</p>
-                <p className="text-[11px] text-slate-500 font-mono mt-0.5">CNPJ: 24.181.336/0001-66 | IE: 797.187.310.116</p>
-                <p className="text-[11px] text-slate-500 mt-0.5">Rua Julio Prestes, 648, Jardim Sumaré, Ribeirão Preto - SP | Tel: (16) 99104-9631</p>
-              </div>
-              <div className="flex flex-col items-end text-right w-full sm:w-auto">
-                <span className="text-[10px] font-bold uppercase text-emerald-700 bg-emerald-50 border border-emerald-100 px-3 py-1 rounded-full font-mono">
-                  {activePrintOS.status === "PRONTO_RETIRADA" || activePrintOS.status === "FINALIZADO" ? "RECIBO DE ENTREGA E GARANTIA" : "ORÇAMENTO DE ASSISTÊNCIA TÉCNICA"}
-                </span>
-                <p className="text-3xl font-mono font-bold mt-3 text-slate-950 tracking-tight">{activePrintOS.osNumber}</p>
-                <p className="text-[10px] text-slate-400 font-mono mt-1">
-                  Conclusão: {new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}
-                </p>
-              </div>
-            </div>
-
-            {/* Client & Device Summary details */}
-            <div className="my-6 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/60">
-                <h4 className="font-bold text-slate-800 uppercase text-[10px] tracking-wider mb-2.5 pb-1 border-b border-slate-200 flex items-center">
-                  <span className="material-symbols-outlined text-[16px] mr-1.5 text-slate-600">how_to_reg</span>
-                  Cliente proprietário
-                </h4>
-                <p className="font-bold text-slate-950 text-sm">{(activePrintOS as any).client?.name || "Carlos Roberto Silva"}</p>
-                <p className="mt-1.5 font-medium text-slate-700">Documento: <span className="font-mono">{(activePrintOS as any).client?.cpfCnpj || "N/D"}</span></p>
-                <p className="font-medium text-slate-700">Contato: <span className="font-mono">{(activePrintOS as any).client?.phone || "N/D"}</span></p>
-                <p className="mt-1.5 text-slate-500 font-medium">Endereço: {(activePrintOS as any).client?.address || "N/D"}</p>
-              </div>
-
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/60">
-                <h4 className="font-bold text-slate-800 uppercase text-[10px] tracking-wider mb-2.5 pb-1 border-b border-slate-200 flex items-center">
-                  <span className="material-symbols-outlined text-[16px] mr-1.5 text-slate-650">devices</span>
-                  Aparelho em Manutenção
-                </h4>
-                <p className="font-bold text-slate-950 text-sm">{(activePrintOS as any).device?.type || "Ultrassom (Fisio/Estética)"} {(activePrintOS as any).device?.brand || "Ibramed"}</p>
-                <p className="mt-1.5 font-medium text-slate-700">Modelo: {(activePrintOS as any).device?.model || "Neurodyn"}</p>
-                <p className="font-medium text-slate-700 font-mono">Série: <span className="bg-slate-200 px-1 py-0.5 rounded font-bold text-slate-800">{(activePrintOS as any).device?.serialNumber || "Sem Série"}</span></p>
-                <p className="mt-1.5 text-slate-550 font-medium italic">Estética: {(activePrintOS as any).device?.description || "N/D"}</p>
-              </div>
-            </div>
-
-            {/* Diagnosis pericial description */}
-            <div className="space-y-4 text-xs border-t border-slate-200 pt-5">
-              <div>
-                <h4 className="font-bold text-slate-850 uppercase text-[10px] tracking-wider mb-1.5 flex items-center">
-                  <span className="material-symbols-outlined text-[16px] mr-1.5 text-slate-600 font-bold">description</span>
-                  Laudo Técnico do Laboratório
-                </h4>
-                <p className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 leading-relaxed font-semibold italic">
-                  {activePrintOS.diagnostic || "Serviço efetuado com diagnóstico conclusivo da equipe técnica."}
-                </p>
-              </div>
-              
-              <div className="border-t border-slate-100 pt-4">
-                <h4 className="font-bold text-slate-850 uppercase text-[10px] tracking-wider mb-2.5 flex items-center">
-                  <span className="material-symbols-outlined text-[16px] mr-1.5 text-slate-600">inventory_2</span>
-                  Insumos / Peças Substituídas
-                </h4>
-                {activePrintOS.usedParts?.length === 0 ? (
-                  <p className="text-slate-400 italic text-[11px] p-2">Nenhuma peça física utilizada para este reparo (serviço exclusivo).</p>
-                ) : (
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="border-b border-slate-200 text-slate-400 font-bold uppercase text-[9px] tracking-wider">
-                        <th className="py-2 font-bold">Descrição da Peça</th>
-                        <th className="py-2 text-center font-bold">Qtd</th>
-                        <th className="py-2 text-right font-bold">Valor Un.</th>
-                        <th className="py-2 text-right font-bold">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {activePrintOS.usedParts?.map((item, index) => (
-                        <tr key={index} className="border-b border-slate-100 text-slate-700">
-                          <td className="py-2.5 font-semibold">{item.name}</td>
-                          <td className="py-2.5 text-center font-mono font-bold">{item.quantity}</td>
-                          <td className="py-2.5 text-right font-mono font-semibold">R$ {item.price.toFixed(2)}</td>
-                          <td className="py-2.5 text-right font-mono font-bold text-slate-900">R$ {(item.price * item.quantity).toFixed(2)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-
-              {/* Invoicing summary cost */}
-              <div className="my-6 p-4 bg-slate-950 text-white rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center border border-slate-900 shadow-md">
-                <div className="space-y-0.5 select-none">
-                  <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-indigo-300">Custo Total de Operação</span>
-                  <p className="text-xs text-slate-400">Serviço Técnico + Insumos de Reposição</p>
-                </div>
-                <div className="text-right sm:mt-0 mt-3 flex items-baseline space-x-4">
-                  <span className="text-xs text-slate-450 font-semibold">Mão de Obra: R$ {activePrintOS.laborCost.toFixed(2)}</span>
-                  <span className="text-2xl font-mono font-bold text-emerald-400">
-                    R$ {activePrintOS.totalCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-              </div>
-
-              {/* Warranty certificate legal terms */}
-              <div className="mt-8 border-t border-slate-200 pt-5 text-[10px] text-slate-500 leading-relaxed space-y-2 select-none">
-                <p className="font-bold text-slate-700 uppercase tracking-wider text-[11px] mb-1">Termo de Entrega e Garantia de Assistência:</p>
-                <p>
-                  1. A MGV Assistência Técnica declara garantia legal de 90 dias (conforme art. 26 do Código de Defesa do Consumidor - CDC) para todas as peças físicas substituídas e serviços discriminados neste laudo técnico, a contar da data de retirada descrita.
-                </p>
-                <p>
-                  2. A garantia aplica-se exclusivamente a falhas espontâneas das peças novas fornecidas. Estão integralmente excluídos da garantia danos causados por quedas, sobretensões elétricas na rede externa, oxidação por umidade local ou intervenções técnicas executadas por terceiros.
-                </p>
-              </div>
-
-              {/* Signatures */}
-              <div className="mt-14 grid grid-cols-2 gap-12 text-center text-[11px]">
-                <div className="border-t-2 border-slate-700 pt-3">
-                  <p className="font-bold text-slate-900">Técnico MGV Responsável</p>
-                  <p className="text-[9px] text-slate-500 font-medium mt-0.5">Assinatura / Carimbo</p>
-                </div>
-                <div className="border-t-2 border-slate-700 pt-3">
-                  <p className="font-bold text-slate-900">
-                    {(activePrintOS as any).client?.name ? (activePrintOS as any).client?.name : "Assinatura do Cliente"}
-                  </p>
-                  <p className="text-[9px] text-slate-500 font-medium mt-0.5">
-                    {(activePrintOS as any).client?.name ? "Assinatura do Cliente (De acordo)" : "De acordo de recebimento do ativo"}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <DocumentShell
+          template={activePrintTemplate || resolveTemplateForOS(activePrintOS)}
+          os={activePrintOS}
+          hidden
+          dataEmissao={new Date().toISOString()}
+        />
       )}
 
       {/* MODAL DE ENCERRAMENTO SEM REPARO */}
@@ -3222,46 +3480,131 @@ export default function KanbanBoard({
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
                 <span className="material-symbols-outlined text-[20px] text-emerald-600">payments</span>
-                <span>Selecione a Forma de Pagamento</span>
+                <span>{isPaymentWarranty(paymentModalOS.id) ? "Finalizar OS (Garantia)" : "Selecione a Forma de Pagamento"}</span>
               </h3>
-              <button onClick={() => { setPaymentModalOS(null); setPaymentMethod(""); }} className="text-slate-400 hover:text-slate-650 cursor-pointer">
+              <button onClick={() => { setPaymentModalOS(null); setPaymentMethod(""); setPaymentDetails([]); setPaymentNotes(""); setPaymentAmountInput(""); }} className="text-slate-400 hover:text-slate-650 cursor-pointer">
                 <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
             </div>
 
-            <div className="space-y-2.5">
-              {[
-                { id: "CARTAO_CREDITO", label: "Cartão de Crédito", icon: "credit_card" },
-                { id: "CARTAO_DEBITO", label: "Cartão de Débito", icon: "credit_card" },
-                { id: "DINHEIRO", label: "Dinheiro", icon: "payments" },
-                { id: "PIX", label: "Pix", icon: "qr_code_2" },
-                { id: "BOLETO", label: "Boleto Bancário", icon: "description" }
-              ].map((opt) => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => setPaymentMethod(opt.id)}
-                  className={`w-full flex items-center justify-between p-3.5 rounded-xl border text-xs font-bold transition duration-150 cursor-pointer text-left hover:bg-slate-50 ${
-                    paymentMethod === opt.id 
-                      ? "border-emerald-500 bg-emerald-500/5 text-emerald-800 shadow-sm" 
-                      : "border-slate-200 text-slate-700"
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <span className={`material-symbols-outlined text-[18px] ${
-                      paymentMethod === opt.id ? "text-emerald-600" : "text-slate-400"
-                    }`}>{opt.icon}</span>
-                    <span>{opt.label}</span>
-                  </div>
-                  {paymentMethod === opt.id && (
-                    <span className="material-symbols-outlined text-[18px] text-emerald-600">check_circle</span>
-                  )}
-                </button>
-              ))}
-            </div>
+            {isPaymentWarranty(paymentModalOS.id) && (
+              <div className="p-4 bg-teal-50 border border-teal-200 rounded-xl space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[20px] text-teal-600">verified_user</span>
+                  <p className="text-xs font-extrabold text-teal-800">Equipamento em Garantia — Sem Cobrança</p>
+                </div>
+                <p className="text-[11px] text-teal-700 font-medium leading-relaxed">
+                  Este conserto está coberto por garantia (MGV 90 dias ou de fábrica). A OS será finalizada sem faturamento e sem pagamento.
+                </p>
+              </div>
+            )}
 
-            {paymentModalOS.targetStatus === "FINALIZADO" && (
-              <div className="space-y-2 border-t border-slate-100 pt-3">
+            {!isPaymentWarranty(paymentModalOS.id) && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="block text-xs font-extrabold text-slate-700">Data do Pagamento</label>
+                <input
+                  type="date"
+                  value={paymentDate}
+                  onChange={(e) => setPaymentDate(e.target.value)}
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-xs font-extrabold text-slate-700">Total a Pagar</label>
+                <div className="w-full p-2 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-bold text-center flex items-center justify-center">
+                  R$ {(() => {
+                    const osTarget = ordensServico.find(o => o.id === paymentModalOS.id);
+                    if (!osTarget) return "0.00";
+                    const tc = osTarget.totalCost || 0;
+                    if (tc > 0) return tc.toFixed(2);
+                    const labor = osTarget.laborCost || 0;
+                    const partsCost = osTarget.usedParts && Array.isArray(osTarget.usedParts) ? osTarget.usedParts.reduce((s: number, p: any) => s + ((p.price || 0) * (p.quantity || 1)), 0) : 0;
+                    return (labor + partsCost - (osTarget.discount || 0)).toFixed(2);
+                  })()}
+                </div>
+              </div>
+            </div>
+            )}
+
+            {!isPaymentWarranty(paymentModalOS.id) && (
+            <div className="space-y-2">
+              <label className="block text-xs font-extrabold text-slate-700">Pagamentos Fracionados</label>
+              
+              {paymentDetails.length > 0 && (
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-2 space-y-2 max-h-32 overflow-y-auto mb-3">
+                  {paymentDetails.map((pd, idx) => (
+                    <div key={idx} className="flex justify-between items-center text-xs p-1.5 bg-white border border-slate-100 rounded shadow-sm">
+                      <span className="font-semibold text-slate-700">{pd.method.replace('_', ' ')}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="font-bold text-emerald-600">R$ {pd.amount.toFixed(2)}</span>
+                        <button type="button" onClick={() => setPaymentDetails(paymentDetails.filter((_, i) => i !== idx))} className="text-rose-400 hover:text-rose-600">
+                          <span className="material-symbols-outlined text-[14px]">delete</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="border-t border-slate-200 pt-1.5 flex justify-between font-bold text-xs px-1">
+                    <span>Total Informado:</span>
+                    <span className="text-emerald-700">R$ {paymentDetails.reduce((s, p) => s + p.amount, 0).toFixed(2)}</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                >
+                  <option value="" disabled>Forma...</option>
+                  <option value="DINHEIRO">Dinheiro</option>
+                  <option value="CARTAO_CREDITO">Cartão de Crédito</option>
+                  <option value="CARTAO_DEBITO">Cartão de Débito</option>
+                  <option value="PIX">Pix</option>
+                  <option value="BOLETO">Boleto Bancário</option>
+                </select>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="R$ 0,00"
+                  value={paymentAmountInput}
+                  onChange={(e) => setPaymentAmountInput(e.target.value)}
+                  className="w-24 p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!paymentMethod) return alert("Selecione a forma.");
+                    const val = parseFloat(paymentAmountInput);
+                    if (isNaN(val) || val <= 0) return alert("Digite um valor válido.");
+                    setPaymentDetails([...paymentDetails, { method: paymentMethod, amount: val }]);
+                    setPaymentMethod("");
+                    setPaymentAmountInput("");
+                  }}
+                  className="px-3 bg-indigo-100 text-indigo-700 font-bold rounded-lg text-xs hover:bg-indigo-200 transition"
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+            )}
+
+            {!isPaymentWarranty(paymentModalOS.id) && (
+            <div className="space-y-1 mt-3">
+              <label className="block text-xs font-extrabold text-slate-700">Observações sobre o Pagamento</label>
+              <textarea
+                value={paymentNotes}
+                onChange={(e) => setPaymentNotes(e.target.value)}
+                placeholder="Detalhes (Ex: Pago pelo sócio, 3x no cartão com juros, etc.)"
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none h-16"
+              ></textarea>
+            </div>
+            )}
+
+            {paymentModalOS.targetStatus === "FINALIZADO" && !isPaymentWarranty(paymentModalOS.id) && (
+              <div className="space-y-2 border-t border-slate-100 pt-3 mt-3">
                 <label className="block text-xs font-extrabold text-slate-700">Tipo de Emissão Fiscal:</label>
                 <select
                   value={invoiceType}
@@ -3277,10 +3620,10 @@ export default function KanbanBoard({
               </div>
             )}
 
-            <div className="flex gap-3 pt-3 border-t border-slate-100">
+            <div className="flex gap-3 pt-3 mt-3 border-t border-slate-100">
               <button
                 type="button"
-                onClick={() => { setPaymentModalOS(null); setPaymentMethod(""); }}
+                onClick={() => { setPaymentModalOS(null); setPaymentMethod(""); setPaymentDetails([]); setPaymentNotes(""); setPaymentAmountInput(""); }}
                 className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-3 rounded-xl transition cursor-pointer text-xs"
               >
                 Cancelar
@@ -3288,10 +3631,33 @@ export default function KanbanBoard({
               <button
                 type="button"
                 onClick={async () => {
-                  if (!paymentMethod) {
-                    alert("Por favor, selecione uma forma de pagamento.");
+                  const isWarrantyPayment = isPaymentWarranty(paymentModalOS.id);
+                  if (!isWarrantyPayment && paymentDetails.length === 0 && !paymentMethod) {
+                    alert("Por favor, adicione pelo menos uma forma de pagamento ou selecione na lista.");
                     return;
                   }
+                  
+                  let finalDetails = [...paymentDetails];
+                  let finalMainMethod = paymentMethod;
+                  
+                  if (finalDetails.length === 0 && paymentMethod) {
+                    const osTarget = ordensServico.find(o => o.id === paymentModalOS.id);
+                    let osVal = 0;
+                    if (osTarget) {
+                      osVal = osTarget.totalCost || 0;
+                      if (osVal === 0) {
+                        const labor = osTarget.laborCost || 0;
+                        const partsCost = osTarget.usedParts && Array.isArray(osTarget.usedParts) ? osTarget.usedParts.reduce((s: number, p: any) => s + ((p.price || 0) * (p.quantity || 1)), 0) : 0;
+                        osVal = labor + partsCost - (osTarget.discount || 0);
+                      }
+                    }
+                    finalDetails = [{ method: paymentMethod, amount: osVal }];
+                  } else if (finalDetails.length > 1) {
+                    finalMainMethod = "MULTIPLO";
+                  } else if (finalDetails.length === 1) {
+                    finalMainMethod = finalDetails[0].method;
+                  }
+
                   setLoading(true);
                   try {
                     const token = localStorage.getItem("mgv_token") || "";
@@ -3300,15 +3666,22 @@ export default function KanbanBoard({
                       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
                       body: JSON.stringify({ 
                         status: paymentModalOS.targetStatus,
-                        paymentMethod: paymentMethod,
-                        invoiceType: invoiceType
+                        ...(isWarrantyPayment
+                          ? { invoiceType: "nenhum" }
+                          : {
+                              paymentMethod: finalMainMethod,
+                              paymentNotes,
+                              paymentDate,
+                              paymentDetails: finalDetails,
+                              invoiceType
+                            })
                       })
                     });
                     if (!res.ok) {
                       const data = await res.json();
                       alert(data.error || "Erro.");
                     } else {
-                      setSuccessMsg("OS encerrada e pagamento registrado com sucesso!");
+                      setSuccessMsg(isWarrantyPayment ? "OS finalizada sem cobrança (equipamento em garantia)!" : "OS encerrada e pagamento registrado com sucesso!");
                       onRefresh();
                       setTimeout(() => setSuccessMsg(""), 1500);
                     }
@@ -3318,13 +3691,16 @@ export default function KanbanBoard({
                     setLoading(false);
                     setPaymentModalOS(null);
                     setPaymentMethod("");
+                    setPaymentDetails([]);
+                    setPaymentNotes("");
+                    setPaymentAmountInput("");
                   }
                 }}
-                disabled={!paymentMethod}
+                disabled={!isPaymentWarranty(paymentModalOS.id) && paymentDetails.length === 0 && !paymentMethod}
                 className="flex-1 bg-emerald-650 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition cursor-pointer text-xs shadow-sm flex items-center justify-center gap-1.5 disabled:bg-slate-200 disabled:text-slate-400"
               >
-                <span className="material-symbols-outlined text-[16px]">task_alt</span>
-                <span>Finalizar OS</span>
+                <span className="material-symbols-outlined text-[16px]">{isPaymentWarranty(paymentModalOS.id) ? "verified" : "task_alt"}</span>
+                <span>{isPaymentWarranty(paymentModalOS.id) ? "Finalizar Sem Cobrança" : "Finalizar OS"}</span>
               </button>
             </div>
           </div>

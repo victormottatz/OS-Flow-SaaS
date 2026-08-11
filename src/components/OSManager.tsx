@@ -1,5 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import { UserRole, Client, Device, OrdemServico, ChecklistItem, EntradaFoto } from "../types";
+import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
+
+import TagSelector from "./TagSelector";
+import { usePrintDocument } from "../hooks/usePrintDocument";
+import { DOCUMENT_TEMPLATES } from "../config/documents.config";
+import { downloadDocumentPdf } from "../utils/downloadDocument";
+import DocumentShell from "./DocumentShell";
 
 const DEFAULT_CHECKLIST: ChecklistItem[] = [
   { id: "tela", label: "Tela / Display", status: "NA", observacao: "" },
@@ -97,6 +104,8 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
   const [selectedClientId, setSelectedClientId] = useState("");
   const [selectedDeviceId, setSelectedDeviceId] = useState("");
   const [clientSearch, setClientSearch] = useState("");
+  const [serverClients, setServerClients] = useState<(Client & { devices: Device[] })[]>([]);
+  const [isSearchingClients, setIsSearchingClients] = useState(false);
 
   const clientSearchInputRef = useRef<HTMLInputElement>(null);
 
@@ -107,6 +116,32 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
       }, 100);
     }
   }, [activeStep]);
+
+  // Busca global de clientes (debounced)
+  useEffect(() => {
+    if (!clientSearch || clientSearch.length < 2 || isOffline) {
+      setServerClients([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setIsSearchingClients(true);
+      try {
+        const token = localStorage.getItem("mgv_token") || "";
+        const res = await fetch(`/api/clients?search=${encodeURIComponent(clientSearch)}&limit=20`, {
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setServerClients(data.data || []);
+        }
+      } catch (err) {
+        console.error("Erro na busca global de clientes:", err);
+      } finally {
+        setIsSearchingClients(false);
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [clientSearch, isOffline]);
 
   // New Device / Avulso fields
   const [isCreatingDevice, setIsCreatingDevice] = useState(false);
@@ -121,6 +156,7 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
   const [reportedDefect, setReportedDefect] = useState("");
   const [accessoriesLeft, setAccessoriesLeft] = useState("");
   const [physicalState, setPhysicalState] = useState("");
+  const [osTagIds, setOsTagIds] = useState<string[]>([]);
   const [warrantyType, setWarrantyType] = useState<'NENHUMA' | 'FABRICA' | 'MGV'>('NENHUMA');
 
   // Checklist & Photos fields
@@ -132,8 +168,37 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
   const [errorMsg, setErrorMsg] = useState("");
   const [createdOS, setCreatedOS] = useState<OrdemServico | null>(null);
 
+  // --- Guarda de alterações não salvas (beforeunload) ---
+  // Considera o wizard "sujo" assim que o usuário começa a preencher qualquer
+  // dado da OS (cliente, aparelho, sintomas, checklist ou fotos).
+  const formIsDirty =
+    !!selectedClientId ||
+    !!selectedDeviceId ||
+    isCreatingDevice ||
+    devExtraType.trim() !== "" ||
+    devBrand.trim() !== "" ||
+    devModel.trim() !== "" ||
+    devSerial.trim() !== "" ||
+    devDesc.trim() !== "" ||
+    reportedDefect.trim() !== "" ||
+    accessoriesLeft.trim() !== "" ||
+    physicalState.trim() !== "" ||
+    warrantyType !== "NENHUMA" ||
+    checklist.some((item) => item.status !== "NA" || item.observacao.trim() !== "") ||
+    photos.length > 0;
+
+  useUnsavedChangesGuard(formIsDirty);
+
+  // Mescla clientes locais com os clientes encontrados na busca do servidor
+  const allKnownClients = [...clients];
+  serverClients.forEach(sc => {
+    if (!allKnownClients.some(mc => mc.id === sc.id)) {
+      allKnownClients.push(sc);
+    }
+  });
+
   // Selected client & device helpers
-  const selectedClient = clients.find(c => c.id === selectedClientId);
+  const selectedClient = allKnownClients.find(c => c.id === selectedClientId);
   const availableDevices = (selectedClient?.devices || []).filter(d => !d.deletedAt);
   const selectedDevice = availableDevices.find(d => d.id === selectedDeviceId);
 
@@ -238,6 +303,7 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
           physicalState,
           checklistEntrada: checklist,
           laudoFotos: photos,
+          tagIds: osTagIds,
           warrantyType
         })
       });
@@ -264,6 +330,8 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
       setPhysicalState("");
       setChecklist(DEFAULT_CHECKLIST);
       setPhotos([]);
+      setOsTagIds([]);
+      setWarrantyType('NENHUMA');
       setActiveStep(1);
 
     } catch (err: any) {
@@ -273,45 +341,23 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
     }
   };
 
-  const handlePrint = () => {
-    window.print();
+  const printDocument = usePrintDocument();
+
+  const handlePrint = async () => {
+    if (!createdOS) return;
+    const template = DOCUMENT_TEMPLATES.termo;
+    // PDF real gerado no servidor; fallback para a impressão via navegador se falhar.
+    const ok = await downloadDocumentPdf(
+      template.id,
+      createdOS.id,
+      `${template.nomeArquivo}-${createdOS.osNumber}`
+    );
+    if (!ok) printDocument(`${template.nomeArquivo}-${createdOS.osNumber}`);
   };
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto anim-fadein">
-      {/* Printable Area overrides shown inside modal / container */}
-      <style>{`
-        @media print {
-          @page {
-            margin: 8mm;
-            size: auto;
-          }
-          html, body {
-            background: #ffffff !important;
-            height: auto !important;
-            min-height: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-          }
-          body *:not(:has(#printable-termo)):not(#printable-termo):not(#printable-termo *) {
-            display: none !important;
-          }
-          #printable-termo, #printable-termo * {
-            visibility: visible !important;
-            display: block !important;
-          }
-          #printable-termo {
-            position: static !important;
-            width: 100% !important;
-            border: none !important;
-            box-shadow: none !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            background: #ffffff !important;
-          }
-        }
-      `}</style>
-
+      
       <div className="border-b border-slate-200 pb-5">
         <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Nova Ordem de Serviço</h2>
         <p className="text-slate-500 text-sm">Geração sequencial e impressões de termos de recebimento de ativos na MGV</p>
@@ -427,175 +473,47 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
             </div>
           </div>
 
+          {/* Alerta de Garantia de 90 dias ativa (retornado do backend) */}
+          {createdOS.warrantyNotice && (
+            <div className="bg-teal-50 border border-teal-200 rounded-2xl p-5 text-teal-800 flex items-start space-x-4 shadow-sm animate-pulse">
+              <span className="material-symbols-outlined text-[24px] text-teal-600 shrink-0 mt-0.5">verified</span>
+              <div>
+                <h4 className="font-bold text-sm text-teal-950">Atenção: Equipamento Sob Garantia de 90 Dias!</h4>
+                <p className="text-xs mt-1 text-teal-800 leading-relaxed">
+                  Este equipamento já possui um registro recente de entrega sob a <strong>OS #{createdOS.warrantyNotice.osNumber}</strong> (saída em {new Date(createdOS.warrantyNotice.originalExitDate).toLocaleDateString("pt-BR")}), com garantia ativa até <strong>{new Date(createdOS.warrantyNotice.warrantyExpiresAt).toLocaleDateString("pt-BR")}</strong>.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Alerta de Recorrência (retornado do backend) */}
+          {createdOS.recurrentAlert && (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 text-amber-800 flex items-start space-x-4 shadow-sm">
+              <span className="material-symbols-outlined text-[24px] text-amber-600 shrink-0 mt-0.5">warning</span>
+              <div>
+                <h4 className="font-bold text-sm text-amber-950">Alerta de Recorrência Detectado!</h4>
+                <p className="text-xs mt-1 text-amber-800 leading-relaxed">
+                  Este ativo registrou <strong>{createdOS.recurrentAlert.count} entradas</strong> nos últimos 90 dias.
+                  OSs anteriores: {createdOS.recurrentAlert.previousOsNumbers.join(", ")}.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Printable visual client voucher */}
-          <div id="printable-termo" className="bg-white border border-slate-200 rounded-2xl p-8 shadow-premium text-slate-900 max-w-3xl mx-auto print:border-none print:shadow-none font-sans relative overflow-hidden">
-            {/* Watermark/Accent lines */}
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-secondary-container" />
-            
-            <div className="flex flex-col sm:flex-row justify-between items-start border-b border-slate-200 pb-6 gap-4">
-              <div>
-                <img 
-                  src="/logos/LOGO V3.0 (2).png" 
-                  alt="MGV Tecnologia" 
-                  className="h-10 w-auto object-contain mb-3"
-                />
-                <p className="text-[10px] text-slate-400 mt-1 uppercase font-mono tracking-wider font-semibold">MOSAIAS LUIZ TEODORO LTDA</p>
-                <p className="text-[11px] text-slate-500 font-mono mt-0.5">CNPJ: 24.181.336/0001-66 | IE: 797.187.310.116</p>
-                <p className="text-[11px] text-slate-500 mt-0.5">Rua Julio Prestes, 648, Jardim Sumaré, Ribeirão Preto - SP | Tel: (16) 99104-9631</p>
-              </div>
-              <div className="flex flex-col items-end text-right w-full sm:w-auto">
-                <span className="text-[10px] font-bold uppercase text-slate-950 bg-secondary-container/10 border border-secondary-container/30 px-3 py-1 rounded-full font-mono">
-                  TERMO DE RECEBIMENTO
-                </span>
-                <p className="text-3xl font-mono font-bold mt-3 text-slate-950 tracking-tight">{createdOS.osNumber}</p>
-                <p className="text-[10px] text-slate-400 font-mono mt-1">
-                  Abertura: {new Date(createdOS.createdAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}
-                </p>
-
-                {/* Simulated Barcode */}
-                <div className="mt-3 flex flex-col items-center justify-center p-1.5 bg-slate-50 border border-slate-200 rounded-lg">
-                  <div className="flex items-end space-x-[2px] h-6 opacity-85">
-                    <div className="w-[2px] h-full bg-slate-900" />
-                    <div className="w-[1px] h-full bg-slate-900" />
-                    <div className="w-[3px] h-full bg-slate-900" />
-                    <div className="w-[1px] h-full bg-slate-900" />
-                    <div className="w-[2px] h-full bg-slate-900" />
-                    <div className="w-[4px] h-full bg-slate-900" />
-                    <div className="w-[1px] h-full bg-slate-900" />
-                    <div className="w-[2px] h-full bg-slate-900" />
-                    <div className="w-[3px] h-full bg-slate-900" />
-                    <div className="w-[1px] h-full bg-slate-900" />
-                  </div>
-                  <span className="text-[8px] font-mono text-slate-500 tracking-widest mt-0.5">MGV-{createdOS.osNumber}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Client and device metadata table */}
-            <div className="my-6 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/60">
-                <h4 className="font-bold text-slate-800 uppercase text-[10px] tracking-wider mb-2.5 pb-1 border-b border-slate-200 flex items-center">
-                  <span className="material-symbols-outlined text-[16px] mr-1.5 text-slate-600">how_to_reg</span>
-                  Dados do Proprietário
-                </h4>
-                <p className="font-bold text-slate-950 text-sm">{clients.find(c => c.id === createdOS.clientId)?.name}</p>
-                <p className="mt-1.5 font-medium text-slate-700">Documento: <span className="font-mono">{clients.find(c => c.id === createdOS.clientId)?.cpfCnpj}</span></p>
-                <p className="font-medium text-slate-700">Contato: <span className="font-mono">{clients.find(c => c.id === createdOS.clientId)?.phone}</span></p>
-                <p className="mt-1.5 text-slate-500 font-medium">Endereço: {clients.find(c => c.id === createdOS.clientId)?.address}</p>
-              </div>
-
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/60">
-                <h4 className="font-bold text-slate-800 uppercase text-[10px] tracking-wider mb-2.5 pb-1 border-b border-slate-200 flex items-center">
-                  <span className="material-symbols-outlined text-[16px] mr-1.5 text-slate-600">devices</span>
-                  Equipamento em Custódia
-                </h4>
-                {(() => {
-                  const client = clients.find(c => c.id === createdOS.clientId);
-                  const dev = client?.devices?.find(d => d.id === createdOS.deviceId);
-                  return (
-                    <div className="space-y-1 text-slate-700">
-                      <p className="font-bold text-slate-950 text-sm">{dev?.type} - {dev?.brand}</p>
-                      <p className="font-medium">Modelo: {dev?.model}</p>
-                      <p className="font-mono text-xs font-semibold">N/S: <span className="bg-slate-250/70 px-1.5 py-0.5 rounded font-bold text-slate-800">{dev?.serialNumber}</span></p>
-                      <p className="pt-1.5 text-slate-500 italic text-[11px]">Estética: {dev?.description}</p>
-                    </div>
-                  );
-                })()}
-              </div>
-            </div>
-
-            {/* Defects Checklist details */}
-            <div className="space-y-4 text-xs border-t border-slate-200 pt-5">
-              <div>
-                <h4 className="font-bold text-slate-800 uppercase text-[10px] tracking-wider mb-1.5 flex items-center">
-                  <span className="material-symbols-outlined text-[16px] mr-1.5 text-indigo-650">build</span>
-                  Defeito Relatado pelo Solicitante
-                </h4>
-                <p className="p-3 bg-slate-50/75 border border-slate-200 rounded-xl italic text-slate-800 leading-relaxed font-medium">
-                  "{createdOS.reportedDefect}"
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <h4 className="font-bold text-slate-800 uppercase text-[10px] tracking-wider mb-1 flex items-center">
-                    <span className="material-symbols-outlined text-[16px] mr-1.5 text-slate-600">check_box</span>
-                    Acessórios Deixados na Oficina
-                  </h4>
-                  <p className="p-3 bg-slate-50 border border-slate-200/50 rounded-xl text-slate-700 font-medium">
-                    {createdOS.accessoriesLeft || "Nenhum acessório adicional entregue."}
-                  </p>
-                </div>
-                <div>
-                  <h4 className="font-bold text-slate-800 uppercase text-[10px] tracking-wider mb-1 flex items-center">
-                    <span className="material-symbols-outlined text-[16px] mr-1.5 text-slate-600">info</span>
-                    Estado Físico / Condições do Dispositivo
-                  </h4>
-                  <p className="p-3 bg-slate-50 border border-slate-200/50 rounded-xl text-slate-700 font-medium">
-                    {createdOS.physicalState || "Sem avarias visuais descritas."}
-                  </p>
-                </div>
-              </div>
-
-              {createdOS.checklistEntrada && createdOS.checklistEntrada.length > 0 && (
-                <div className="border-t border-slate-200 pt-4">
-                  <h4 className="font-bold text-slate-800 uppercase text-[10px] tracking-wider mb-2 flex items-center">
-                    <span className="material-symbols-outlined text-[16px] mr-1.5 text-indigo-650">fact_check</span>
-                    Checklist de Entrada do Equipamento
-                  </h4>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200/50">
-                    {createdOS.checklistEntrada.map((item) => (
-                      <div key={item.id} className="text-[10px] border-b border-slate-100 pb-1 last:border-0 flex flex-col justify-center">
-                        <span className="font-semibold text-slate-700 block truncate">{item.label}</span>
-                        <div className="flex items-center gap-1 mt-0.5">
-                          <span className={`text-[8px] font-bold px-1.5 py-0.2 rounded ${
-                            item.status === "OK" 
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-100" 
-                              : item.status === "AVARIA" 
-                                ? "bg-rose-50 text-rose-700 border border-rose-100 font-extrabold" 
-                                : "bg-slate-100 text-slate-500 border border-slate-200"
-                          }`}>
-                            {item.status === "OK" ? "OK" : item.status === "AVARIA" ? "AVARIA" : "N/A"}
-                          </span>
-                          {item.observacao && <span className="text-[9px] text-slate-550 italic truncate max-w-[90px]" title={item.observacao}>({item.observacao})</span>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Firm clauses and agreements for assistance */}
-            <div className="mt-8 border-t border-slate-200 pt-5 text-[10px] text-slate-500 leading-relaxed space-y-2">
-              <p className="font-bold text-slate-700 uppercase tracking-wider text-[11px] mb-1">Termos de Garantia, Condições e Custódia da Assistência:</p>
-              <p>
-                1. O proprietário autoriza a abertura e desmontagem física do equipamento para diagnóstico pericial. Orçamentos têm validade legal de 10 dias corridos a partir da data de comunicação dos resultados pela equipe.
-              </p>
-              <p>
-                2. Equipamentos prontos não retirados em até 90 dias caracterizam abandono conforme art. 1.275, inciso III, do Código Civil, autorizando a MGV Assistência Técnica a vender ou descartá-los para quitação de despesas laboratoriais.
-              </p>
-              <p>
-                3. A MGV Assistência Técnica não se responsabiliza por integridade de softwares corporativos ou perda de informações de armazenamento. O backup de arquivos deve ser efetuado previamente pelo proprietário.
-              </p>
-            </div>
-
-            {/* Signature workspace block */}
-            <div className="mt-14 grid grid-cols-2 gap-12 text-center text-[11px]">
-              <div className="border-t-2 border-slate-700 pt-3">
-                <p className="font-bold text-slate-900">Representante Técnico MGV</p>
-                <p className="text-[9px] text-slate-500 font-medium mt-0.5">Assinatura autorizada</p>
-              </div>
-              <div className="border-t-2 border-slate-700 pt-3">
-                <p className="font-bold text-slate-900">
-                  {clients.find(c => c.id === createdOS.clientId)?.name || "Proprietário do Ativo"}
-                </p>
-                <p className="text-[9px] text-slate-500 font-medium mt-0.5">
-                  {clients.find(c => c.id === createdOS.clientId)?.name ? "Assinatura do Cliente (De acordo)" : "De acordo com as cláusulas"}
-                </p>
-              </div>
-            </div>
-          </div>
+                    {/* Documento imprimível: Termo de Recebimento (config central: src/config/documents.config.ts) */}
+          {(() => {
+            const termoClient = clients.find((c) => c.id === createdOS.clientId);
+            const termoDevice = termoClient?.devices?.find((d) => d.id === createdOS.deviceId);
+            return (
+              <DocumentShell
+                template={DOCUMENT_TEMPLATES.termo}
+                os={createdOS}
+                client={termoClient}
+                device={termoDevice}
+              />
+            );
+          })()}
         </div>
       ) : (
         /* WIZARD FORM OS */
@@ -613,7 +531,7 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
               const termClean = removeAccents(clientSearch);
               const termDigits = clientSearch.replace(/\D/g, "");
 
-              const filtered = clients.filter(c => {
+              const filtered = allKnownClients.filter(c => {
                 if (c.deletedAt) return false;
                 
                 const nameClean = removeAccents(c.name);
@@ -631,7 +549,7 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
                 <div className="space-y-4 anim-slideup">
                   <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center space-x-2 border-b border-indigo-50 pb-2">
                     <span className="bg-indigo-600 text-white rounded-xl w-6 h-6 text-xs flex items-center justify-center font-mono font-bold shrink-0">1</span>
-                    <span>Vincular Proprietário (Cliente)</span>
+                    <span>Vincular Proprietário (Cliente) {isSearchingClients && <span className="ml-2 w-3 h-3 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin inline-block" title="Buscando globalmente..."></span>}</span>
                   </h3>
                   
                   <div className="relative">
@@ -821,6 +739,9 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
                         <option value="Radiofrequência">Radiofrequência</option>
                         <option value="Eletroestimulador / Correntes">Eletroestimulador / Correntes</option>
                         <option value="Laserterapia / LED">Laserterapia / LED</option>
+                        <option value="Laser de Diodo">Laser de Diodo</option>
+                        <option value="Luz Intensa Pulsada (IPL)">Luz Intensa Pulsada (IPL)</option>
+                        <option value="Laser de Baixa Intensidade (LLLT)">Laser de Baixa Intensidade (LLLT)</option>
                         <option value="Vapor de Ozônio">Vapor de Ozônio</option>
                         <option value="Gerador de Ozônio">Gerador de Ozônio</option>
                         <option value="Alta Frequência">Alta Frequência</option>
@@ -970,6 +891,36 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
                   </div>
                 </div>
 
+                {/* Alerta de Garantia de 90 dias ativa no preenchimento */}
+                {(() => {
+                  if (isCreatingDevice) return null;
+                  const history = ordensServico.filter(os => os.deviceId === selectedDeviceId && !os.deletedAt);
+                  const activeWarrantyOS = history.find(os => {
+                    if (!os.originalExitDate) return false;
+                    const exitDate = new Date(os.originalExitDate);
+                    const warrantyExpirationDate = new Date(exitDate.getTime() + 90 * 24 * 60 * 60 * 1000);
+                    return warrantyExpirationDate.getTime() > Date.now();
+                  });
+
+                  if (!activeWarrantyOS) return null;
+
+                  const exitDateFormatted = new Date(activeWarrantyOS.originalExitDate!).toLocaleDateString("pt-BR");
+                  const expirationDate = new Date(new Date(activeWarrantyOS.originalExitDate!).getTime() + 90 * 24 * 60 * 60 * 1000);
+                  const expirationDateFormatted = expirationDate.toLocaleDateString("pt-BR");
+
+                  return (
+                    <div className="bg-teal-50 border border-teal-200 rounded-2xl p-4 flex items-start space-x-3 text-teal-800 animate-pulse shadow-sm">
+                      <span className="material-symbols-outlined text-[20px] text-teal-600 shrink-0">verified</span>
+                      <div className="text-xs">
+                        <p className="font-bold text-teal-950">Atenção: Equipamento Sob Garantia!</p>
+                        <p className="mt-0.5 text-teal-800 leading-relaxed">
+                          Este ativo possui garantia ativa de 90 dias referente à <strong>OS #{activeWarrantyOS.osNumber}</strong> (saída em {exitDateFormatted}), com validade até <strong>{expirationDateFormatted}</strong>.
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Historico de Manutenções deste Equipamento */}
                 {(() => {
                   const history = ordensServico.filter(os => os.deviceId === selectedDeviceId && !os.deletedAt);
@@ -1018,10 +969,13 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
                   );
                 })()}
 
-                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center space-x-2 border-b border-indigo-50 pb-2">
-                  <span className="bg-indigo-600 text-white rounded-xl w-6 h-6 text-xs flex items-center justify-center font-mono font-bold shrink-0">3</span>
-                  <span>Sintomas e Defeitos Relatados</span>
-                </h3>
+                <div className="flex items-center justify-between border-b border-indigo-50 pb-2">
+                  <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center space-x-2">
+                    <span className="bg-indigo-600 text-white rounded-xl w-6 h-6 text-xs flex items-center justify-center font-mono font-bold shrink-0">3</span>
+                    <span>Sintomas e Defeitos Relatados</span>
+                  </h3>
+                  <TagSelector selectedTagIds={osTagIds} onChange={setOsTagIds} scope="ORDEM_SERVICO" />
+                </div>
 
                 <div className="space-y-4">
                   <div>

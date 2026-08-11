@@ -1,4 +1,4 @@
-# Estrutura de Diretórios - MGV Sistema Integrado
+# Estrutura de Diretórios - MGV One Hub
 
 Este documento serve como mapa de navegação e referência rápida para desenvolvedores e agentes inteligentes, detalhando a função de cada diretório e os padrões de organização do projeto.
 

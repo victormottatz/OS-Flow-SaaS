@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
+import { downloadDocumentPdf } from "../utils/downloadDocument";
 
 interface MessageRecord {
   id: string;
@@ -33,6 +35,9 @@ export default function OSWhatsAppPanel({
   const [history, setHistory] = useState<MessageRecord[]>([]);
   const [messageText, setMessageText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  // Guarda de alterações não salvas (composição de mensagem WhatsApp)
+  useUnsavedChangesGuard(messageText.trim() !== "");
   const [isSending, setIsSending] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
@@ -200,20 +205,18 @@ export default function OSWhatsAppPanel({
           </div>
           <button
             type="button"
-            onClick={() => {
-              const originalTitle = document.title;
-              document.title = `${clientName} - ${osNumber} - Orçamento`;
-              
-              if (onPrintPDF) {
-                onPrintPDF();
-              } else {
-                window.print();
+            onClick={async () => {
+              // PDF real gerado no servidor (orcamento); fallback para o fluxo de impressão existente.
+              const ok = await downloadDocumentPdf(
+                "orcamento",
+                orderId,
+                `${clientName} - ${osNumber} - Orçamento`,
+                new Date().toISOString()
+              );
+              if (!ok) {
+                if (onPrintPDF) onPrintPDF();
+                else window.print();
               }
-              
-              // Aguarda a janela de impressão ser gerada e restaura o título original
-              setTimeout(() => {
-                document.title = originalTitle;
-              }, 1000);
             }}
             className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs uppercase tracking-wider px-4 py-2.5 rounded-lg transition shrink-0 flex items-center justify-center gap-1.5 hover:scale-[1.02] active:scale-[0.98]"
           >

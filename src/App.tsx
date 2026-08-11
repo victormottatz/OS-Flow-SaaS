@@ -21,6 +21,8 @@ import SettingsView from "./components/SettingsView";
 import ProfileSettings from "./components/ProfileSettings";
 import FiscalPanel from "./components/FiscalPanel";
 import WorkflowVisualizer from "./components/WorkflowVisualizer";
+import { installUnsavedChangesGuard } from "./utils/unsavedChanges";
+import { UpdatePopup } from "./components/UpdatePopup";
 
 const getInitialTab = () => {
   const path = window.location.pathname;
@@ -59,6 +61,8 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState<string>(getInitialTab);
   const [isOffline, setIsOffline] = useState<boolean>(false);
   const [isInitialized, setIsInitialized] = useState<boolean>(false);
+  // GUIA: ESTADO DA SIDEBAR (recolhida/expandida). O valor é salvo em localStorage
+  // (chave "mgv_sidebar_minimized"). Para resetar: DevTools → Console → localStorage.clear() → F5.
   const [isSidebarMinimized, setIsSidebarMinimized] = useState<boolean>(() => {
     return localStorage.getItem("mgv_sidebar_minimized") === "true";
   });
@@ -108,6 +112,13 @@ export default function App() {
       axios.defaults.headers.common['Authorization'] = `Bearer ${savedToken}`;
     }
     setIsInitialized(true);
+  }, []);
+
+  // Guarda de alterações não salvas (padrão Gmail/GitHub): se houver formulário
+  // de OS ou cliente com dados ainda não salvos, o navegador avisa antes de
+  // recarregar ou fechar a página (beforeunload).
+  useEffect(() => {
+    return installUnsavedChangesGuard();
   }, []);
 
   const [osLimit, setOsLimit] = useState<number | "all">(100);
@@ -185,6 +196,8 @@ export default function App() {
     }
   }, [user, isOffline, osLimit, clientLimit, partLimit, clientSearch, partSearch]);
 
+  // GUIA: SESSÃO (localStorage + Axios). Chaves: "mgv_user" (objeto) e "mgv_token" (string).
+  // Ao logar: salva a sessão e configura o cabeçalho "Authorization" global do Axios.
   const handleLoginSuccess = (loggedInUser: User, sessionToken: string) => {
     setUser(loggedInUser);
     setToken(sessionToken);
@@ -195,6 +208,7 @@ export default function App() {
     handleTabChange("dashboard");
   };
 
+  // GUIA: LOGOUT. Apaga a sessão do localStorage e remove o cabeçalho do Axios.
   const handleLogout = () => {
     setUser(null);
     setToken(null);
@@ -209,7 +223,7 @@ export default function App() {
   if (!isInitialized) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white font-mono text-xs">
-        <span>Iniciando Servidor MGV Tecnologia...</span>
+        <span>Iniciando MGV One Hub...</span>
       </div>
     );
   }
@@ -222,7 +236,9 @@ export default function App() {
   // Authenticated Dashboard layout viewport
   return (
     <FeatureFlagProvider token={token}>
-    <div className="min-h-screen bg-slate-50 flex flex-col text-slate-800 antialiased font-sans">
+    <div className={`min-h-screen bg-slate-50 flex flex-col text-slate-800 antialiased font-sans ${
+      currentTab === "kanban" ? "h-screen overflow-hidden" : ""
+    }`}>
       <Navbar
         user={user}
         currentTab={currentTab}
@@ -233,8 +249,15 @@ export default function App() {
         isSidebarMinimized={isSidebarMinimized}
         toggleSidebar={handleToggleSidebar}
       />
+      
+      <UpdatePopup />
 
-      <main className={`flex-1 pb-28 transition-all duration-300 ${
+      {/* GUIA: MARGEM (offset) do CONTEÚDO conforme sidebar. Valor = largura da sidebar.
+          Se alterar a largura em Navbar.tsx linha ~66, ajuste ESTES valores aqui
+          (e também Navbar.tsx linha ~205 e o rodapé na linha ~369). */}
+      <main className={`flex-1 transition-all duration-300 ${
+        currentTab === "kanban" ? "h-[calc(100vh-20px)] overflow-hidden pb-4 pt-4 flex flex-col" : "pb-28 pt-6"
+      } ${
         isSidebarMinimized 
           ? "md:ml-[70px] pt-6 pb-6 pr-6 pl-8 md:pl-10 lg:pl-12" 
           : "md:ml-[260px] pt-6 pb-6 pr-6 pl-6 md:pl-8 lg:pl-10"
@@ -354,6 +377,10 @@ export default function App() {
         )}
       </main>
 
+      {/* GUIA: FAB "Nova OS" (botão redondo amarelo, canto inferior direito).
+          - Mover: ajuste "bottom-8 right-8".
+          - Cor: "bg-secondary-container" (definida em index.css @theme).
+          - Esconder em telas específicas: mude a condição "currentTab !== 'os-create'". */}
       {/* Floating Action Button (FAB) for OS Creation (hidden when already on OS view) */}
       {currentTab !== "os-create" && (
         <button 
@@ -365,11 +392,17 @@ export default function App() {
         </button>
       )}
 
-      <footer className={`bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-400 font-mono select-none transition-all duration-300 ${
-        isSidebarMinimized ? "md:ml-[70px]" : "md:ml-[260px]"
-      }`}>
-        <p>MGV Assistência Técnica © {new Date().getFullYear()} – Centralized ERP Workspace</p>
-      </footer>
+      {/* GUIA: RODAPÉ global. O ano já é dinâmico (new Date().getFullYear()).
+          - Editar texto: linha abaixo.
+          - Offset conforme sidebar: valor = largura da sidebar (70px / 260px).
+          - Margem do desktop: "md:ml-[70px]" / "md:ml-[260px]". */}
+      {currentTab !== "kanban" && (
+        <footer className={`bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-400 font-mono select-none transition-all duration-300 ${
+          isSidebarMinimized ? "md:ml-[70px]" : "md:ml-[260px]"
+        }`}>
+          <p>MGV One Hub © {new Date().getFullYear()} – ERP Centralizado de Assistência Técnica</p>
+        </footer>
+      )}
     </div>
     </FeatureFlagProvider>
   );

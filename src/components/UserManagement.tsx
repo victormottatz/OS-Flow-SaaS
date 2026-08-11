@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { User, UserRole } from "../types";
+import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
+import TransitionSettingsPanel from "./TransitionSettingsPanel";
 
 const SYSTEM_ROLES = [
   { key: 'OWNER', label: 'Dono (Acesso Total)' },
@@ -63,7 +65,8 @@ const PERMISSION_CATEGORIES = [
     name: 'Equipe & Usuários',
     permissions: [
       { key: 'users.view', label: 'Visualizar equipe de colaboradores' },
-      { key: 'users.manage', label: 'Cadastrar, alterar e remover colaboradores' }
+      { key: 'users.manage', label: 'Cadastrar, alterar e remover colaboradores' },
+      { key: 'users.impersonate', label: 'Simular perfil de outro colaborador (Sem Senha)' }
     ]
   },
   {
@@ -85,6 +88,17 @@ interface UserManagementProps {
 export default function UserManagement({ userRole, isOffline }: UserManagementProps) {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeSubTab, setActiveSubTab] = useState<"users" | "transitions">("users");
+  const [activeMenuUserId, setActiveMenuUserId] = useState<string | null>(null);
+
+  const loggedInUserId = (() => {
+    try {
+      const saved = localStorage.getItem("mgv_user");
+      return saved ? JSON.parse(saved).id : "";
+    } catch {
+      return "";
+    }
+  })();
 
   // Formulário de novo usuário
   const [showModal, setShowModal] = useState(false);
@@ -92,6 +106,10 @@ export default function UserManagement({ userRole, isOffline }: UserManagementPr
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<UserRole>(UserRole.ATTENDANT);
+
+  // Guarda de alterações não salvas (modal de novo usuário)
+  const newUserDirty = showModal && (name.trim() !== "" || email.trim() !== "" || password.trim() !== "");
+  useUnsavedChangesGuard(newUserDirty);
   const [errorMsg, setErrorMsg] = useState("");
 
   // Permissões por Usuário
@@ -245,6 +263,35 @@ export default function UserManagement({ userRole, isOffline }: UserManagementPr
     }
   };
 
+  const handleImpersonate = async (targetUserId: string) => {
+    if (isOffline) return;
+    try {
+      const activeToken = localStorage.getItem("mgv_token") || "";
+      const res = await fetch("/api/auth/impersonate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${activeToken}`
+        },
+        body: JSON.stringify({ userId: targetUserId })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        localStorage.setItem("mgv_backup_token", activeToken);
+        localStorage.setItem("mgv_token", data.token);
+        localStorage.setItem("mgv_user", JSON.stringify(data.user));
+        alert(`Simulação iniciada! Você agora está acessando como ${data.user.name}.`);
+        window.location.reload();
+      } else {
+        const data = await res.json();
+        alert(data.error || "Erro ao iniciar simulação.");
+      }
+    } catch (err) {
+      alert("Erro de conexão ao simular usuário.");
+    }
+  };
+
   if (userRole !== UserRole.OWNER && userRole !== UserRole.ADMIN) {
     return (
       <div className="p-8 text-center text-slate-500">
@@ -258,82 +305,157 @@ export default function UserManagement({ userRole, isOffline }: UserManagementPr
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Equipe & Acessos</h1>
+          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">
+            {activeSubTab === "users" ? "Equipe & Acessos" : "Transições de Status"}
+          </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Gerencie os colaboradores e defina individualmente o nível de acesso de cada um.
+            {activeSubTab === "users"
+              ? "Gerencie os colaboradores e defina individualmente o nível de acesso de cada um."
+              : "Configure quais movimentações de status são permitidas no Kanban e nos fluxos de atendimento."}
           </p>
         </div>
+        {activeSubTab === "users" && (
+          <button
+            onClick={() => setShowModal(true)}
+            disabled={isOffline}
+            className="flex items-center gap-2 bg-primary text-primary-content px-4 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-sm">person_add</span>
+            Novo Colaborador
+          </button>
+        )}
+      </div>
+
+      {/* Sub-abas de navegação interna */}
+      <div className="flex space-x-2 border-b border-slate-200 pb-1 px-1">
         <button
-          onClick={() => setShowModal(true)}
-          disabled={isOffline}
-          className="flex items-center gap-2 bg-primary text-primary-content px-4 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 cursor-pointer"
+          onClick={() => setActiveSubTab("users")}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+            activeSubTab === "users"
+              ? "bg-slate-800 text-white shadow-sm"
+              : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+          }`}
         >
-          <span className="material-symbols-outlined text-sm">person_add</span>
-          Novo Colaborador
+          <span className="material-symbols-outlined text-[16px]">group</span>
+          Colaboradores & Permissões
+        </button>
+        <button
+          onClick={() => setActiveSubTab("transitions")}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+            activeSubTab === "transitions"
+              ? "bg-slate-800 text-white shadow-sm"
+              : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+          }`}
+        >
+          <span className="material-symbols-outlined text-[16px]">swap_calls</span>
+          Transições de Status
         </button>
       </div>
 
-      {/* Content - Users List */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-600">
-            <thead className="text-xs uppercase bg-slate-50 text-slate-500 border-b border-slate-200 font-semibold">
-              <tr>
-                <th className="px-6 py-4">Nome</th>
-                <th className="px-6 py-4">Email</th>
-                <th className="px-6 py-4">Perfil Base</th>
-                <th className="px-6 py-4 text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {loading ? (
+      {activeSubTab === "users" ? (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm text-slate-600">
+              <thead className="text-xs uppercase bg-slate-50 text-slate-500 border-b border-slate-200 font-semibold">
                 <tr>
-                  <td colSpan={4} className="px-6 py-8 text-center text-slate-400">Carregando...</td>
+                  <th className="px-6 py-4">Nome</th>
+                  <th className="px-6 py-4">Email</th>
+                  <th className="px-6 py-4">Perfil Base</th>
+                  <th className="px-6 py-4 text-right">Ações</th>
                 </tr>
-              ) : users.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="px-6 py-8 text-center text-slate-400">Nenhum usuário encontrado.</td>
-                </tr>
-              ) : (
-                users.map(u => (
-                  <tr key={u.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="px-6 py-4 font-medium text-slate-800">{u.name}</td>
-                    <td className="px-6 py-4">{u.email}</td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border
-                        ${u.role === UserRole.OWNER ? 'bg-purple-50 text-purple-700 border-purple-200' : 
-                          u.role === UserRole.ATTENDANT ? 'bg-blue-50 text-blue-700 border-blue-200' : 
-                          u.role === UserRole.TECHNICIAN ? 'bg-orange-50 text-orange-700 border-orange-200' : 
-                          'bg-emerald-50 text-emerald-700 border-emerald-200'}`}
-                      >
-                        {SYSTEM_ROLES.find(r => r.key === u.role)?.label || u.role}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right space-x-2">
-                      {u.role !== UserRole.OWNER && (
-                        <button
-                          onClick={() => handleOpenPermissions(u)}
-                          className="text-teal-600 hover:text-teal-800 p-1.5 rounded hover:bg-teal-50 transition-colors border border-transparent hover:border-teal-200"
-                          title="Gerenciar Acessos do Colaborador"
-                        >
-                          <span className="material-symbols-outlined text-lg">admin_panel_settings</span>
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleDelete(u.id, u.name)}
-                        className="text-red-500 hover:text-red-700 p-1.5 rounded hover:bg-red-50 transition-colors border border-transparent hover:border-red-200"
-                        title="Remover Usuário"
-                      >
-                        <span className="material-symbols-outlined text-lg">delete</span>
-                      </button>
-                    </td>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {loading ? (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-8 text-center text-slate-400">Carregando...</td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : users.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-8 text-center text-slate-400">Nenhum usuário encontrado.</td>
+                  </tr>
+                ) : (
+                  users.map(u => (
+                    <tr key={u.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-6 py-4 font-medium text-slate-800">{u.name}</td>
+                      <td className="px-6 py-4">{u.email}</td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border
+                          ${u.role === UserRole.OWNER ? 'bg-purple-50 text-purple-700 border-purple-200' : 
+                            u.role === UserRole.ATTENDANT ? 'bg-blue-50 text-blue-700 border-blue-200' : 
+                            u.role === UserRole.TECHNICIAN ? 'bg-orange-50 text-orange-700 border-orange-200' : 
+                            'bg-emerald-50 text-emerald-700 border-emerald-200'}`}
+                        >
+                          {SYSTEM_ROLES.find(r => r.key === u.role)?.label || u.role}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="relative inline-block text-left">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveMenuUserId(activeMenuUserId === u.id ? null : u.id);
+                            }}
+                            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-full hover:bg-slate-100 transition-colors cursor-pointer border border-transparent hover:border-slate-200"
+                            title="Opções de Ações"
+                          >
+                            <span className="material-symbols-outlined text-lg">more_vert</span>
+                          </button>
+                          
+                          {activeMenuUserId === u.id && (
+                            <>
+                              <div className="fixed inset-0 z-10" onClick={() => setActiveMenuUserId(null)} />
+                              <div className="absolute right-0 mt-1 w-48 bg-white border border-slate-200 rounded-xl shadow-lg py-1 z-20 animate-in fade-in slide-in-from-top-1 duration-100 text-left">
+                                {u.role !== UserRole.OWNER && (
+                                  <button
+                                    onClick={() => {
+                                      setActiveMenuUserId(null);
+                                      handleOpenPermissions(u);
+                                    }}
+                                    className="w-full text-left px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer transition-colors"
+                                  >
+                                    <span className="material-symbols-outlined text-sm text-teal-650">admin_panel_settings</span>
+                                    Gerenciar Acessos
+                                  </button>
+                                )}
+                                
+                                {u.id !== loggedInUserId && (
+                                  <button
+                                    onClick={() => {
+                                      setActiveMenuUserId(null);
+                                      handleImpersonate(u.id);
+                                    }}
+                                    className="w-full text-left px-4 py-2.5 text-xs font-bold text-indigo-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer transition-colors border-t border-slate-100"
+                                  >
+                                    <span className="material-symbols-outlined text-sm">login</span>
+                                    Trocar para este perfil
+                                  </button>
+                                )}
+
+                                <button
+                                  onClick={() => {
+                                    setActiveMenuUserId(null);
+                                    handleDelete(u.id, u.name);
+                                  }}
+                                  className="w-full text-left px-4 py-2.5 text-xs font-bold text-red-650 hover:bg-red-50 flex items-center gap-2 cursor-pointer transition-colors border-t border-slate-100"
+                                >
+                                  <span className="material-symbols-outlined text-sm">delete</span>
+                                  Remover Usuário
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      ) : (
+        <TransitionSettingsPanel />
+      )}
 
       {/* Modal - Register Colaborador */}
       {showModal && (

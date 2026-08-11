@@ -13,6 +13,10 @@ import portalRoutes from "./portal.routes";
 import conciliationRoutes from "./conciliation.routes";
 import whatsappRoutes from "./whatsapp.routes";
 import integrationRoutes from "./integration.routes";
+import tagsRoutes from "./tags.routes";
+import suppliersRoutes from "./suppliers.routes";
+import customFieldsRoutes from "./customFields.routes";
+import documentsRoutes from "./documents.routes";
 
 const router = Router();
 
@@ -30,5 +34,9 @@ router.use("/portal", portalRoutes);
 router.use("/conciliacao", conciliationRoutes);
 router.use("/whatsapp", whatsappRoutes);
 router.use("/integration", integrationRoutes);
+router.use("/tags", tagsRoutes);
+router.use("/suppliers", suppliersRoutes);
+router.use("/custom-fields", customFieldsRoutes);
+router.use("/documents", documentsRoutes);
 
 export default router;

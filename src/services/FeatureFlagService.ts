@@ -41,7 +41,8 @@ class FeatureFlagService {
       this.lastFetch = Date.now();
     } catch (err) {
       console.error("[FeatureFlagService] Erro ao carregar flags:", err);
-      // Mantém cache anterior em caso de falha
+      // Mantém cache anterior e registra timestamp para evitar sobrecarregar o pool de conexões com falhas repetidas
+      this.lastFetch = Date.now();
     }
   }
 

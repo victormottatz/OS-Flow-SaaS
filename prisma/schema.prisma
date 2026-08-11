@@ -19,6 +19,7 @@ model User {
   avatarUrl    String?
   bio          String?
   phone        String?
+  tags         Tag[]
 
   @@map("users")
 }
@@ -58,6 +59,7 @@ model Client {
   blingContactId String?
   devices      Device[]
   orders       OrdemServico[]
+  tags         Tag[]
 
   @@map("clients")
 }
@@ -82,6 +84,7 @@ model Device {
   deviceNotes       DeviceNote[]
   client            Client?        @relation(fields: [clientId], references: [id])
   orders            OrdemServico[]
+  tags              Tag[]
 
   @@map("devices")
 }
@@ -170,6 +173,8 @@ model Part {
   sku                 String?
   stockMin            Int       @default(0)
   supplier            String?
+  supplierId          String?
+  supplierRel         Supplier? @relation(fields: [supplierId], references: [id])
   reserved            Int       @default(0)
 
   // --- Identificação e Classificação ---
@@ -257,6 +262,8 @@ model OrdemServico {
   recurrent            Boolean              @default(false)
   laudoMacro           String?
   closingReason        OSClosingReason?
+  profitValue          Float?
+  profitMarginPercent  Float?
   abandonAlert         DateTime?
   advancePayment       Float?
   attendantId          Int                  @default(0)
@@ -297,15 +304,30 @@ model OrdemServico {
   warrantyType         WarrantyType         @default(NENHUMA)
   financialStatus      OSFinancialStatus    @default(PENDENTE)
   paymentMethod        String?
+  paymentNotes         String?
+  paymentDate          DateTime?
+  paymentDetails       Json?                @default("[]")
   financialDueDate     DateTime?
   webKey               String?
   webPassword          String?
+  
+  // --- Novos Campos de Handoff e Logística (Fase 2) ---
+  clientDecision       String?
+  approvedBudgetAmount Float?
+  returnMethod         String?
+  packagingCleaned     Boolean              @default(false)
+  benchLocation        String?
   messageHistories     MessageHistory[]
   client               Client?              @relation(fields: [clientId], references: [id])
   device               Device?              @relation(fields: [deviceId], references: [id])
   conciliationItems    OSConciliationItem[]
+  tags                 Tag[]
 
   @@map("ordem_servicos")
+  @@index([deletedAt, status, createdAt(sort: Desc)])
+  @@index([deletedAt, status, financialStatus])
+  @@index([deviceId, deletedAt, createdAt])
+  @@index([clientId, deletedAt])
 }
 
 model BlingConfig {
@@ -316,6 +338,23 @@ model BlingConfig {
   updatedAt    DateTime @updatedAt
 
   @@map("bling_configs")
+}
+
+model Tag {
+  id          String    @id @default(uuid())
+  name        String
+  colorHex    String    @default("#94a3b8")
+  scope       TagScope  @default(GLOBAL)
+  description String    @default("")
+  ownerId     String?
+  createdAt   DateTime  @default(now())
+
+  owner       User?     @relation(fields: [ownerId], references: [id])
+  clients     Client[]
+  devices     Device[]
+  orders      OrdemServico[]
+
+  @@map("tags")
 }
 
 model FeatureFlag {
@@ -490,6 +529,13 @@ enum UserRole {
   SUPERVISOR
 }
 
+enum TagScope {
+  GLOBAL
+  CLIENT
+  DEVICE
+  ORDEM_SERVICO
+}
+
 enum OSStatus {
   ORCAMENTO
   AGUARDANDO_PECA
@@ -520,4 +566,63 @@ enum OSFinancialStatus {
   PAGAR_DEPOIS
   PAGO
   INADIMPLENTE
+}
+
+model Supplier {
+  id             String    @id @default(uuid())
+  name           String    @map("razao_social")
+  fantasyName    String?   @map("fantasia")
+  cpfCnpj        String?   @map("cnpj_cpf")
+  ie             String?   @map("ie_rg")
+  im             String?   @map("inscricao_municipal")
+  address        String?   @map("endereco")
+  neighborhood   String?   @map("bairro")
+  city           String?   @map("cidade")
+  state          String?   @map("uf")
+  zipCode        String?   @map("cep")
+  phone          String?   @map("telefone")
+  fax            String?   @map("fax")
+  email          String?   @map("email")
+  website        String?   @map("site")
+  contactName    String?   @map("contato")
+  isCarrier      Boolean   @default(false) @map("transportadora")
+  notes          String?   @map("observacao")
+  legacyId       String?   @unique @map("legacy_id")
+  createdAt      DateTime  @default(now()) @map("cadastrado_em")
+  deletedAt      DateTime? @map("deleted_at")
+  lastPurchaseAt DateTime? @map("ultima_compra_em")
+
+  parts          Part[]
+
+  @@map("fornecedores")
+}
+
+model CustomField {
+  id          String             @id @default(uuid())
+  entityType  String             // "CLIENT", "DEVICE", "ORDEM_SERVICO"
+  label       String
+  type        String             // "TEXT", "NUMBER", "CHECKBOX", "SELECT"
+  options     String[]           @default([]) // Opções para tipo SELECT
+  required    Boolean            @default(false)
+  order       Int                @default(0)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  deletedAt   DateTime?
+  values      CustomFieldValue[]
+
+  @@map("custom_fields")
+}
+
+model CustomFieldValue {
+  id            String      @id @default(uuid())
+  customFieldId String
+  entityId      String      // ID do Client, Device ou OrdemServico
+  value         String
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  customField   CustomField @relation(fields: [customFieldId], references: [id])
+
+  @@unique([customFieldId, entityId])
+  @@map("custom_field_values")
 }

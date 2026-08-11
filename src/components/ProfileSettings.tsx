@@ -6,6 +6,9 @@
 import React, { useState } from "react";
 import { User, UserRole } from "../types";
 
+import { compressBase64Image } from "../utils/imageCompressor";
+import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
+
 interface ProfileSettingsProps {
   user: User;
   onProfileUpdated: (updatedUser: User) => void;
@@ -28,6 +31,18 @@ export default function ProfileSettings({ user, onProfileUpdated, isOffline }: P
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+
+  // Guarda de alterações não salvas (perfil e senha)
+  const profileDirty =
+    name !== user.name ||
+    email !== user.email ||
+    phone !== (user.phone || "") ||
+    bio !== (user.bio || "") ||
+    avatarUrl !== (user.avatarUrl || "");
+  const passwordDirty =
+    currentPassword.trim() !== "" || newPassword.trim() !== "" || confirmPassword.trim() !== "";
+  useUnsavedChangesGuard(profileDirty);
+  useUnsavedChangesGuard(passwordDirty);
   const [showPasswords, setShowPasswords] = useState(false);
 
   // Status/Alerts states
@@ -50,7 +65,7 @@ export default function ProfileSettings({ user, onProfileUpdated, isOffline }: P
     setPhone(value);
   };
 
-  // Convert local image file to base64
+  // Convert local image file to base64 with browser compression
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -61,10 +76,15 @@ export default function ProfileSettings({ user, onProfileUpdated, isOffline }: P
     }
 
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       if (typeof reader.result === "string") {
-        setAvatarUrl(reader.result);
-        setErrorMsg("");
+        try {
+          const compressed = await compressBase64Image(reader.result, { maxWidth: 600, maxHeight: 600, quality: 0.8 });
+          setAvatarUrl(compressed);
+          setErrorMsg("");
+        } catch (err) {
+          setAvatarUrl(reader.result);
+        }
       }
     };
     reader.onerror = () => {

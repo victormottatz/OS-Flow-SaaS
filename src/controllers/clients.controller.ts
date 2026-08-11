@@ -26,8 +26,10 @@ export class ClientsController {
         prisma.client.findMany({
           where,
           include: {
+            tags: true,
             devices: {
-              where: { deletedAt: null }
+              where: { deletedAt: null },
+              include: { tags: true }
             }
           },
           take: limit
@@ -48,6 +50,7 @@ export class ClientsController {
           zipCode: c.zipCode,
           rg: c.rg,
           deletedAt: null,
+          tags: c.tags,
           devices: c.devices.map(d => ({
             id: d.id,
             clientId: d.clientId,
@@ -56,6 +59,7 @@ export class ClientsController {
             model: d.model,
             serialNumber: d.serialNumber,
             description: d.description,
+            tags: d.tags,
             deletedAt: null
           }))
         })),
@@ -67,7 +71,7 @@ export class ClientsController {
   }
 
   async create(req: Request, res: Response) {
-    const { name, cpfCnpj, phone, phone2, email, address, city, state, zipCode, rg, stateInscription, devices } = req.body;
+    const { name, cpfCnpj, phone, phone2, email, address, city, state, zipCode, rg, stateInscription, devices, tagIds } = req.body;
     
     if (!name || !cpfCnpj || !phone || !email || !address) {
       res.status(422).json({ error: "Parâmetros incorretos. Todos os campos de cadastro do cliente são obrigatórios." });
@@ -101,7 +105,10 @@ export class ClientsController {
           city: city || "",
           state: state || "",
           zipCode: zipCode || "",
-          rg: stateInscription || rg || ""
+          rg: stateInscription || rg || "",
+          tags: tagIds && tagIds.length > 0 ? {
+            connect: tagIds.map((id: string) => ({ id }))
+          } : undefined
         }
       });
 
@@ -133,6 +140,7 @@ export class ClientsController {
           phone2: client.phone2,
           email: client.email,
           address: client.address,
+          tags: [], // Será retornado num find completo dps
           deletedAt: null
         },
         devices: insertedDevices
@@ -157,7 +165,7 @@ export class ClientsController {
 
   async update(req: Request, res: Response) {
     const { id } = req.params;
-    const { name, cpfCnpj, phone, phone2, email, address, city, state, zipCode, stateInscription } = req.body;
+    const { name, cpfCnpj, phone, phone2, email, address, city, state, zipCode, stateInscription, tagIds } = req.body;
 
     try {
       const client = await prisma.client.findUnique({ where: { id } });
@@ -186,6 +194,9 @@ export class ClientsController {
       if (state !== undefined) updateData.state = state;
       if (zipCode !== undefined) updateData.zipCode = zipCode;
       if (stateInscription !== undefined) updateData.rg = stateInscription;
+      if (tagIds !== undefined) {
+        updateData.tags = { set: tagIds.map((id: string) => ({ id })) };
+      }
 
       const updated = await prisma.client.update({
         where: { id },
@@ -248,6 +259,46 @@ export class ClientsController {
     }
   }
 
+  /**
+   * Atualiza apenas as etiquetas de um cliente (usado na visão 360 e em
+   * qualquer etapa da vida do cliente, sem exigir o formulário completo).
+   */
+  async updateTags(req: Request, res: Response) {
+    const { id } = req.params;
+    const { tagIds } = req.body;
+
+    if (!Array.isArray(tagIds)) {
+      res.status(422).json({ error: "tagIds deve ser uma lista de ids." });
+      return;
+    }
+
+    try {
+      const client = await prisma.client.findUnique({ where: { id } });
+      if (!client || client.deletedAt) {
+        res.status(404).json({ error: "Cliente não encontrado." });
+        return;
+      }
+
+      const updated = await prisma.client.update({
+        where: { id },
+        data: {
+          tags: tagIds.length > 0
+            ? { set: tagIds.map((tid: string) => ({ id: tid })) }
+            : { set: [] }
+        },
+        include: {
+          tags: {
+            include: { owner: { select: { id: true, name: true } } }
+          }
+        }
+      });
+
+      res.json({ tags: updated.tags });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+
   async delete(req: Request, res: Response) {
     const { id } = req.params;
     try {
@@ -283,7 +334,14 @@ export class ClientsController {
   async get360(req: Request, res: Response) {
     const { id } = req.params;
     try {
-      const client = await prisma.client.findUnique({ where: { id } });
+      const client = await prisma.client.findUnique({
+        where: { id },
+        include: {
+          tags: {
+            include: { owner: { select: { id: true, name: true } } }
+          }
+        }
+      });
       if (!client || client.deletedAt) {
         res.status(404).json({ error: "Cliente não encontrado." });
         return;
@@ -324,6 +382,10 @@ export class ClientsController {
           phone2: client.phone2,
           email: client.email,
           address: client.address,
+          city: client.city,
+          state: client.state,
+          zipCode: client.zipCode,
+          tags: client.tags || [],
           createdAt: (client as any).createdAt
         },
         devices,

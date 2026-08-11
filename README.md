@@ -1,4 +1,4 @@
-# MGV Sistema Integrado
+# MGV One Hub
 
 Sistema proprietário de gestão e automação fiscal para assistência técnica MGV.
 Sistema de gestão focado em assistência técnica. Conta com um painel Kanban para gerenciamento de fluxo de Ordens de Serviço (O.S.) e integração direta com o ERP Bling V3 para faturamento automático e emissão de notas fiscais (SEFAZ).

@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from "react";
 import { Client, Device, OrdemServico, Part, User, UserRole } from "../types";
 import BlingConnectionStatus from "./BlingConnectionStatus";
+import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
 
 interface DashboardViewProps {
   user: User;
@@ -34,6 +35,10 @@ export default function DashboardView({
   const [partStock, setPartStock] = useState(10);
   const [partCost, setPartCost] = useState(0);
   const [partPrice, setPartPrice] = useState(0);
+
+  // Guarda de alterações não salvas (formulário rápido de peça)
+  const partFormDirty = partName.trim() !== "" || partCode.trim() !== "" || partStock !== 10 || partCost !== 0 || partPrice > 0;
+  useUnsavedChangesGuard(partFormDirty);
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");

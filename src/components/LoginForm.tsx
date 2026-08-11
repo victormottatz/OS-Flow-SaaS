@@ -5,6 +5,7 @@
 
 import React, { useState } from "react";
 import { User, UserRole } from "../types";
+import AppLogo from "./AppLogo";
 
 
 interface LoginFormProps {
@@ -23,6 +24,7 @@ export default function LoginForm({ onLoginSuccess, isOffline }: LoginFormProps)
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Simple password strength verification
   const validatePassword = (pwd: string) => {
@@ -38,7 +40,7 @@ export default function LoginForm({ onLoginSuccess, isOffline }: LoginFormProps)
     setSuccessMsg("");
 
     if (isOffline) {
-      setErrorMsg("O sistema está offline. Não é possível processar requisições Supabase Auth sem internet.");
+      setErrorMsg("O sistema está offline. Verifique a conexão com a rede local.");
       return;
     }
 
@@ -74,7 +76,7 @@ export default function LoginForm({ onLoginSuccess, isOffline }: LoginFormProps)
       if (isLoginMode) {
         onLoginSuccess(data.user, data.token);
       } else {
-        setSuccessMsg("Colaborador registrado com sucesso na infraestrutura Supabase!");
+        setSuccessMsg("Colaborador registrado com sucesso!");
         // Clear registration fields and switch to login
         setName("");
         setEmail("");
@@ -101,12 +103,12 @@ export default function LoginForm({ onLoginSuccess, isOffline }: LoginFormProps)
       <div className="w-full max-w-md bg-white rounded-2xl shadow-premium border border-slate-100 overflow-hidden relative z-10 transition-all duration-500 anim-fadein">
         {/* Banner Area */}
         <div className="px-6 py-8 relative text-center border-b border-slate-100 bg-slate-50/50">
-          <div className="absolute top-3 right-3 flex items-center bg-emerald-50 text-emerald-700 border border-emerald-200 font-mono text-[9px] uppercase tracking-wider px-2.5 py-0.5 rounded-full select-none anim-pulse">
-            Supabase Auth Ativo
+          <div className="absolute top-3 right-3 flex items-center bg-emerald-50 text-emerald-700 border border-emerald-200 font-mono text-[9px] uppercase tracking-wider px-2.5 py-0.5 rounded-full select-none">
+            Banco de Dados Ativo
           </div>
-          <img 
-            src="/logos/LOGO V3.0 (90).png" 
-            alt="MGV Assistência Técnica" 
+          <AppLogo 
+            src="/logos/LOGO V3.0 - menu lateral.png" 
+            fallbackSrc="/logos/LOGO V3.0 - menu lateral.png" 
             className="h-20 mx-auto mb-2 object-contain"
           />
           <p className="text-xs text-slate-500 max-w-xs mx-auto font-medium">
@@ -196,14 +198,26 @@ export default function LoginForm({ onLoginSuccess, isOffline }: LoginFormProps)
               <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">
                 Senha Segura
               </label>
-              <input
-                type="password"
-                required
-                placeholder="• • • • • •"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-950 placeholder-slate-450 focus:outline-none focus:border-secondary-container focus:ring-2 focus:ring-secondary-container/20 hover:border-slate-300 transition duration-200"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  placeholder="• • • • • •"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-950 placeholder-slate-450 focus:outline-none focus:border-secondary-container focus:ring-2 focus:ring-secondary-container/20 hover:border-slate-300 transition duration-200 pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-650 transition-colors flex items-center justify-center p-0 cursor-pointer border-none bg-transparent"
+                  title={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                >
+                  <span className="material-symbols-outlined text-[18px]">
+                    {showPassword ? "visibility_off" : "visibility"}
+                  </span>
+                </button>
+              </div>
             </div>
 
             {!isLoginMode && (
@@ -222,7 +236,7 @@ export default function LoginForm({ onLoginSuccess, isOffline }: LoginFormProps)
                 <p className="text-[11px] text-slate-500 mt-2 flex items-start space-x-1.5 leading-relaxed">
                   <span className="material-symbols-outlined text-[14px] text-secondary-container shrink-0 mt-0.5">info</span>
                   <span>
-                    O perfil EDITOR não possui privilégios de exclusão (Políticas RLS ativas).
+                    O perfil EDITOR não possui privilégios de exclusão (Políticas de segurança ativas).
                   </span>
                 </p>
               </div>
@@ -234,7 +248,7 @@ export default function LoginForm({ onLoginSuccess, isOffline }: LoginFormProps)
               className="w-full mt-6 bg-secondary-container hover:bg-secondary-container-hover text-slate-950 py-2.5 rounded-lg text-xs uppercase tracking-wider font-extrabold shadow-md flex items-center justify-center space-x-2 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed hover-premium active-premium"
             >
               {loading ? (
-                <span>Tratando com o Supabase Auth...</span>
+                <span>Autenticando colaborador...</span>
               ) : isLoginMode ? (
                 <>
                   <span className="material-symbols-outlined text-[16px]">login</span>

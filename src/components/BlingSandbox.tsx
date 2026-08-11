@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from "react";
 import { OrdemServico } from "../types";
 import BlingConnectionStatus from "./BlingConnectionStatus";
+import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
 
 interface BlingSandboxProps {
   ordensServico: any[];
@@ -41,6 +42,12 @@ export default function BlingSandbox({ ordensServico, isOffline, onRefresh }: Bl
   const [xmlInput, setXmlInput] = useState("");
   const [xmlImportResult, setXmlImportResult] = useState<any>(null);
   const [isImportingXml, setIsImportingXml] = useState(false);
+
+  // Guarda de alterações não salvas (XML colado + Inscrição Estadual no faturamento)
+  const blingXmlDirty = xmlInput.trim() !== "";
+  const blingBillingDirty = isBillingModalOpen && clientStateInscription.trim() !== "";
+  useUnsavedChangesGuard(blingXmlDirty);
+  useUnsavedChangesGuard(blingBillingDirty);
 
   // Filtro do Console de Logs
   const [logFilter, setLogFilter] = useState("");
@@ -278,6 +285,7 @@ export default function BlingSandbox({ ordensServico, isOffline, onRefresh }: Bl
       const data = await res.json();
       if (res.ok) {
         setXmlImportResult(data);
+        setXmlInput(""); // limpa o campo para não manter a flag de alterações não salvas
         await onRefresh();
       } else {
         alert(`Erro ao importar XML: ${data.error || "Falha desconhecida"}`);

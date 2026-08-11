@@ -136,7 +136,8 @@ router.post("/bling/sync/catalog", async (req, res) => {
           const productId = await syncPartToBling({
             code: codeClean,
             name: nameClean,
-            price: validPrice
+            price: validPrice,
+            ncm: part.ncm || undefined
           });
 
           // 2. Lança o saldo de estoque atual no Bling

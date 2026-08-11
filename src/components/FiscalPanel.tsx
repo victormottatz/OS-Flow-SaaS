@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
 import { Part, Client, OSStatus } from "../types";
 import { isValidCpfOrCnpj } from "../utils/cpfCnpjValidator";
 
@@ -32,6 +33,18 @@ export default function FiscalPanel({ parts, clients, isOffline, onRefresh }: Fi
     zipCode: ""
   });
   const [cnpjLoading, setCnpjLoading] = useState(false);
+
+  // Guarda de alterações não salvas (modal de edição do cliente fiscal)
+  const fiscalClientDirty =
+    !!editingClient &&
+    (clientForm.name?.trim() !== "" ||
+      clientForm.cpfCnpj?.trim() !== "" ||
+      clientForm.stateInscription?.trim() !== "" ||
+      clientForm.address?.trim() !== "" ||
+      clientForm.city?.trim() !== "" ||
+      clientForm.state?.trim() !== "" ||
+      clientForm.zipCode?.trim() !== "");
+  useUnsavedChangesGuard(fiscalClientDirty);
 
   // Sync parts & clients list
   useEffect(() => {

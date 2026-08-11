@@ -246,10 +246,19 @@ export async function sendOsToBling(
           console.log(`[Bling NF-e] Sucesso! NF-e ID: ${finalNotaFiscalId || "(async)"}`);
         }
       } catch (err: any) {
-        const errData = err.response?.data;
+        let errMsg = err.response?.data?.error?.message || err.message;
+        const errFields = err.response?.data?.error?.fields;
+        if (Array.isArray(errFields) && errFields.length > 0) {
+          const firstField = errFields[0];
+          if (firstField.code === 9 || firstField.element === 'cnpj') {
+            errMsg = `O CPF/CNPJ do cliente é inválido e foi rejeitado pela Receita/Bling. Corrija no cadastro e tente novamente.`;
+          } else {
+            errMsg = `${firstField.msg} (${firstField.element})`;
+          }
+        }
         const errStatus = err.response?.status;
-        console.error(`[Bling Sync Peças] Erro HTTP ${errStatus}:`, JSON.stringify(errData || err.message));
-        errorsList.push(`Falha no faturamento de Peças (HTTP ${errStatus}): ${errData?.error?.message || err.message}`);
+        console.error(`[Bling Sync Peças] Erro HTTP ${errStatus}:`, JSON.stringify(err.response?.data || err.message));
+        errorsList.push(`Falha no faturamento de Peças (HTTP ${errStatus}): ${errMsg}`);
       }
     }
 
@@ -378,8 +387,18 @@ export async function sendOsToBling(
           }
         }
       } catch (err: any) {
+        let errMsg = err.response?.data?.error?.message || err.message;
+        const errFields = err.response?.data?.error?.fields;
+        if (Array.isArray(errFields) && errFields.length > 0) {
+          const firstField = errFields[0];
+          if (firstField.code === 9 || firstField.element === 'cnpj') {
+            errMsg = `O CPF/CNPJ do cliente é inválido e foi rejeitado pela Receita/Bling. Corrija no cadastro e tente novamente.`;
+          } else {
+            errMsg = `${firstField.msg} (${firstField.element})`;
+          }
+        }
         console.error("[Bling Sync Serviços] Erro:", JSON.stringify(err.response?.data || err.message, null, 2));
-        errorsList.push(`Falha no faturamento de Serviços: ${err.response?.data?.error?.message || err.message}`);
+        errorsList.push(`Falha no faturamento de Serviços: ${errMsg}`);
       }
     }
 

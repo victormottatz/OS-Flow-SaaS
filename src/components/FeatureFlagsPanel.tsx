@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { UserRole } from "../types";
 import { useFeatureFlags } from "../contexts/FeatureFlagContext";
+import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
 
 interface FeatureFlag {
   id: string;
@@ -15,6 +16,10 @@ export default function FeatureFlagsPanel({ userRole }: { userRole: UserRole }) 
   const [isLoading, setIsLoading] = useState(true);
   const [newKey, setNewKey] = useState("");
   const [newDesc, setNewDesc] = useState("");
+
+  // Guarda de alterações não salvas (formulário de nova feature flag)
+  const newFlagDirty = newKey.trim() !== "" || newDesc.trim() !== "";
+  useUnsavedChangesGuard(newFlagDirty);
   const { refreshFlags } = useFeatureFlags();
 
   const fetchAdminFlags = async () => {

@@ -3,8 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from "react";
+import React, { useState } from "react";
 import { User, UserRole } from "../types";
+import AppLogo from "./AppLogo";
+import NotificationMenu from "./NotificationMenu";
+import TagManager from "./TagManager";
+import { Tag as TagIcon } from "lucide-react";
 
 const FALLBACK_AVATAR = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200";
 
@@ -29,6 +33,8 @@ export default function Navbar({
   isSidebarMinimized,
   toggleSidebar
 }: NavbarProps) {
+  const [showTagManager, setShowTagManager] = useState(false);
+
   // Translate current tab ID to title string
   const getTabTitle = () => {
     switch (currentTab) {
@@ -62,6 +68,11 @@ export default function Navbar({
   return (
     <>
       {/* 1. FIXED LEFT SIDEBAR (Desktop only: md and above) */}
+      {/* GUIA: LARGURA DA SIDEBAR (70px recolhida / 260px expandida).
+          Se alterar estes valores, ajuste JUNTO:
+          - Navbar.tsx linha ~205 (header): 102px / 292px (= largura + 32)
+          - App.tsx linhas ~239-240 e ~369 (conteúdo e rodapé): 70px / 260px
+          Use sempre múltiplos "redondos" (70, 260, 300) para facilitar. */}
       <aside className={`hidden md:flex flex-col h-screen fixed left-0 top-0 bg-primary-container text-white py-6 z-50 border-r border-slate-900 select-none transition-all duration-300 ${
         isSidebarMinimized ? "w-[70px]" : "w-[260px]"
       }`}>
@@ -74,9 +85,9 @@ export default function Navbar({
           ) : (
             <div className="flex items-center justify-between w-full px-2">
               <div className="flex items-center cursor-pointer group animate-fadein" onClick={() => setCurrentTab("dashboard")}>
-                <img 
-                  src="/logos/LOGO V3.0 (9).png" 
-                  alt="MGV Tecnologia" 
+                <AppLogo 
+                  src="/logos/LOGO V3.0 - menu lateral.png" 
+                  fallbackSrc="/logos/LOGO V3.0 - menu lateral.png" 
                   className="h-10 w-auto object-contain transition-all duration-300 group-hover:scale-105 active:scale-95" 
                 />
               </div>
@@ -201,6 +212,8 @@ export default function Navbar({
       </aside>
 
       {/* 2. STICKY TOP APP BAR (Header offset dynamic on desktop) */}
+      {/* GUIA: DESLOCAMENTO do header conforme a sidebar.
+          Valor = largura da sidebar + 32px de folga (102 = 70+32 / 292 = 260+32). */}
       <header className={`h-16 w-full flex justify-between items-center pr-8 pl-6 border-b border-slate-200 bg-white sticky top-0 z-40 select-none transition-all duration-300 ${
         isSidebarMinimized ? "md:pl-[102px]" : "md:pl-[292px]"
       }`}>
@@ -228,6 +241,16 @@ export default function Navbar({
 
         {/* Top bar controls */}
         <div className="flex items-center gap-4">
+          <button
+            onClick={() => setShowTagManager(true)}
+            className="p-2 rounded-full hover:bg-slate-100 transition-colors text-slate-500 hover:text-slate-900"
+            title="Gerenciar Etiquetas"
+          >
+            <TagIcon className="w-[18px] h-[18px]" />
+          </button>
+
+          <NotificationMenu />
+          
           <div className="h-8 w-[1px] bg-slate-200 hidden sm:block"></div>
           
           <div 
@@ -254,6 +277,10 @@ export default function Navbar({
       </header>
 
       {/* 3. MOBILE NAVIGATION TAB BAR (Bottom screen sticky, visible only on md and below) */}
+      {/* GUIA: BARRA DE NAVEGAÇÃO DO CELULAR (fixa embaixo).
+          - Adicionar/remover abas: edite a lista logo abaixo.
+          - Cor dos botões ativos: linha ~276 (text-indigo-650 bg-indigo-50).
+          - Fundo/transparência: linha ~257 (bg-white/95 backdrop-blur-md). */}
       <div className="md:hidden flex border-t border-slate-200/80 bg-white/95 backdrop-blur-md overflow-x-auto justify-around py-2 px-2 sticky bottom-0 z-45">
         {[
           { id: "dashboard", label: "Painel", icon: "dashboard" },
@@ -282,6 +309,9 @@ export default function Navbar({
           );
         })}
       </div>
+
+      {/* Modals */}
+      {showTagManager && <TagManager onClose={() => setShowTagManager(false)} />}
     </>
   );
 }

@@ -58,7 +58,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   next();
 }
 
-export function checkRole(...allowedRoles: UserRole[]) {
+export function checkRole(...allowedRoles: string[]) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const userRole = req.headers["x-user-role"] as string;
 

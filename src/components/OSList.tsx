@@ -8,6 +8,12 @@ import { OrdemServico, OSStatus, EntradaFoto } from "../types";
 import { useOSList } from "../hooks/useOSList";
 import { SearchScope } from "../utils/searchUtils";
 
+import { usePrintDocument } from "../hooks/usePrintDocument";
+import { resolveTemplateForOS, DOCUMENT_TEMPLATES, DocumentTemplate } from "../config/documents.config";
+import { downloadDocumentPdf } from "../utils/downloadDocument";
+import DocumentShell from "./DocumentShell";
+import TagSelector from "./TagSelector";
+
 interface OSListProps {
   userRole: string;
   isOffline: boolean;
@@ -67,9 +73,12 @@ export default function OSList({ isOffline, onRefresh, userRole }: OSListProps) 
   const [page, setPage] = useState(1);
   const [selectedOS, setSelectedOS] = useState<OrdemServico | null>(null);
   const [activePrintOS, setActivePrintOS] = useState<OrdemServico | null>(null);
+  const [activePrintTemplate, setActivePrintTemplate] = useState<DocumentTemplate | null>(null);
   const [lightboxPhoto, setLightboxPhoto] = useState<EntradaFoto | null>(null);
   const [modalTab, setModalTab] = useState<"laudo" | "pecas" | "entrada" | "saida">("laudo");
   const [searchScope, setSearchScope] = useState<SearchScope>("all");
+  const [editTagIds, setEditTagIds] = useState<string[]>([]);
+  const [savingTags, setSavingTags] = useState(false);
 
   const pageSize = 50;
 
@@ -102,17 +111,28 @@ export default function OSList({ isOffline, onRefresh, userRole }: OSListProps) 
     onRefresh();
   };
 
-  const handlePrintReceipt = (os: OrdemServico) => {
-    setActivePrintOS(os);
-    document.body.classList.add("printing-recibo");
-    const cleanup = () => {
-      document.body.classList.remove("printing-recibo");
-      window.removeEventListener("afterprint", cleanup);
-    };
-    window.addEventListener("afterprint", cleanup);
-    setTimeout(() => {
-      window.print();
-    }, 150);
+  const printDocument = usePrintDocument();
+
+  const handlePrintReceipt = async (os: OrdemServico) => {
+    const template = resolveTemplateForOS(os);
+    // PDF real gerado no servidor; fallback para a impressão via navegador se falhar.
+    const ok = await downloadDocumentPdf(template.id, os.id, `${template.nomeArquivo}-${os.osNumber}`);
+    if (!ok) {
+      setActivePrintOS(os);
+      setActivePrintTemplate(template);
+      printDocument(`${template.nomeArquivo}-${os.osNumber}`);
+    }
+  };
+
+  const handlePrintTermo = async (os: OrdemServico) => {
+    const template = DOCUMENT_TEMPLATES.termo;
+    // PDF real gerado no servidor; fallback para a impressão via navegador se falhar.
+    const ok = await downloadDocumentPdf(template.id, os.id, `${template.nomeArquivo}-${os.osNumber}`);
+    if (!ok) {
+      setActivePrintOS(os);
+      setActivePrintTemplate(template);
+      printDocument(`${template.nomeArquivo}-${os.osNumber}`);
+    }
   };
 
   const getOSTotal = (os: OrdemServico) => {
@@ -157,6 +177,7 @@ export default function OSList({ isOffline, onRefresh, userRole }: OSListProps) 
   const handleOpenDetails = async (os: OrdemServico) => {
     setSelectedOS(os);
     setModalTab("laudo");
+    setEditTagIds(((os as any).tags || []).map((t: any) => t.id));
     try {
       const token = localStorage.getItem("mgv_token") || "";
       const res = await fetch(`/api/ordens-servico/${os.id}`, {
@@ -165,47 +186,46 @@ export default function OSList({ isOffline, onRefresh, userRole }: OSListProps) 
       if (res.ok) {
         const fullOS = await res.json();
         setSelectedOS(fullOS);
+        setEditTagIds((fullOS.tags || []).map((t: any) => t.id));
       }
     } catch (err) {
       console.error("Erro ao carregar detalhes completos da OS:", err);
     }
   };
 
+  const handleSaveTags = async () => {
+    if (!selectedOS) return;
+    setSavingTags(true);
+    try {
+      const token = localStorage.getItem("mgv_token") || "";
+      const res = await fetch(`/api/ordens-servico/${selectedOS.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ tagIds: editTagIds })
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setSelectedOS(prev =>
+          prev ? { ...updated, tags: updated.tags || [] } : updated
+        );
+        handleRefresh();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || "Erro ao salvar etiquetas.");
+      }
+    } catch (err: any) {
+      alert("Erro ao salvar etiquetas: " + err.message);
+    } finally {
+      setSavingTags(false);
+    }
+  };
+
   return (
     <div className="space-y-6 anim-fadein select-none">
-      {/* Print styles override */}
-      <style>{`
-        @media print {
-          @page {
-            margin: 8mm;
-            size: auto;
-          }
-          html, body {
-            background: #ffffff !important;
-            height: auto !important;
-            min-height: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-          }
-          body *:not(:has(#printable-recibo)):not(#printable-recibo):not(#printable-recibo *) {
-            display: none !important;
-          }
-          #printable-recibo, #printable-recibo * {
-            visibility: visible !important;
-            display: block !important;
-          }
-          #printable-recibo {
-            position: static !important;
-            width: 100% !important;
-            border: none !important;
-            box-shadow: none !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            background: #ffffff !important;
-          }
-        }
-      `}</style>
-
+      
       {/* Page Header */}
       <div className="border-b border-slate-200 pb-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -424,9 +444,16 @@ export default function OSList({ isOffline, onRefresh, userRole }: OSListProps) 
                             <span className="material-symbols-outlined text-[16px] block">visibility</span>
                           </button>
                           <button
+                            onClick={() => handlePrintTermo(os)}
+                            className="p-1.5 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-650 border border-slate-200 hover:border-indigo-200 rounded-lg text-indigo-600 transition cursor-pointer"
+                            title="Imprimir Termo de Recebimento"
+                          >
+                            <span className="material-symbols-outlined text-[16px] block">assignment</span>
+                          </button>
+                          <button
                             onClick={() => handlePrintReceipt(os)}
                             className="p-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg text-slate-650 transition cursor-pointer"
-                            title="Imprimir recibo / termo"
+                            title="Imprimir recibo / orçamento"
                           >
                             <span className="material-symbols-outlined text-[16px] block">print</span>
                           </button>
@@ -560,11 +587,47 @@ export default function OSList({ isOffline, onRefresh, userRole }: OSListProps) 
                     <span className="text-slate-700 font-semibold block mt-0.5 font-mono">{selectedOS.physicalState}</span>
                   </p>
                 )}
+                {selectedOS.tags && selectedOS.tags.length > 0 && (
+                  <p className="sm:col-span-2 border-t border-slate-100 pt-2">
+                    <span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block mb-1.5">Etiquetas</span>
+                    <span className="flex flex-wrap gap-1.5">
+                      {selectedOS.tags.map((tag: any) => (
+                        <span
+                          key={tag.id}
+                          className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md text-white shadow-sm"
+                          style={{ backgroundColor: tag.colorHex }}
+                          title={tag.description || `Etiqueta: ${tag.name}`}
+                        >
+                          {tag.name}
+                        </span>
+                      ))}
+                    </span>
+                  </p>
+                )}
               </div>
 
               {/* TAB 1: LAUDO & CUSTOS */}
               {modalTab === "laudo" && (
                 <div className="space-y-5 anim-fadein">
+                  {/* Etiquetas da OS (editáveis em qualquer etapa) */}
+                  <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[14px] text-indigo-500">sell</span>
+                        Etiquetas da OS
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleSaveTags}
+                        disabled={savingTags}
+                        className="text-[9px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition active:scale-95 cursor-pointer disabled:opacity-50"
+                      >
+                        {savingTags ? "Salvando..." : "Salvar Etiquetas"}
+                      </button>
+                    </div>
+                    <TagSelector selectedTagIds={editTagIds} onChange={setEditTagIds} scope="ORDEM_SERVICO" />
+                  </div>
+
                   <div>
                     <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Laudo Técnico da OS (Interno)</label>
                     <div className="p-3.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 font-semibold font-mono leading-relaxed min-h-[100px] whitespace-pre-wrap">
@@ -726,12 +789,21 @@ export default function OSList({ isOffline, onRefresh, userRole }: OSListProps) 
 
             {/* Modal Footer */}
             <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center select-none">
-              <button
-                onClick={() => handlePrintReceipt(selectedOS)}
-                className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-sm"
-              >
-                <span className="material-symbols-outlined text-[16px]">print</span> {selectedOS.status === "PRONTO_RETIRADA" || selectedOS.status === "FINALIZADO" ? "Imprimir Termo/Recibo" : "Imprimir Orçamento"}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handlePrintTermo(selectedOS)}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-sm"
+                  title="Imprimir Termo de Recebimento"
+                >
+                  <span className="material-symbols-outlined text-[16px]">assignment</span> Imprimir Termo de Recebimento
+                </button>
+                <button
+                  onClick={() => handlePrintReceipt(selectedOS)}
+                  className="bg-slate-900 hover:bg-slate-850 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-sm"
+                >
+                  <span className="material-symbols-outlined text-[16px]">print</span> {selectedOS.status === "PRONTO_RETIRADA" || selectedOS.status === "FINALIZADO" ? "Imprimir Termo/Recibo" : "Imprimir Orçamento"}
+                </button>
+              </div>
               <button
                 onClick={() => setSelectedOS(null)}
                 className="px-5 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-100 transition cursor-pointer"
@@ -766,111 +838,11 @@ export default function OSList({ isOffline, onRefresh, userRole }: OSListProps) 
 
       {/* HIDDEN PRINTABLE CONTAINER */}
       {activePrintOS && (
-        <div id="printable-recibo" className="hidden print:block bg-white p-8 font-sans text-[11px] text-slate-900">
-          <div className="flex justify-between items-start border-b border-slate-300 pb-5 gap-4">
-            <div>
-              <img 
-                src="/logos/LOGO V3.0 (2).png" 
-                alt="MGV Tecnologia" 
-                className="h-10 w-auto object-contain mb-3"
-              />
-              <p className="text-[9px] text-slate-500 font-mono mt-0.5">MOSAIAS LUIZ TEODORO LTDA</p>
-              <p className="text-[9px] text-slate-500 font-mono mt-0.5">CNPJ: 24.181.336/0001-66 | IE: 797.187.310.116</p>
-              <p className="text-[9px] text-slate-500 mt-0.5">Rua Julio Prestes, 648, Jardim Sumaré, Ribeirão Preto - SP | Tel: (16) 99104-9631</p>
-            </div>
-            <div className="text-right">
-              <span className="text-[9px] font-bold uppercase text-slate-700 border border-slate-300 px-2 py-0.5 rounded font-mono">
-                {activePrintOS.status === "PRONTO_RETIRADA" || activePrintOS.status === "FINALIZADO" ? "RECIBO DE ORDEM DE SERVIÇO" : "ORÇAMENTO DE ASSISTÊNCIA TÉCNICA"}
-              </span>
-              <p className="text-2xl font-mono font-bold mt-2 text-slate-950">{activePrintOS.osNumber}</p>
-              <p className="text-[9px] text-slate-500 font-mono mt-0.5">
-                Emissão: {new Date(activePrintOS.createdAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4 mt-6 border-b border-slate-200 pb-5">
-            <div>
-              <h4 className="font-bold text-slate-800 uppercase text-[9px] tracking-wider mb-1.5">Cliente Proprietário</h4>
-              <p className="font-bold text-slate-950 text-sm">{(activePrintOS as any).client?.name || "N/D"}</p>
-              <p className="mt-1 font-medium text-slate-700 font-mono">CPF/CNPJ: {(activePrintOS as any).client?.cpfCnpj || "N/D"}</p>
-              <p className="font-medium text-slate-700">Contato: <span className="font-mono">{(activePrintOS as any).client?.phone || "N/D"}</span></p>
-            </div>
-            <div>
-              <h4 className="font-bold text-slate-800 uppercase text-[9px] tracking-wider mb-1.5">Equipamento em Assistência</h4>
-              <p className="font-bold text-slate-950 text-sm">{(activePrintOS as any).device?.type || "Aparelho"} {(activePrintOS as any).device?.brand || ""}</p>
-              <p className="mt-1 font-medium text-slate-700">Modelo: {(activePrintOS as any).device?.model || "N/D"}</p>
-              <p className="font-medium text-slate-700 font-mono">Série: {(activePrintOS as any).device?.serialNumber || "Sem Série"}</p>
-            </div>
-          </div>
-
-          <div className="space-y-4 mt-5">
-            <div>
-              <h4 className="font-bold text-slate-800 uppercase text-[9px] tracking-wider mb-1">Sintoma Relatado</h4>
-              <p className="p-2.5 bg-slate-50 border border-slate-200 rounded text-slate-800 leading-relaxed font-medium italic">
-                "{activePrintOS.reportedDefect || "N/D"}"
-              </p>
-            </div>
-            {activePrintOS.diagnostic && (
-              <div>
-                <h4 className="font-bold text-slate-800 uppercase text-[9px] tracking-wider mb-1">Laudo e Ações Técnicas</h4>
-                <p className="p-2.5 bg-slate-50 border border-slate-200 rounded text-slate-800 leading-relaxed font-medium font-mono whitespace-pre-wrap">
-                  {activePrintOS.diagnostic}
-                </p>
-              </div>
-            )}
-            
-            {activePrintOS.usedParts && activePrintOS.usedParts.length > 0 && (
-              <div>
-                <h4 className="font-bold text-slate-800 uppercase text-[9px] tracking-wider mb-2">Insumos e Peças Aplicadas</h4>
-                <table className="w-full text-left text-[10px] border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-300 text-slate-500 font-bold uppercase text-[8px] tracking-wider">
-                      <th className="py-1.5 font-bold">Descrição da Peça</th>
-                      <th className="py-1.5 text-center font-bold">Qtd</th>
-                      <th className="py-1.5 text-right font-bold">Preço Un.</th>
-                      <th className="py-1.5 text-right font-bold">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {activePrintOS.usedParts.map((item, idx) => (
-                      <tr key={idx} className="border-b border-slate-100 text-slate-700">
-                        <td className="py-2 font-semibold">
-                          {item.name} {item.serialNumber && `(N/S: ${item.serialNumber})`}
-                        </td>
-                        <td className="py-2 text-center font-mono font-bold">{item.quantity}</td>
-                        <td className="py-2 text-right font-mono">R$ {item.price.toFixed(2)}</td>
-                        <td className="py-2 text-right font-mono font-bold text-slate-900">R$ {(item.price * item.quantity).toFixed(2)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            <div className="p-3 bg-slate-950 text-white rounded flex justify-between items-center mt-6">
-              <span className="text-[8px] uppercase tracking-wider font-bold">Resumo Financeiro da OS</span>
-              <span className="font-mono font-bold text-sm text-emerald-450">
-                Total: R$ {getOSTotal(activePrintOS).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-              </span>
-            </div>
-
-            <div className="mt-14 grid grid-cols-2 gap-12 text-center text-[11px]">
-              <div className="border-t-2 border-slate-700 pt-3">
-                <p className="font-bold text-slate-900">Técnico MGV Responsável</p>
-                <p className="text-[9px] text-slate-500 font-medium mt-0.5">Assinatura / Carimbo</p>
-              </div>
-              <div className="border-t-2 border-slate-700 pt-3">
-                <p className="font-bold text-slate-900">
-                  {(activePrintOS as any).client?.name ? (activePrintOS as any).client?.name : "Assinatura do Cliente"}
-                </p>
-                <p className="text-[9px] text-slate-500 font-medium mt-0.5">
-                  {(activePrintOS as any).client?.name ? "Assinatura do Cliente (De acordo)" : "De acordo / Recebimento"}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
+        <DocumentShell
+          template={activePrintTemplate || resolveTemplateForOS(activePrintOS)}
+          os={activePrintOS}
+          hidden
+        />
       )}
     </div>
   );

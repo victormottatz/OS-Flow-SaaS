@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard';
 
 interface SettingItem {
   id: string;
@@ -28,6 +29,10 @@ export default function GenericSettingsPanel({ category }: GenericSettingsPanelP
   const [newValue, setNewValue] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newType, setNewType] = useState('string');
+
+  // Guarda de alterações não salvas (formulário de novo parâmetro)
+  const newSettingDirty = showNewForm && (newKey.trim() !== "" || newValue.trim() !== "" || newDesc.trim() !== "");
+  useUnsavedChangesGuard(newSettingDirty);
 
   const fetchSettings = async () => {
     try {

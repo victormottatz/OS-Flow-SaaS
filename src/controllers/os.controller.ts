@@ -3,7 +3,7 @@ import prisma from "../database/prisma";
 import { eventBus } from "../events";
 import { OSStateMachine } from "../domain/os/os.state-machine";
 import { OSPolicies } from "../domain/os/os.policies";
-import { OSStatus } from "../types";
+import { OSStatus, WarrantyType } from "../types";
 import { featureFlags } from "../services/FeatureFlagService";
 import sharp from "sharp";
 
@@ -143,6 +143,195 @@ export async function getRecurrentAlert(os: any): Promise<any | null> {
   };
 }
 
+export async function getWarrantyNotice(os: any): Promise<any | null> {
+  if (!os.clientId || !os.deviceId) return null;
+
+  const priorOS = await prisma.ordemServico.findFirst({
+    where: {
+      clientId: os.clientId,
+      deviceId: os.deviceId,
+      id: os.id ? { not: os.id } : undefined,
+      originalExitDate: { not: null },
+      warrantyDate: { gte: os.createdAt },
+      deletedAt: null
+    },
+    orderBy: {
+      originalExitDate: "asc"
+    }
+  });
+
+  if (!priorOS) return null;
+
+  return {
+    osNumber: priorOS.osNumber,
+    originalExitDate: priorOS.originalExitDate,
+    warrantyExpiresAt: priorOS.warrantyDate
+  };
+}
+
+// ─── Etiqueta automática "Em Garantia" ──────────────────────────────────────
+// Uma OS recebe (virtualmente — sem gravar no banco) a etiqueta "Em Garantia"
+// quando o equipamento está coberto por garantia:
+//   1) Reparo dentro da garantia MGV de 90 dias (existe OS anterior do mesmo
+//      cliente+aparelho com warrantyDate >= createdAt desta OS); OU
+//   2) Aparelho com garantia (warrantyExpiresAt) ainda vigente.
+// A etiqueta é criada uma única vez como etiqueta da oficina (ownerId NULL).
+const WARRANTY_TAG_NAME = "Em Garantia";
+const WARRANTY_TAG_SCOPE = "ORDEM_SERVICO";
+const WARRANTY_TAG_COLOR = "#0d9488";
+
+let warrantyTagIdCache: string | null = null;
+let warrantyTagIdPromise: Promise<string | null> | null = null;
+
+async function getWarrantyTagId(): Promise<string | null> {
+  if (warrantyTagIdCache) return warrantyTagIdCache;
+  if (!warrantyTagIdPromise) {
+    warrantyTagIdPromise = (async () => {
+      try {
+        let tag = await prisma.tag.findFirst({
+          where: { name: WARRANTY_TAG_NAME, scope: WARRANTY_TAG_SCOPE as any }
+        });
+        if (!tag) {
+          tag = await prisma.tag.create({
+            data: {
+              name: WARRANTY_TAG_NAME,
+              scope: WARRANTY_TAG_SCOPE as any,
+              colorHex: WARRANTY_TAG_COLOR,
+              ownerId: null,
+              description: "Equipamento em garantia (MGV 90 dias ou de fábrica). Adicionada automaticamente pelo sistema."
+            }
+          });
+        }
+        warrantyTagIdCache = tag.id;
+        return tag.id;
+      } catch (err) {
+        console.error("[WarrantyTag] Falha ao garantir a etiqueta:", err);
+        // Permite nova tentativa na próxima requisição (falha transitória do banco)
+        warrantyTagIdPromise = null;
+        return null;
+      }
+    })();
+  }
+  return warrantyTagIdPromise;
+}
+
+function ensureWarrantyTagOnOS(os: any, tagId: string): void {
+  if (!Array.isArray(os.tags)) os.tags = [];
+  if (!os.tags.some((t: any) => t.id === tagId)) {
+    os.tags = [
+      ...os.tags,
+      {
+        id: tagId,
+        name: WARRANTY_TAG_NAME,
+        colorHex: WARRANTY_TAG_COLOR,
+        scope: WARRANTY_TAG_SCOPE,
+        ownerId: null,
+        description: "Equipamento em garantia (MGV 90 dias ou de fábrica)."
+      }
+    ];
+  }
+}
+
+function isDeclaredWarranty(warrantyType?: WarrantyType | string | null): boolean {
+  return warrantyType === "FABRICA" || warrantyType === "MGV";
+}
+
+async function isOSInWarranty(os: { id?: string; clientId?: string | null; deviceId?: string | null; createdAt: Date | string; warrantyType?: WarrantyType | string | null }): Promise<boolean> {
+  if (!os.clientId || !os.deviceId) return false;
+  const created = new Date(os.createdAt);
+
+  // 0) Garantia declarada na própria OS (FABRICA ou MGV) — como a recepção registra
+  if (isDeclaredWarranty(os.warrantyType)) return true;
+
+  // 1) Reparo dentro da garantia MGV de 90 dias.
+  // IMPORTANTE: exclui a própria OS — na finalização o update de status já gravou
+  // originalExitDate/warrantyDate (+90 dias), o que faria a OS casar consigo mesma.
+  const prior = await prisma.ordemServico.findFirst({
+    where: {
+      clientId: os.clientId,
+      deviceId: os.deviceId,
+      id: os.id ? { not: os.id } : undefined,
+      originalExitDate: { not: null },
+      warrantyDate: { gte: created },
+      deletedAt: null
+    },
+    select: { id: true }
+  });
+  if (prior) return true;
+
+  // 2) Garantia do aparelho ainda vigente
+  const device = await prisma.device.findUnique({
+    where: { id: os.deviceId },
+    select: { warrantyExpiresAt: true }
+  });
+  return !!device?.warrantyExpiresAt && new Date(device.warrantyExpiresAt) > new Date();
+}
+
+async function applyWarrantyTagToOSList(osList: any[]): Promise<void> {
+  if (!Array.isArray(osList) || osList.length === 0) return;
+  const tagId = await getWarrantyTagId();
+  if (!tagId) return;
+
+  const active = osList.filter((o: any) => o.clientId && o.deviceId);
+  if (active.length === 0) return;
+
+  // Pares únicos (clientId + deviceId) → uma única consulta em lote
+  const pairMap = new Map<string, { clientId: string; deviceId: string }>();
+  for (const o of active) pairMap.set(`${o.clientId}|${o.deviceId}`, { clientId: o.clientId, deviceId: o.deviceId });
+  const pairs = Array.from(pairMap.values());
+
+  const warrantyOsIds = new Set<string>();
+
+  // 1) Reparo em garantia — lote
+  if (pairs.length > 0) {
+    const priorOS = await prisma.ordemServico.findMany({
+      where: {
+        deletedAt: null,
+        originalExitDate: { not: null },
+        warrantyDate: { not: null },
+        OR: pairs.map(p => ({ clientId: p.clientId, deviceId: p.deviceId }))
+      },
+      select: { id: true, clientId: true, deviceId: true, warrantyDate: true }
+    });
+    const byPair = new Map<string, { id: string; d: Date }[]>();
+    for (const p of priorOS) {
+      if (!p.warrantyDate) continue;
+      const key = `${p.clientId}|${p.deviceId}`;
+      const arr = byPair.get(key) || [];
+      arr.push({ id: p.id, d: p.warrantyDate });
+      byPair.set(key, arr);
+    }
+    for (const o of active) {
+      const arr = byPair.get(`${o.clientId}|${o.deviceId}`) || [];
+      const created = new Date(o.createdAt);
+      // Exclui a própria OS (na finalização ela já tem warrantyDate própria)
+      if (arr.some(e => e.id !== o.id && e.d >= created)) warrantyOsIds.add(o.id);
+    }
+  }
+
+  // 2) Garantia do aparelho — lote
+  const deviceIds = Array.from(new Set(active.map((o: any) => o.deviceId as string)));
+  const deviceInWarranty = new Set<string>();
+  if (deviceIds.length > 0) {
+    const devices = await prisma.device.findMany({
+      where: { id: { in: deviceIds } },
+      select: { id: true, warrantyExpiresAt: true }
+    });
+    const now = new Date();
+    for (const d of devices) {
+      if (d.warrantyExpiresAt && new Date(d.warrantyExpiresAt) > now) deviceInWarranty.add(d.id);
+    }
+  }
+
+  for (const o of osList) {
+    // Garantia declarada na própria OS (FABRICA/MGV) OU coberta por OS anterior OU aparelho vigente
+    const declaredWarranty = isDeclaredWarranty(o.warrantyType);
+    if (warrantyOsIds.has(o.id) || (o.deviceId && deviceInWarranty.has(o.deviceId)) || declaredWarranty) {
+      ensureWarrantyTagOnOS(o, tagId);
+    }
+  }
+}
+
 export class OSController {
   async getAll(req: Request, res: Response) {
     try {
@@ -212,10 +401,7 @@ export class OSController {
         blingKey: true,
         sefazErrorMessage: true,
         pdfUrl: true,
-        billingLogs: true,
-        checklistEntrada: true,
         checklistSaida: true,
-        laudoFotos: true,
         createdAt: true,
         originalExitDate: true,
         closingReason: true,
@@ -229,6 +415,7 @@ export class OSController {
         warrantyType: true,
         financialStatus: true,
         financialDueDate: true,
+        tags: true,
         ...(includeRelations && {
           client: {
             select: { id: true, name: true, cpfCnpj: true, phone: true, phone2: true, email: true, address: true }
@@ -307,28 +494,50 @@ export class OSController {
           }
         });
 
-        // For each recurrent OS, fetch its related OS within 90 days
-        for (const os of recurrentData) {
-          const ninetyDaysAgo = new Date(os.createdAt);
-          ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-          const ninetyDaysAfter = new Date(os.createdAt);
-          ninetyDaysAfter.setDate(ninetyDaysAfter.getDate() + 90);
-
-          const relatedOS = await prisma.ordemServico.findMany({
+        const deviceIds = recurrentData.map((os: any) => os.deviceId).filter((id: any): id is string => !!id);
+        
+        if (deviceIds.length > 0) {
+          const allRelatedOSs = await prisma.ordemServico.findMany({
             where: {
-              deviceId: os.deviceId,
-              deletedAt: null,
-              createdAt: { gte: ninetyDaysAgo, lte: ninetyDaysAfter }
+              deviceId: { in: deviceIds },
+              deletedAt: null
             },
-            select: { osNumber: true, createdAt: true },
+            select: {
+              deviceId: true,
+              osNumber: true,
+              createdAt: true
+            },
             orderBy: { createdAt: "asc" }
           });
 
-          if (relatedOS.length >= 3) {
-            recurrentAlertsMap.set(os.id, {
-              count: relatedOS.length,
-              previousOsNumbers: relatedOS.map((o: any) => o.osNumber)
-            });
+          const relatedByDeviceMap = new Map<string, Array<{ osNumber: string; createdAt: Date }>>();
+          for (const rel of allRelatedOSs) {
+            if (!rel.deviceId) continue;
+            let list = relatedByDeviceMap.get(rel.deviceId);
+            if (!list) {
+              list = [];
+              relatedByDeviceMap.set(rel.deviceId, list);
+            }
+            list.push({ osNumber: rel.osNumber, createdAt: rel.createdAt });
+          }
+
+          for (const os of recurrentData) {
+            if (!os.deviceId) continue;
+            const deviceOSs = relatedByDeviceMap.get(os.deviceId) || [];
+            
+            const ninetyDaysAgo = new Date(os.createdAt);
+            ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+            const ninetyDaysAfter = new Date(os.createdAt);
+            ninetyDaysAfter.setDate(ninetyDaysAfter.getDate() + 90);
+
+            const filtered = deviceOSs.filter(o => o.createdAt >= ninetyDaysAgo && o.createdAt <= ninetyDaysAfter);
+
+            if (filtered.length >= 3) {
+              recurrentAlertsMap.set(os.id, {
+                count: filtered.length,
+                previousOsNumbers: filtered.map(o => o.osNumber)
+              });
+            }
           }
         }
       }
@@ -354,15 +563,10 @@ export class OSController {
           blingKey: os.blingKey,
           sefazErrorMessage: os.sefazErrorMessage,
           pdfUrl: os.pdfUrl,
-          billingLogs: typeof os.billingLogs === "string" ? JSON.parse(os.billingLogs) : os.billingLogs,
-          checklistEntrada: typeof os.checklistEntrada === "string" ? JSON.parse(os.checklistEntrada || "[]") : os.checklistEntrada || [],
+          billingLogs: [],
+          checklistEntrada: [],
           checklistSaida: typeof os.checklistSaida === "string" ? JSON.parse(os.checklistSaida || "[]") : os.checklistSaida || [],
-          laudoFotos: (typeof os.laudoFotos === "string" ? JSON.parse(os.laudoFotos || "[]") : os.laudoFotos || []).map((f: any) => ({
-            id: f.id,
-            legenda: f.legenda,
-            capturedAt: f.capturedAt,
-            dataUrl: "" // Omit Base64 payload in list
-          })),
+          laudoFotos: [],
           createdAt: os.createdAt.toISOString(),
           deletedAt: null,
           originalExitDate: os.originalExitDate ? os.originalExitDate.toISOString() : null,
@@ -382,6 +586,7 @@ export class OSController {
           otherCost: os.otherCost,
           discount: os.discount,
           paymentMethod: os.paymentMethod,
+          tags: Array.isArray(os.tags) ? os.tags : [],
         };
         return sanitizeOSData(rawOS, showProfit);
       });
@@ -416,6 +621,9 @@ export class OSController {
         }
       });
 
+      // Etiqueta automática de garantia (lote — evita N+1)
+      await applyWarrantyTagToOSList(responseData);
+
       res.json({
         data: responseData,
         total,
@@ -438,7 +646,10 @@ export class OSController {
         where: { id },
         include: {
           client: true,
-          device: true
+          device: true,
+          tags: {
+            include: { owner: { select: { id: true, name: true } } }
+          }
         }
       });
       if (!os || os.deletedAt) {
@@ -570,8 +781,15 @@ export class OSController {
         recurrent: os.recurrent,
         recurrentAlert,
         discount: os.discount,
-        paymentMethod: os.paymentMethod
+        paymentMethod: os.paymentMethod,
+        tags: (os as any).tags || []
       };
+
+      // Etiqueta automática de garantia
+      const warrantyTagId = await getWarrantyTagId();
+      if (warrantyTagId && await isOSInWarranty(os)) {
+        ensureWarrantyTagOnOS(rawOS, warrantyTagId);
+      }
 
       res.json(sanitizeOSData(rawOS, showProfit));
     } catch (err: any) {
@@ -580,7 +798,7 @@ export class OSController {
   }
 
   async create(req: Request, res: Response) {
-    const { clientId, deviceId, reportedDefect, accessoriesLeft, physicalState, checklistEntrada, laudoFotos, warrantyType } = req.body;
+    const { clientId, deviceId, reportedDefect, accessoriesLeft, physicalState, checklistEntrada, laudoFotos, warrantyType, tagIds } = req.body;
     
     if (!clientId || !deviceId || !reportedDefect) {
       res.status(422).json({ error: "O preenchimento do Cliente, Dispositivo e Defeito Relatado é estritamente obrigatório." });
@@ -617,7 +835,10 @@ export class OSController {
           laudoFotos: processedPhotos,
           billingStatus: "PENDENTE",
           billingLogs: [],
-          warrantyType: warrantyType || "NENHUMA"
+          warrantyType: warrantyType || "NENHUMA",
+          tags: tagIds && tagIds.length > 0 ? {
+            connect: tagIds.map((id: string) => ({ id }))
+          } : undefined
         }
       });
 
@@ -638,7 +859,7 @@ export class OSController {
         version: 1
       });
 
-      res.status(201).json({
+      const createdResponse: any = {
         ...newOS,
         laudoMacro: "",
         usedParts: [],
@@ -651,8 +872,18 @@ export class OSController {
         warrantyType: newOS.warrantyType,
         financialStatus: newOS.financialStatus,
         financialDueDate: newOS.financialDueDate ? newOS.financialDueDate.toISOString() : null,
-        recurrentAlert: isRecurrent ? await getRecurrentAlert(newOS) : null
-      });
+        recurrentAlert: isRecurrent ? await getRecurrentAlert(newOS) : null,
+        warrantyNotice: await getWarrantyNotice(newOS),
+        tags: []
+      };
+
+      // Etiqueta automática de garantia
+      const warrantyTagId = await getWarrantyTagId();
+      if (warrantyTagId && await isOSInWarranty(newOS)) {
+        ensureWarrantyTagOnOS(createdResponse, warrantyTagId);
+      }
+
+      res.status(201).json(createdResponse);
     } catch (err: any) {
       if (err.message && err.message.includes("Limite de 6 fotos")) {
         res.status(400).json({ error: err.message });
@@ -664,7 +895,7 @@ export class OSController {
 
   async update(req: Request, res: Response) {
     const { id } = req.params;
-    const { diagnostic, laudoMacro, usedParts, laborCost, technicianLaborHours, technicianHourlyRate, checklistEntrada, laudoFotos, warrantyType, financialStatus, financialDueDate, discount } = req.body;
+    const { diagnostic, laudoMacro, usedParts, laborCost, technicianLaborHours, technicianHourlyRate, checklistEntrada, laudoFotos, warrantyType, financialStatus, financialDueDate, discount, tagIds, benchLocation, returnMethod, packagingCleaned } = req.body;
 
     try {
       const currentOS = await prisma.ordemServico.findUnique({
@@ -755,9 +986,9 @@ export class OSController {
                 where: { id: freshPart.id },
                 data: { stock: { decrement: item.quantity } }
               });
-              
               if (item.costSnapshot === undefined) {
-                item.costSnapshot = freshPart.cost || 0;
+                const prevItemMatch = prevParts.find((p: any) => p.id === item.id && p.partId === item.partId);
+                item.costSnapshot = prevItemMatch?.costSnapshot !== undefined ? prevItemMatch.costSnapshot : (freshPart.cost || 0);
               }
             }
           });
@@ -796,8 +1027,17 @@ export class OSController {
           laudoFotos: processedPhotos !== undefined ? processedPhotos : currentOS.laudoFotos,
           warrantyType: warrantyType !== undefined ? warrantyType : currentOS.warrantyType,
           financialStatus: financialStatus !== undefined ? financialStatus : currentOS.financialStatus,
-          financialDueDate: financialDueDate !== undefined ? (financialDueDate ? new Date(financialDueDate) : null) : currentOS.financialDueDate
-        }
+          financialDueDate: financialDueDate !== undefined ? (financialDueDate ? new Date(financialDueDate) : null) : currentOS.financialDueDate,
+          benchLocation: benchLocation !== undefined ? benchLocation : currentOS.benchLocation,
+          returnMethod: returnMethod !== undefined ? returnMethod : currentOS.returnMethod,
+          packagingCleaned: packagingCleaned !== undefined ? packagingCleaned : currentOS.packagingCleaned,
+          tags: tagIds !== undefined ? { set: tagIds.map((id: string) => ({ id })) } : undefined
+        },
+        ...(tagIds !== undefined && {
+          include: {
+            tags: { include: { owner: { select: { id: true, name: true } } } }
+          }
+        })
       });
 
       // Auditoria
@@ -828,8 +1068,15 @@ export class OSController {
         warrantyType: updated.warrantyType,
         financialStatus: updated.financialStatus,
         financialDueDate: updated.financialDueDate ? updated.financialDueDate.toISOString() : null,
-        recurrentAlert: await getRecurrentAlert(updated)
+        recurrentAlert: await getRecurrentAlert(updated),
+        tags: Array.isArray((updated as any).tags) ? (updated as any).tags : []
       };
+
+      // Etiqueta automática de garantia
+      const warrantyTagId = await getWarrantyTagId();
+      if (warrantyTagId && await isOSInWarranty(updated)) {
+        ensureWarrantyTagOnOS(rawOS, warrantyTagId);
+      }
 
       res.json(sanitizeOSData(rawOS, showProfit));
     } catch (err: any) {
@@ -843,7 +1090,7 @@ export class OSController {
 
   async updateLaudoFotos(req: Request, res: Response) {
     const { id } = req.params;
-    const { checklistEntrada, laudoFotos } = req.body;
+    const { checklistEntrada, laudoFotos, accessoriesLeft, physicalState } = req.body;
 
     try {
       const currentOS = await prisma.ordemServico.findUnique({
@@ -865,7 +1112,9 @@ export class OSController {
         where: { id },
         data: {
           checklistEntrada: checklistEntrada !== undefined ? checklistEntrada : currentOS.checklistEntrada,
-          laudoFotos: processedPhotos !== undefined ? processedPhotos : currentOS.laudoFotos
+          laudoFotos: processedPhotos !== undefined ? processedPhotos : currentOS.laudoFotos,
+          accessoriesLeft: accessoriesLeft !== undefined ? accessoriesLeft : currentOS.accessoriesLeft,
+          physicalState: physicalState !== undefined ? physicalState : currentOS.physicalState
         }
       });
 
@@ -965,7 +1214,7 @@ export class OSController {
 
   async updateStatus(req: Request, res: Response) {
     const { id } = req.params;
-    const { status, closingReason, paymentMethod, invoiceType } = req.body;
+    const { status, closingReason, paymentMethod, invoiceType, paymentNotes, paymentDate, paymentDetails } = req.body;
 
     if (!status) {
       res.status(400).json({ error: "Status é obrigatório." });
@@ -999,8 +1248,11 @@ export class OSController {
         }
       }
 
-      // DDD: Validação de Máquina de Estados Finita (FSM)
-      if (!await OSStateMachine.canTransition(previousStatus, targetStatus)) {
+      // DDD: Validação de Máquina de Estados Finita (FSM) (Bypass para OWNER, ADMIN e SUPERVISOR)
+      const userRole = req.headers["x-user-role"] as string;
+      const isManager = userRole === "OWNER" || userRole === "ADMIN" || userRole === "SUPERVISOR";
+
+      if (!isManager && !await OSStateMachine.canTransition(previousStatus, targetStatus)) {
         res.status(422).json({
           error: `Transição de status inválida: Não é permitido mover de '${previousStatus}' para '${targetStatus}'.`,
           code: "INVALID_STATE_TRANSITION"
@@ -1058,18 +1310,55 @@ export class OSController {
         }
       }
 
+      const isDeliveryStatus =
+        targetStatus === "PRONTO_RETIRADA" ||
+        targetStatus === "PAGO_PRONTO_RETIRADA" ||
+        targetStatus === "FINALIZADO";
+
+      const firstExitDate = currentOS.originalExitDate || new Date();
+      const warrantyExpires = new Date(firstExitDate);
+      warrantyExpires.setDate(warrantyExpires.getDate() + 90);
+
+      let profitValue: number | null = null;
+      let profitMarginPercent: number | null = null;
+
+      if (targetStatus === "FINALIZADO") {
+        const partsCostValue = osUsedParts.reduce((sum: number, item: any) => sum + ((item.costSnapshot || 0) * (item.quantity || 1)), 0);
+        const laborCostValue = (currentOS.technicianLaborHours || 0) * (currentOS.technicianHourlyRate || 0);
+        const opsCost = partsCostValue + laborCostValue;
+        
+        profitValue = currentOS.totalCost - opsCost;
+        if (currentOS.totalCost > 0) {
+          profitMarginPercent = (profitValue / currentOS.totalCost) * 100;
+        } else {
+          profitMarginPercent = 0;
+        }
+      }
+
       const updated = await prisma.ordemServico.update({
         where: { id },
         data: {
           status: targetStatus,
           paymentMethod: paymentMethod !== undefined ? paymentMethod : undefined,
-          ...(targetStatus === "FINALIZADO" ? { 
-            originalExitDate: new Date(),
-            closingReason: closingReason || 'REPARO_CONCLUIDO'
-          } : {
-            // Se reabriu ou mudou para outro status, resetamos o closingReason para null
-            closingReason: null
-          })
+          paymentNotes: paymentNotes !== undefined ? paymentNotes : undefined,
+          paymentDate: paymentDate ? new Date(paymentDate) : undefined,
+          paymentDetails: paymentDetails !== undefined ? paymentDetails : undefined,
+          ...(isDeliveryStatus
+            ? {
+                originalExitDate: firstExitDate,
+                warrantyDate: warrantyExpires,
+                ...(targetStatus === "FINALIZADO"
+                  ? { 
+                      closingReason: closingReason || 'REPARO_CONCLUIDO',
+                      profitValue,
+                      profitMarginPercent
+                    }
+                  : { closingReason: null })
+              }
+            : {
+                // Se reabriu ou mudou para outro status, resetamos o closingReason para null
+                closingReason: null
+              })
         }
       });
 
@@ -1084,6 +1373,19 @@ export class OSController {
         version: 1
       });
 
+      // INTEGRAÇÃO WHATSAPP (Automática)
+      // Dispara para PRONTO_RETIRADA ou FINALIZADO sem reparo (orçamento recusado, descarte)
+      if (
+        targetStatus === "PRONTO_RETIRADA" || 
+        (targetStatus === "FINALIZADO" && isSemReparo)
+      ) {
+        import("../services/whatsapp").then(({ triggerWhatsAppNotification }) => {
+          triggerWhatsAppNotification(updated.id, targetStatus).catch(err => {
+            console.error("[WhatsApp] Erro em background disparando notificação:", err);
+          });
+        });
+      }
+
       if (targetStatus === "FINALIZADO" && previousStatus !== "FINALIZADO") {
         if (isSemReparo) {
           // Encerramentos sem reparo: Não faturam no Bling, marcamos como DISPENSADO
@@ -1092,6 +1394,35 @@ export class OSController {
             data: {
               billingStatus: "DISPENSADO",
               billingLogs: ["Status alterado para FINALIZADO sem reparo.", "Faturamento do Bling dispensado."]
+            }
+          });
+        } else if (await isOSInWarranty(currentOS)) {
+          // Equipamento em garantia → sem cobrança: faturamento e pagamento dispensados
+          // automaticamente (não chama o Bling nem gera nota fiscal).
+          await prisma.ordemServico.update({
+            where: { id },
+            data: {
+              billingStatus: "DISPENSADO",
+              financialStatus: "PAGO",
+              // Defesa em profundidade: garante que nenhum dado de pagamento fique
+              // registrado numa OS em garantia (mesmo se um cliente antigo enviar).
+              paymentMethod: null,
+              paymentNotes: null,
+              paymentDate: null,
+              paymentDetails: [],
+              billingLogs: [
+                "Status alterado para FINALIZADO.",
+                "Equipamento em garantia — faturamento e cobrança dispensados automaticamente."
+              ]
+            }
+          });
+        } else if (invoiceType === "nenhum") {
+          // Usuário marcou para não emitir nada
+          await prisma.ordemServico.update({
+            where: { id },
+            data: {
+              billingStatus: "DISPENSADO",
+              billingLogs: ["Status alterado para FINALIZADO.", "Integração fiscal e faturamento dispensados (opção 'Não emitir' selecionada)."]
             }
           });
         } else {
@@ -1171,7 +1502,19 @@ export class OSController {
         }
       }
 
-      const userRole = req.headers["x-user-role"] as string;
+      // Re-lê o estado pós-faturamento para a resposta refletir DISPENSADO/PROCESSANDO/REJEITADO
+      // (o snapshot `updated` é anterior ao bloco de faturamento acima).
+      const postBilling = await prisma.ordemServico.findUnique({
+        where: { id },
+        select: { billingStatus: true, billingLogs: true, financialStatus: true, financialDueDate: true }
+      });
+      if (postBilling) {
+        updated.billingStatus = postBilling.billingStatus;
+        updated.billingLogs = postBilling.billingLogs;
+        updated.financialStatus = postBilling.financialStatus;
+        updated.financialDueDate = postBilling.financialDueDate;
+      }
+
       const isProfitEnabled = await featureFlags.isEnabled("OS_PROFITABILITY_CALC");
       const showProfit = userRole === "OWNER" && isProfitEnabled;
 
@@ -1182,8 +1525,15 @@ export class OSController {
         checklistEntrada: typeof updated.checklistEntrada === "string" ? JSON.parse(updated.checklistEntrada || "[]") : updated.checklistEntrada || [],
         checklistSaida: typeof updated.checklistSaida === "string" ? JSON.parse(updated.checklistSaida || "[]") : updated.checklistSaida || [],
         laudoFotos: typeof updated.laudoFotos === "string" ? JSON.parse(updated.laudoFotos || "[]") : updated.laudoFotos || [],
-        createdAt: updated.createdAt.toISOString()
+        createdAt: updated.createdAt.toISOString(),
+        tags: Array.isArray((updated as any).tags) ? (updated as any).tags : []
       };
+
+      // Etiqueta automática de garantia
+      const warrantyTagId = await getWarrantyTagId();
+      if (warrantyTagId && await isOSInWarranty(updated)) {
+        ensureWarrantyTagOnOS(rawOS, warrantyTagId);
+      }
 
       res.json(sanitizeOSData(rawOS, showProfit));
     } catch (err: any) {

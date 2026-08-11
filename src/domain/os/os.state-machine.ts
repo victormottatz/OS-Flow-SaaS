@@ -9,6 +9,7 @@ export interface StateTransition {
 export class OSStateMachine {
   private static validTransitions: StateTransition[] = [
     { from: "AGUARDANDO_AVALIACAO", to: "AGUARDANDO_AUTORIZACAO" },
+    { from: "AGUARDANDO_AVALIACAO", to: "EM_MANUTENCAO" }, // Permite pular autorização para garantia ou início direto
     { from: "AGUARDANDO_AVALIACAO", to: "FINALIZADO" },
     { from: "AGUARDANDO_AUTORIZACAO", to: "EM_MANUTENCAO" },
     { from: "AGUARDANDO_AUTORIZACAO", to: "AGUARDANDO_PECA" },

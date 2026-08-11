@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard';
 
 interface SettingItem {
   id: string;
@@ -17,6 +18,10 @@ export default function SystemConfigPanel() {
 
   // Armazena valores alterados localmente
   const [localValues, setLocalValues] = useState<Record<string, string>>({});
+
+  // Guarda de alterações não salvas (configurações do sistema)
+  const systemConfigDirty = Object.keys(localValues).length > 0;
+  useUnsavedChangesGuard(systemConfigDirty);
 
   const fetchSettings = async () => {
     try {

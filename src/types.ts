@@ -24,6 +24,19 @@ export interface User {
   createdAt: string;
 }
 
+export type TagScope = 'GLOBAL' | 'CLIENT' | 'DEVICE' | 'ORDEM_SERVICO';
+
+export interface Tag {
+  id: string;
+  name: string;
+  colorHex: string;
+  scope?: TagScope;
+  description?: string;
+  ownerId?: string | null;
+  owner?: { id: string; name: string } | null;
+  createdAt?: string;
+}
+
 export interface Client {
   id: string;
   name: string;
@@ -38,6 +51,7 @@ export interface Client {
   stateInscription?: string;
   rg?: string;
   deletedAt?: string | null;
+  tags?: Tag[];
 }
 
 export interface Device {
@@ -51,6 +65,7 @@ export interface Device {
   deletedAt?: string | null;
   warrantyExpiresAt?: string | null;
   lastMaintenanceAt?: string | null;
+  tags?: Tag[];
 }
 
 export type OSStatus = 'AGUARDANDO_AVALIACAO' | 'AGUARDANDO_AUTORIZACAO' | 'AGUARDANDO_PECA' | 'EM_MANUTENCAO' | 'PRONTO_RETIRADA' | 'PAGO_PRONTO_RETIRADA' | 'FINALIZADO';
@@ -192,6 +207,8 @@ export interface OrdemServico {
   blingId?: string;
   blingKey?: string;
   sefazErrorMessage?: string;
+  messageHistories?: any[];
+  tags?: any[];
   pdfUrl?: string;
   billingLogs?: string[];
   paymentMethod?: string | null;
@@ -202,6 +219,9 @@ export interface OrdemServico {
   createdAt: string;
   originalExitDate?: string | null;
   closingReason?: OSClosingReason | null;
+  profitValue?: number | null;
+  profitMarginPercent?: number | null;
+  abandonAlert?: Date | null;
   client?: Client | null;
   device?: Device | null;
   warrantyType: WarrantyType;
@@ -209,11 +229,12 @@ export interface OrdemServico {
   financialDueDate?: string | null;
 
   // Rentabilidade (Virtual / Computado no backend para OWNER)
-  profitValue?: number | null;
-  profitMarginPercent?: number | null;
   hasZeroCostParts?: boolean;
 
   // Motor de Recorrência (Virtual / Computado no backend)
   recurrentAlert?: { count: number; previousOsNumbers: string[] } | null;
+
+  // Aviso de Garantia (Virtual / Computado no backend)
+  warrantyNotice?: { osNumber: string; originalExitDate: string; warrantyExpiresAt: string } | null;
 }
 

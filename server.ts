@@ -13,6 +13,7 @@ import { UserRole } from "./src/types";
 import { PrismaClient } from "@prisma/client";
 import { authenticateJWT, requireAuth, checkRole } from "./src/middlewares/auth";
 import apiRoutes from "./src/routes";
+import { registerSubscribers } from "./src/events/subscribers";
 
 const prisma = new PrismaClient();
 const DB_FILE = path.join(process.cwd(), "database.json");
@@ -82,11 +83,12 @@ async function startServer() {
 
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  app.use("/uploads", express.static(path.join(process.cwd(), "public", "uploads")));
 
   // Inicia a rotina de backup em background
   startWeeklyBackupRoutine();
 
-  // Database Migration seeder on boot: Hash any plain text passwords to bcrypt in Supabase
+  // Database Migration seeder on boot: Hash passwords and ensure default role permissions (including TECHNICIAN / Bada)
   try {
     const users = await prisma.user.findMany();
     for (const u of users) {
@@ -100,12 +102,43 @@ async function startServer() {
         });
       }
     }
+
+    // Garantir permissões do perfil TECHNICIAN para visualização total do Kanban (Bada)
+    const techPermissions = [
+      'os.view', 'os.create', 'os.edit', 'os.change_status', 'os.finish', 'os.stress_test',
+      'parts.view', 'parts.manage', 'clients.view', 'clients.manage', 'devices.notes',
+      'financial.view', 'bling.view', 'bling.sync', 'whatsapp.send', 'users.view'
+    ];
+
+    for (const perm of techPermissions) {
+      const exists = await prisma.rolePermission.findFirst({
+        where: { role: 'TECHNICIAN', permission: perm }
+      });
+      if (!exists) {
+        await prisma.rolePermission.create({
+          data: { role: 'TECHNICIAN', permission: perm }
+        });
+      }
+    }
+
+    // Garantir permissões diretas no cadastro do usuário Bada
+    const badaUser = users.find(u => u.name.toLowerCase().includes('bada'));
+    if (badaUser && (!badaUser.permissions || !badaUser.permissions.includes('os.view'))) {
+      await prisma.user.update({
+        where: { id: badaUser.id },
+        data: { permissions: techPermissions }
+      });
+      console.log(`[Boot Seeder] Permissões totais concedidas ao usuário Bada (${badaUser.email}).`);
+    }
   } catch (err) {
     console.error("[Database Migration] Error during initialization seeder:", err);
   }
 
   // Middleware de Autenticação JWT com blindagem contra header spoofing
   app.use(authenticateJWT);
+
+  // Registra os ouvintes (subscribers) do EventBus
+  registerSubscribers();
 
   // DEBUG DB: Endpoint de diagnóstico (protegido exclusivamente para OWNER/ADMIN)
   app.get("/api/debug-db", requireAuth, checkRole(UserRole.OWNER, UserRole.ADMIN), async (req, res) => {
@@ -134,7 +167,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, () => {
+  app.listen(PORT, "0.0.0.0", () => {
     console.log(`[MGV Server] Servidor executando em http://localhost:${PORT}`);
   });
 }
