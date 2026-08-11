@@ -1,10 +1,10 @@
-# Documento Discovery: MGV Assistência Técnica
+# Documento Discovery: MGV One Hub
 
 > [!NOTE]
-> Este documento resume a fase de Descoberta (Discovery) e o mapa arquitetural do projeto **MGV Assistência Técnica**. O objetivo é guiar novos desenvolvedores e stakeholders sobre o contexto, a stack tecnológica e as decisões estruturais.
+> Este documento resume a fase de Descoberta (Discovery) e o mapa arquitetural do projeto **MGV One Hub**. O objetivo é guiar novos desenvolvedores e stakeholders sobre o contexto, a stack tecnológica e as decisões estruturais.
 
 ## 1. Visão Geral do Produto
-O MGV Assistência Técnica é um sistema web integrado projetado para substituir soluções legadas desktop (ex: SH Oficina). Ele centraliza a gestão de Ordens de Serviço (OS), clientes, peças/estoque, proporcionando também um Portal Público para que o cliente final acompanhe o status do seu reparo usando o CPF e o número da OS.
+O MGV One Hub é um sistema web integrado projetado para substituir soluções legadas desktop (ex: SH Oficina). Ele centraliza a gestão de Ordens de Serviço (OS), clientes, peças/estoque, proporcionando também um Portal Público para que o cliente final acompanhe o status do seu reparo usando o CPF e o número da OS.
 
 ## 2. Tecnologias e Stack (O "Motor" do Sistema)
 

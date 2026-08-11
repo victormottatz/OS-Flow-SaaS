@@ -225,8 +225,11 @@ export async function buildDocumentPdf(
           { text: client?.name || "N/D", fontSize: 8.5, bold: true, color: "#0f172a", margin: [0, 3, 0, 0] },
           { text: `Documento: ${client?.cpfCnpj || "N/D"}`, fontSize: 6.5, color: "#334155", margin: [0, 2, 0, 0] },
           { text: `Contato: ${client?.phone || "N/D"}`, fontSize: 6.5, color: "#334155", margin: [0, 1, 0, 0] },
-          ...(client?.address
-            ? [{ text: `Endereço: ${client.address}`, fontSize: 6.5, color: "#64748b", margin: [0, 2, 0, 0] }]
+          ...(client?.email
+            ? [{ text: `E-mail: ${client.email}`, fontSize: 6.5, color: "#334155", margin: [0, 1, 0, 0] }]
+            : []),
+          ...(client?.address || client?.zipCode
+            ? [{ text: `Endereço: ${client?.address || "N/D"}${client?.zipCode ? ` - CEP: ${client.zipCode}` : ""}`, fontSize: 6.5, color: "#64748b", margin: [0, 2, 0, 0] }]
             : [])
         ])
       );

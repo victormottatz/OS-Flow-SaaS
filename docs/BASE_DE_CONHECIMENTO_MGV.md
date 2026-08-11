@@ -1,4 +1,4 @@
-# Base de Conhecimento — MGV Sistema Integrado
+# Base de Conhecimento — MGV One Hub
 
 > **Versão:** 1.0  
 > **Data de Geração:** 18 de Julho de 2026  
@@ -29,7 +29,7 @@
 
 ## 1.1. Objetivo do Sistema
 
-O **MGV Sistema Integrado** é um sistema web proprietário de **gestão operacional e automação fiscal** desenvolvido especificamente para a assistência técnica **MGV**. Foi projetado para substituir o sistema desktop legado **SH Oficina**, migrando toda a operação para uma plataforma moderna, cloud-first, com integração fiscal direta.
+O **MGV One Hub** é um sistema web proprietário de **gestão operacional e automação fiscal** desenvolvido especificamente para a assistência técnica **MGV**. Foi projetado para substituir o sistema desktop legado **SH Oficina**, migrando toda a operação para uma plataforma moderna, cloud-first, com integração fiscal direta.
 
 ## 1.2. Tipo de Negócio Atendido
 
@@ -1643,7 +1643,7 @@ graph TB
 
 ---
 
-> **Fim da Base de Conhecimento — MGV Sistema Integrado v1.0**
+> **Fim da Base de Conhecimento — MGV One Hub v1.0**
 > 
 > Este documento é a referência oficial do projeto e deve ser atualizado conforme novas funcionalidades são implementadas.
 > Última atualização: 18 de Julho de 2026.

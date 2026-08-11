@@ -1,5 +1,14 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { OSStateMachine } from "../../src/domain/os/os.state-machine";
+
+// Mock do Prisma para evitar conexões de rede durante os testes unitários
+vi.mock("../../src/database/prisma", () => ({
+  default: {
+    officeSetting: {
+      findUnique: vi.fn().mockResolvedValue(null)
+    }
+  }
+}));
 
 describe("OSStateMachine - Regras de Transição de Estado", () => {
   it("deve permitir transições válidas do fluxo padrão", async () => {

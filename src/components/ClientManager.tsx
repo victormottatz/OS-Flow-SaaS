@@ -437,6 +437,17 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
       setEditSuccessMsg("Dispositivo atualizado com sucesso!");
       onRefresh();
 
+      if (selectedDevice360) {
+        setSelectedDevice360({
+          ...selectedDevice360,
+          type: data.type,
+          brand: data.brand,
+          model: data.model,
+          serialNumber: data.serialNumber,
+          description: data.description
+        });
+      }
+
       if (activeClient360Id) {
         openClient360(activeClient360Id);
       }
@@ -450,6 +461,34 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
     } finally {
       setEditLoading(false);
     }
+  };
+
+  // Quem pode gerenciar/editar a Base Instalada (alinha com a permissão clients.manage:
+  // OWNER, ADMIN, ATTENDANT e TECHNICIAN possuem esta permissão na Matriz de Acessos)
+  const canManageDevices =
+    userRole === UserRole.OWNER ||
+    userRole === UserRole.ADMIN ||
+    userRole === UserRole.ATTENDANT ||
+    userRole === UserRole.TECHNICIAN;
+
+  // Abre o modal de edição de equipamento pré-carregando os dados atuais
+  const openEditDeviceModal = (dev: any) => {
+    setEditDeviceId(dev.id);
+    const splitIdx = dev.type.indexOf(" / ");
+    if (splitIdx > -1) {
+      setEditDevType(dev.type.substring(0, splitIdx));
+      setEditDevExtraType(dev.type.substring(splitIdx + 3));
+    } else {
+      setEditDevType(dev.type);
+      setEditDevExtraType("");
+    }
+    setEditDevBrand(dev.brand === "Indefinido" ? "" : dev.brand);
+    setEditDevModel(dev.model === "Indefinido" ? "" : dev.model);
+    setEditDevSerial(dev.serialNumber === "Sem Série" ? "" : dev.serialNumber);
+    setEditDevDesc(dev.description === "Sem observações." ? "" : dev.description);
+    setEditErrorMsg("");
+    setEditSuccessMsg("");
+    setShowEditDeviceModal(true);
   };
 
   // Helper validation for CPF/CNPJ
@@ -1014,14 +1053,22 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {client.devices.map((dev) => (
-                        <button 
-                          key={dev.id} 
+                        <div
+                          key={dev.id}
                           onClick={() => openDeviceHistory(dev)}
-                          className="bg-slate-50/60 p-3 rounded-xl border border-slate-200 text-xs hover:border-indigo-400 hover:shadow-sm hover:bg-indigo-50/30 transition duration-150 text-left cursor-pointer focus:outline-none"
+                          className="bg-slate-50/60 p-3 rounded-xl border border-slate-200 text-xs hover:border-indigo-400 hover:shadow-sm hover:bg-indigo-50/30 transition duration-150 text-left cursor-pointer focus:outline-none group"
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              openDeviceHistory(dev);
+                            }
+                          }}
                         >
-                          <div className="flex items-center justify-between font-bold text-slate-800">
-                            <span>{dev.type} ({dev.brand})</span>
-                            <span className={`font-mono text-[9px] uppercase px-2 py-0.5 rounded-full border ${
+                          <div className="flex items-center justify-between gap-2 font-bold text-slate-800">
+                            <span className="truncate">{dev.type} ({dev.brand})</span>
+                            <span className={`font-mono text-[9px] uppercase px-2 py-0.5 rounded-full border shrink-0 ${
                               dev.serialNumber === "Sem Série" ? "bg-amber-100 text-amber-800 border-amber-250/50" : "bg-slate-200 text-slate-700 border-slate-300"
                             }`}>
                               N/S: {dev.serialNumber}
@@ -1031,7 +1078,23 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
                           <p className="text-slate-500 text-[11px] mt-1 italic pointer-events-none line-clamp-2" title={dev.description}>
                             {dev.description}
                           </p>
-                        </button>
+                          {canManageDevices && (
+                            <div className="flex justify-end mt-2 pt-2 border-t border-slate-100 opacity-70 group-hover:opacity-100 transition-opacity duration-150">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openEditDeviceModal(dev);
+                                }}
+                                className="flex items-center gap-1 text-[10px] font-extrabold text-blue-600 hover:text-blue-700 uppercase tracking-wider transition active:scale-95 cursor-pointer"
+                                title="Ajustar dados do cadastro do equipamento"
+                              >
+                                <span className="material-symbols-outlined text-[13px]">edit_note</span>
+                                <span>Ajustar Ativo</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       ))}
                     </div>
                   )}
@@ -1642,9 +1705,20 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
                 <span className="material-symbols-outlined text-[20px] text-teal-400">medical_services</span>
                 <h3 className="font-bold text-base font-display">Prontuário Técnico do Equipamento</h3>
               </div>
-              <button onClick={() => { setSelectedDevice360(null); setProntuarioData(null); }} className="text-slate-400 hover:text-white transition cursor-pointer">
-                <span className="material-symbols-outlined text-[20px]">close</span>
-              </button>
+              <div className="flex items-center gap-2">
+                {canManageDevices && (
+                  <button
+                    onClick={() => openEditDeviceModal(selectedDevice360)}
+                    className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider bg-teal-500/15 hover:bg-teal-500/30 text-teal-300 hover:text-teal-200 border border-teal-400/30 hover:border-teal-300/50 px-3 py-1.5 rounded-lg transition active:scale-95 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">edit_note</span>
+                    <span>Ajustar Ativo</span>
+                  </button>
+                )}
+                <button onClick={() => { setSelectedDevice360(null); setProntuarioData(null); }} className="text-slate-400 hover:text-white transition cursor-pointer">
+                  <span className="material-symbols-outlined text-[20px]">close</span>
+                </button>
+              </div>
             </div>
             
             <div className="p-6 bg-slate-50 border-b border-slate-200">
@@ -2198,24 +2272,7 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
                                       </span>
                                     )}
                                     <button
-                                      onClick={() => {
-                                        setEditDeviceId(dev.id);
-                                        const splitIdx = dev.type.indexOf(" / ");
-                                        if (splitIdx > -1) {
-                                          setEditDevType(dev.type.substring(0, splitIdx));
-                                          setEditDevExtraType(dev.type.substring(splitIdx + 3));
-                                        } else {
-                                          setEditDevType(dev.type);
-                                          setEditDevExtraType("");
-                                        }
-                                        setEditDevBrand(dev.brand === "Indefinido" ? "" : dev.brand);
-                                        setEditDevModel(dev.model === "Indefinido" ? "" : dev.model);
-                                        setEditDevSerial(dev.serialNumber === "Sem Série" ? "" : dev.serialNumber);
-                                        setEditDevDesc(dev.description === "Sem observações." ? "" : dev.description);
-                                        setEditErrorMsg("");
-                                        setEditSuccessMsg("");
-                                        setShowEditDeviceModal(true);
-                                      }}
+                                      onClick={() => openEditDeviceModal(dev)}
                                       className="text-[10px] font-extrabold text-blue-650 hover:text-blue-755 uppercase tracking-wider flex items-center space-x-1 transition active:scale-95 cursor-pointer mt-1"
                                     >
                                       <span className="material-symbols-outlined text-[13px]">edit_note</span>
@@ -2317,7 +2374,7 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
       )}
 
       {/* MODAL: AJUSTAR ATIVO DA BASE INSTALADA (Sprint 3) */}
-      {is360Enabled && showEditDeviceModal && (
+      {showEditDeviceModal && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-[90] overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md anim-slideup">
             <div className="px-5 py-4 bg-gradient-to-r from-slate-900 to-indigo-950 text-white flex items-center justify-between rounded-t-2xl border-b border-slate-800">

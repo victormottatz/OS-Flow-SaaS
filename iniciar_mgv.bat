@@ -8,6 +8,18 @@ cd /d "%~dp0"
 echo Diretorio atual: %cd%
 echo Verificando dependencias e iniciando o servidor...
 echo.
+where docker >nul 2>nul
+if errorlevel 1 goto no_docker
+
+echo [INFO] Docker detectado. Iniciando banco de dados local...
+call docker-compose up -d
+goto start_app
+
+:no_docker
+echo [INFO] Docker nao detectado. O sistema usara o Supabase na Nuvem.
+
+:start_app
+echo.
 echo [INFO] Gerando Prisma Client...
 call npx prisma generate
 echo.

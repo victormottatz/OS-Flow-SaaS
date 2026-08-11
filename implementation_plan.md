@@ -1,6 +1,6 @@
 # Melhorias de Nível Enterprise: Integração de Padrões ERP (Base Protheus / SIGASEC)
 
-Este documento detalha o plano estratégico de evolução do **Sistema MGV Assistência Técnica**, fundamentado em conceitos consolidados de gestão de ERPs de grande porte (como a rastreabilidade e governança de serviços do TOTVS Protheus). O objetivo é elevar a operação para um patamar de maturidade técnica, financeira e de relacionamento.
+Este documento detalha o plano estratégico de evolução do **MGV One Hub**, fundamentado em conceitos consolidados de gestão de ERPs de grande porte (como a rastreabilidade e governança de serviços do TOTVS Protheus). O objetivo é elevar a operação para um patamar de maturidade técnica, financeira e de relacionamento.
 
 ## Decisões Arquiteturais Definidas (Alinhadas com a Diretoria)
 

@@ -1,12 +1,12 @@
 import { Router } from "express";
 import { devicesController } from "../controllers/devices.controller";
-import { checkRole } from "../middlewares/auth";
+import { checkRole, checkPermission } from "../middlewares/auth";
 import { UserRole } from "../types";
 
 const router = Router();
 
-router.post("/", devicesController.create.bind(devicesController));
-router.put("/:id", devicesController.update.bind(devicesController));
+router.post("/", checkPermission("clients.manage"), devicesController.create.bind(devicesController));
+router.put("/:id", checkPermission("clients.manage"), devicesController.update.bind(devicesController));
 router.get("/:id/prontuario", devicesController.getProntuario.bind(devicesController));
 router.get("/:id/notes", devicesController.getNotes.bind(devicesController));
 router.post("/:id/notes", devicesController.createNote.bind(devicesController));

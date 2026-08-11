@@ -2,7 +2,7 @@
 
 ## Visão Geral
 
-O **MGV Sistema Integrado** é um sistema web ERP/gestão de oficina construído do zero para uma assistência técnica brasileira, substituindo o sistema legado desktop **"SH Oficina"**. O projeto cobre todo o ciclo de vida de uma Ordem de Serviço (OS) — desde a entrada do equipamento, passando por diagnóstico, orçamento, alocação de peças, manutenção, teste de estresse, emissão de NF-e, até a retirada e pagamento pelo cliente.
+O **MGV One Hub** é um sistema web ERP/gestão de oficina construído do zero para uma assistência técnica brasileira, substituindo o sistema legado desktop **"SH Oficina"**. O projeto cobre todo o ciclo de vida de uma Ordem de Serviço (OS) — desde a entrada do equipamento, passando por diagnóstico, orçamento, alocação de peças, manutenção, teste de estresse, emissão de NF-e, até a retirada e pagamento pelo cliente.
 
 O sistema roda simultaneamente em **intranet local** (`192.168.15.18:3000`) e na **nuvem via Render**, com fluxo OAuth híbrido compartilhado via Supabase.
 

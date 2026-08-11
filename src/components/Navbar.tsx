@@ -86,8 +86,8 @@ export default function Navbar({
             <div className="flex items-center justify-between w-full px-2">
               <div className="flex items-center cursor-pointer group animate-fadein" onClick={() => setCurrentTab("dashboard")}>
                 <AppLogo 
-                  src="/logos/LOGO V3.0 - menu lateral.png" 
-                  fallbackSrc="/logos/LOGO V3.0 - menu lateral.png" 
+                  src="/logos/logo-v3-menu-lateral.png" 
+                  fallbackSrc="/logos/logo-v3-menu-lateral.png" 
                   className="h-10 w-auto object-contain transition-all duration-300 group-hover:scale-105 active:scale-95" 
                 />
               </div>

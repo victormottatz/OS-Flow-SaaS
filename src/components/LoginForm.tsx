@@ -107,8 +107,8 @@ export default function LoginForm({ onLoginSuccess, isOffline }: LoginFormProps)
             Banco de Dados Ativo
           </div>
           <AppLogo 
-            src="/logos/LOGO V3.0 - menu lateral.png" 
-            fallbackSrc="/logos/LOGO V3.0 - menu lateral.png" 
+            src="/logos/logo-v3-menu-lateral.png" 
+            fallbackSrc="/logos/logo-v3-menu-lateral.png" 
             className="h-20 mx-auto mb-2 object-contain"
           />
           <p className="text-xs text-slate-500 max-w-xs mx-auto font-medium">

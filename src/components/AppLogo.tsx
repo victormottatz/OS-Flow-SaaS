@@ -41,8 +41,8 @@ interface AppLogoProps {
  *   <AppLogo src="/logos/LOGO V3.0 (3).webp" fallbackSrc="/logos/LOGO V3.0 (90).png" />
  */
 export default function AppLogo({
-  src = "/logos/LOGO V3.0 (3).webp",
-  fallbackSrc = "/logos/LOGO V3.0 (2).png",
+  src = "/logos/logo-v3.webp",
+  fallbackSrc = "/logos/logo-v3.png",
   alt = "MGV One Hub",
   className = "",
 }: AppLogoProps) {

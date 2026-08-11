@@ -1,6 +1,6 @@
-# MGV Sistema Integrado - Base de Conhecimento e Contexto de Projeto
+# MGV One Hub - Base de Conhecimento e Contexto de Projeto
 
-Este documento serve como a **Base de Conhecimento Suprema** para guiar agentes inteligentes (como o Gemini) e novos desenvolvedores sobre o contexto do **MGV Sistema Integrado**. Ele reúne, consolida e explica de forma didática todas as definições de arquitetura, stack tecnológica, modelagem de banco de dados, regras de negócio e boas práticas do projeto.
+Este documento serve como a **Base de Conhecimento Suprema** para guiar agentes inteligentes (como o Gemini) e novos desenvolvedores sobre o contexto do **MGV One Hub**. Ele reúne, consolida e explica de forma didática todas as definições de arquitetura, stack tecnológica, modelagem de banco de dados, regras de negócio e boas práticas do projeto.
 
 ---
 
@@ -30,7 +30,7 @@ Este documento serve como a **Base de Conhecimento Suprema** para guiar agentes 
 
 ## 🖥️ 1. Visão Geral do Produto
 
-O **MGV Sistema Integrado** é um sistema web proprietário desenvolvido sob medida para a gestão operacional e automação fiscal da assistência técnica da MGV. Ele foi projetado para substituir soluções desktop legadas (como o software *SH Oficina*), modernizando a operação.
+O **MGV One Hub** é um sistema web proprietário desenvolvido sob medida para a gestão operacional e automação fiscal da assistência técnica da MGV. Ele foi projetado para substituir soluções desktop legadas (como o software *SH Oficina*), modernizando a operação.
 
 ### Recursos Principais
 *   **Gestão de Ordens de Serviço (OS):** Painel interativo estilo **Kanban** para movimentação de OS em tempo real.
