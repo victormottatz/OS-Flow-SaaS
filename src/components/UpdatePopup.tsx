@@ -15,7 +15,7 @@ export function UpdatePopup() {
   }, []);
 
   useEffect(() => {
-    const hasSeenUpdate = localStorage.getItem('mgv_update_v4_1_seen');
+    const hasSeenUpdate = localStorage.getItem('mgv_update_v4_2_seen');
     if (!hasSeenUpdate) {
       const timer = setTimeout(() => {
         setIsOpen(true);
@@ -23,10 +23,10 @@ export function UpdatePopup() {
         const storageData = localStorage.getItem('mgv_notifications') || '[]';
         try {
           const current = JSON.parse(storageData);
-          if (!current.some((n: any) => n.title === "🚀 MANCHETE: MGV One Hub V4.1!")) {
+          if (!current.some((n: any) => n.title === "🚀 MANCHETE: MGV One Hub V4.2!")) {
             addNotification(
-              "🚀 MANCHETE: MGV One Hub V4.1!",
-              "Nova Interface de Configuração do WhatsApp e Pareamento via QR Code (Evolution API).",
+              "🚀 MANCHETE: MGV One Hub V4.2!",
+              "Domínio próprio (mgvrp.com.br) e migração de banco de dados concluídos com sucesso.",
               "success"
             );
           }
@@ -38,7 +38,7 @@ export function UpdatePopup() {
 
   const handleClose = () => {
     setIsOpen(false);
-    localStorage.setItem('mgv_update_v4_1_seen', 'true');
+    localStorage.setItem('mgv_update_v4_2_seen', 'true');
   };
 
   // Fecha o popup ao clicar fora da janela de conteúdo (backdrop)
@@ -73,7 +73,7 @@ export function UpdatePopup() {
                 Novidades na Atualização!
               </h2>
               <p className="text-blue-100 mt-1 font-medium z-10">
-                O MGV One Hub V4.1 chegou
+                O MGV One Hub V4.2 chegou
               </p>
               
               <button 
@@ -90,36 +90,27 @@ export function UpdatePopup() {
                 <li className="flex items-start gap-3">
                   <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0 mt-0.5" />
                   <div>
-                    <h3 className="text-slate-200 font-semibold text-base">Cálculo de Rentabilidade Automático</h3>
+                    <h3 className="text-slate-200 font-semibold text-base">Domínio Personalizado Próprio</h3>
                     <p className="text-slate-400 text-sm mt-0.5 leading-relaxed">
-                      O sistema agora congela o custo das peças no momento do faturamento e exibe exatamente qual foi a margem de lucro real de cada OS concluída.
+                      O sistema agora é acessado oficialmente através do link exclusivo da empresa: **mgvrp.com.br**, com conexão HTTPS segura automática.
                     </p>
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
                   <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0 mt-0.5" />
                   <div>
-                    <h3 className="text-slate-200 font-semibold text-base">Prontuário 360º de Clientes</h3>
+                    <h3 className="text-slate-200 font-semibold text-base">Migração do Banco de Dados Completa</h3>
                     <p className="text-slate-400 text-sm mt-0.5 leading-relaxed">
-                      A aba Clientes ganhou uma Data Table inteligente e a nova Visão 360, permitindo rastrear todo o histórico e total investido de um cliente sem sair da tela.
+                      Todo o histórico local contendo 1.801 clientes, 3.951 equipamentos e 5.132 ordens de serviço foi migrado com sucesso e já está disponível na nuvem.
                     </p>
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
                   <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0 mt-0.5" />
                   <div>
-                    <h3 className="text-slate-200 font-semibold text-base">Motor de Recorrência (Anti-Garantia)</h3>
+                    <h3 className="text-slate-200 font-semibold text-base">Rastreabilidade Integrada</h3>
                     <p className="text-slate-400 text-sm mt-0.5 leading-relaxed">
-                      Equipamentos que apresentarem falhas mais de 3 vezes em 90 dias agora recebem automaticamente uma flag vermelha piscante no prontuário.
-                    </p>
-                  </div>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0 mt-0.5" />
-                  <div>
-                    <h3 className="text-slate-200 font-semibold text-base">Nova Configuração de WhatsApp</h3>
-                    <p className="text-slate-400 text-sm mt-0.5 leading-relaxed">
-                      Painel completo para configurar as credenciais da Evolution API e parear o WhatsApp do seu negócio diretamente via QR Code na nova interface.
+                      Todas as fotos, clientes e laudos do painel foram vinculados, eliminando os registros quebrados e estabilizando as fotos de perfil.
                     </p>
                   </div>
                 </li>
