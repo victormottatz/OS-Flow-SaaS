@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { getAccessToken } from "../../src/services/bling";
+import { getAccessToken, syncPartToBling } from "../../src/services/bling";
 import prisma from "../../src/database/prisma";
+import axios from "axios";
 
 describe("Bling Integration Service - Mutex & Token Management", () => {
   beforeEach(() => {
@@ -32,5 +33,30 @@ describe("Bling Integration Service - Mutex & Token Management", () => {
 
     const token = await getAccessToken();
     expect(token).toBe("mock_valid_access_token_123");
+  });
+
+  it("deve incluir o NCM limpo no payload de tributação ao sincronizar uma peça", async () => {
+    vi.spyOn(prisma.blingConfig, "findUnique").mockResolvedValue({
+      id: 1,
+      accessToken: "mock_token",
+      refreshToken: "mock_refresh",
+      expiresAt: new Date(Date.now() + 3600 * 1000)
+    } as any);
+
+    // Mock do axios para buscar produto e depois cadastrar
+    const mockGet = vi.spyOn(axios, "get").mockResolvedValue({ data: { data: [] } } as any);
+    const mockPost = vi.spyOn(axios, "post").mockResolvedValue({ data: { data: { id: 9999 } } } as any);
+
+    const result = await syncPartToBling({
+      name: "Peça de Teste",
+      code: "TEST-NCM",
+      price: 150.0,
+      ncm: "8536.50.90"
+    });
+
+    expect(result).toBe(9999);
+    expect(mockPost).toHaveBeenCalled();
+    const payload = mockPost.mock.calls[0][1] as any;
+    expect(payload.ncm).toBe("85365090"); // Pontos removidos
   });
 });

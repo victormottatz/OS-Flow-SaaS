@@ -134,6 +134,26 @@ async function startServer() {
     console.error("[Database Migration] Error during initialization seeder:", err);
   }
 
+  // Endpoint público de Health Check (para monitoramento do Coolify, Traefik, Caddy)
+  app.get("/health", async (req, res) => {
+    try {
+      // Executa uma consulta simples para validar a conexão com o banco de dados
+      await prisma.$queryRaw`SELECT 1`;
+      res.status(200).json({
+        status: "OK",
+        database: "connected",
+        timestamp: new Date().toISOString()
+      });
+    } catch (err: any) {
+      console.error("[Health Check] Erro de conexão com o banco de dados:", err);
+      res.status(500).json({
+        status: "ERROR",
+        database: "disconnected",
+        error: err.message || err
+      });
+    }
+  });
+
   // Middleware de Autenticação JWT com blindagem contra header spoofing
   app.use(authenticateJWT);
 
