@@ -1203,8 +1203,17 @@ export default function KanbanBoard({
       return false;
     }
 
-    // Gate 2: Validação Fiscal de Cliente (pulada em OS cobertas por garantia — sem cobrança/nota fiscal)
-    if (newStatus === "FINALIZADO" && !isWarrantyOS(osToMove)) {
+    // Gate 2: Validação Fiscal de Cliente (pulada em OS cobertas por garantia ou sem custo — sem cobrança/nota fiscal)
+    const getOSTotalVal = (os: any) => {
+      if (os.totalCost !== undefined && os.totalCost !== null) return os.totalCost;
+      const partsCost = os.usedParts?.filter((i: any) => i.category !== "SERVICO").reduce((s: number, i: any) => s + (i.price * i.quantity), 0) || 0;
+      const labor = os.laborCost || 0;
+      const disc = os.discount || 0;
+      return Math.max(0, partsCost + labor - disc);
+    };
+    const isWarranty = isWarrantyOS(osToMove) || osToMove.warrantyType !== "NENHUMA";
+    const osTotal = getOSTotalVal(osToMove);
+    if (newStatus === "FINALIZADO" && !isWarranty && osTotal > 0) {
       const isNfc = invoiceType === "nfce";
       const validation = validateFiscalData(osToMove, osToMove.client, parts, { isNfc });
       if (!validation.isValid) {
@@ -2442,8 +2451,39 @@ export default function KanbanBoard({
                                   )}
                                   <span className="font-bold text-slate-850">{p.name}</span>
                                   {p.isAvulso && p.category && <span className="ml-1 text-[10px] text-slate-500 font-medium font-mono">({p.category})</span>}
-                                  <span className="text-slate-400 mx-2">|</span>
-                                  <span className="text-slate-500 font-mono font-semibold">{p.quantity} x R$ {p.price.toFixed(2)}</span>
+                                  <div className="inline-flex items-center gap-1.5 ml-1">
+                                    <input 
+                                      type="number" 
+                                      min={1} 
+                                      value={p.quantity} 
+                                      onChange={(e) => {
+                                        const qty = Math.max(1, Number(e.target.value));
+                                        const updated = selectedParts.map(sp => 
+                                          (sp.partId === p.partId || sp.id === p.id) ? { ...sp, quantity: qty } : sp
+                                        );
+                                        setSelectedParts(updated);
+                                      }}
+                                      className="w-10 px-1 py-0.5 border border-slate-200 rounded text-center text-[10px] focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono font-semibold"
+                                      title="Editar Quantidade"
+                                    />
+                                    <span className="text-slate-400 text-[10px]">x</span>
+                                    <span className="text-slate-500 text-[10px] font-semibold">R$</span>
+                                    <input 
+                                      type="number" 
+                                      min={0} 
+                                      step="0.01" 
+                                      value={p.price} 
+                                      onChange={(e) => {
+                                        const prc = Math.max(0, Number(e.target.value));
+                                        const updated = selectedParts.map(sp => 
+                                          (sp.partId === p.partId || sp.id === p.id) ? { ...sp, price: prc } : sp
+                                        );
+                                        setSelectedParts(updated);
+                                      }}
+                                      className="w-16 px-1 py-0.5 border border-slate-200 rounded text-right text-[10px] focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono font-semibold"
+                                      title="Editar Preço Unitário"
+                                    />
+                                  </div>
                                   {p.observation && <span className="block mt-1 text-[10px] italic text-slate-500">Nota: {p.observation}</span>}
                                 </div>
                                 <div className="flex items-center space-x-3">

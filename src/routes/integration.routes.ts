@@ -362,7 +362,7 @@ function parseXmlNfe(xml: string) {
     const items: any[] = [];
     for (const det of detList) {
       const prod = det.prod || {};
-      const cProd = String(prod.cProd || "").trim();
+      const cProd = String(prod.cProd || "").trim().toUpperCase();
       const xProd = String(prod.xProd || "").trim();
       const qCom = parseFloat(String(prod.qCom || "0"));
       const vUnCom = parseFloat(String(prod.vUnCom || "0"));

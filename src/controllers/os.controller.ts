@@ -1299,8 +1299,9 @@ export class OSController {
             return;
           }
           
+          const isWarranty = currentOS.warrantyType !== "NENHUMA" || await isOSInWarranty(currentOS);
           const labor = currentOS.laborCost || 0;
-          if (labor === 0 && osUsedParts.length === 0) {
+          if (!isWarranty && labor === 0 && osUsedParts.length === 0) {
             res.status(422).json({
               error: "Bloqueio: A Ordem de Serviço está sem Custo de Mão de Obra e sem Peças. Preencha os valores no laudo antes de avançar.",
               code: "COST_REQUIRED"
