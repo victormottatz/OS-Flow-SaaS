@@ -15,7 +15,7 @@ export function UpdatePopup() {
   }, []);
 
   useEffect(() => {
-    const hasSeenUpdate = localStorage.getItem('mgv_update_v4_3_seen');
+    const hasSeenUpdate = localStorage.getItem('mgv_update_v4_4_seen');
     if (!hasSeenUpdate) {
       const timer = setTimeout(() => {
         setIsOpen(true);
@@ -23,10 +23,10 @@ export function UpdatePopup() {
         const storageData = localStorage.getItem('mgv_notifications') || '[]';
         try {
           const current = JSON.parse(storageData);
-          if (!current.some((n: any) => n.title === "🚀 MANCHETE: MGV One Hub V4.3!")) {
+          if (!current.some((n: any) => n.title === "🚀 MANCHETE: MGV One Hub V4.4!")) {
             addNotification(
-              "🚀 MANCHETE: MGV One Hub V4.3!",
-              "Correções visuais na logo lateral e domínio principal definitivo (mgvrp.com.br) configurados na nuvem.",
+              "🚀 MANCHETE: MGV One Hub V4.4!",
+              "Melhorias no estoque (deduplicação), edição dinâmica de orçamentos de O.S. e fluxo sem custo para garantias/cortesias.",
               "success"
             );
           }
@@ -38,7 +38,7 @@ export function UpdatePopup() {
 
   const handleClose = () => {
     setIsOpen(false);
-    localStorage.setItem('mgv_update_v4_3_seen', 'true');
+    localStorage.setItem('mgv_update_v4_4_seen', 'true');
   };
 
   // Fecha o popup ao clicar fora da janela de conteúdo (backdrop)
@@ -73,7 +73,7 @@ export function UpdatePopup() {
                 Novidades na Atualização!
               </h2>
               <p className="text-blue-100 mt-1 font-medium z-10">
-                O MGV One Hub V4.3 chegou
+                O MGV One Hub V4.4 chegou
               </p>
               
               <button 
@@ -90,18 +90,27 @@ export function UpdatePopup() {
                 <li className="flex items-start gap-3">
                   <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0 mt-0.5" />
                   <div>
-                    <h3 className="text-slate-200 font-semibold text-base">Correção da Logo e Estabilidade Visual</h3>
+                    <h3 className="text-slate-200 font-semibold text-base">Edição Dinâmica de Peças e Serviços</h3>
                     <p className="text-slate-400 text-sm mt-0.5 leading-relaxed">
-                      A logo do menu lateral e tela de login foi renomeada e corrigida para garantir compatibilidade máxima com ambientes Linux e servidores na nuvem, evitando imagens quebradas.
+                      Agora é possível editar a quantidade e o preço unitário das peças e serviços de reposição diretamente na tabela do orçamento da O.S. Os cálculos de totais e margem de lucro são atualizados na hora.
                     </p>
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
                   <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0 mt-0.5" />
                   <div>
-                    <h3 className="text-slate-200 font-semibold text-base">Domínio Oficial e Criptografia</h3>
+                    <h3 className="text-slate-200 font-semibold text-base">Encerramento de O.S. Sem Custo</h3>
                     <p className="text-slate-400 text-sm mt-0.5 leading-relaxed">
-                      O sistema e a API da aplicação agora apontam e respondem nativamente para seu domínio oficial, otimizando o tráfego com o proxy Traefik em nossa infraestrutura Coolify.
+                      Liberamos o encerramento de ordens de serviço cobertas por garantia ou cortesia. O sistema pula a checagem fiscal do Bling e a trava de custos comerciais quando o total for zero.
+                    </p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-3">
+                  <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="text-slate-200 font-semibold text-base">Deduplicação de Catálogo e Estoque</h3>
+                    <p className="text-slate-400 text-sm mt-0.5 leading-relaxed">
+                      Corrigimos o importador de XML para sanitizar códigos (evitando duplicidades de caixa/espaço). Executamos uma rotina que fundiu todos os produtos duplicados logicamente no banco local, unificando seus estoques.
                     </p>
                   </div>
                 </li>
