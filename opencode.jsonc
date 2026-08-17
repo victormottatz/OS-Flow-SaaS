@@ -1,0 +1,29 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": [
+    "C:\\Users\\User\\.config\\opencode\\plugins\\autolearn.js"
+  ],
+  "instructions": [
+    "C:\\Users\\User\\.autolearn\\personas\\default\\memory.context.md"
+  ],
+  "agent": {
+    "autolearn-reviewer": {
+      "description": "Reviews past conversations for self-improvement opportunities",
+      "hidden": true,
+      "steps": 20,
+      "prompt": "Load the autolearn-reviewer skill and follow its instructions to review the attached conversation for learning opportunities. Take immediate action: record observations, update memory, create or patch skills.",
+      "permission": {
+        "bash": "allow",
+        "read": "allow",
+        "glob": "allow",
+        "grep": "allow",
+        "write": "allow",
+        "edit": "deny",
+        "webfetch": "deny",
+        "task": "deny",
+        "skill": "allow",
+        "external_directory": "allow"
+      }
+    }
+  }
+}

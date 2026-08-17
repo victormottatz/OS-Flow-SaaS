@@ -2001,6 +2001,46 @@ export default function KanbanBoard({
                      <span className="material-symbols-outlined text-[18px]">build</span>
                      <span>Reparo em Garantia / Iniciar Direto</span>
                    </button>
+                   <button type="button" onClick={async (e) => {
+                     e.preventDefault();
+                     setLoading(true);
+                     try {
+                       const token = localStorage.getItem("mgv_token") || "";
+                       const resDados = await fetch(`/api/ordens-servico/${selectedOS.id}`, {
+                         method: "PUT",
+                         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                         body: JSON.stringify({ diagnostic, laudoMacro, usedParts: selectedParts, discount, benchLocation, returnMethod, packagingCleaned, tagIds: editTagIds })
+                       });
+                       if (!resDados.ok) throw new Error("Erro ao gravar dados.");
+                       
+                       const osUpdatedForSemReparo = {
+                         ...selectedOS,
+                         diagnostic,
+                         laudoMacro,
+                         benchLocation,
+                         returnMethod,
+                         packagingCleaned,
+                         usedParts: selectedParts,
+                         laborCost: computedLaborCost,
+                         discount: Number(discount) || 0,
+                         technicianLaborHours: selectedOS.technicianLaborHours || 0,
+                         technicianHourlyRate: selectedOS.technicianHourlyRate || 0,
+                         totalCost: computedTotal
+                       };
+                       setSemReparoOS(osUpdatedForSemReparo);
+                       setSelectedClosingReason('EQUIPAMENTO_SEM_DEFEITO');
+                       setSemReparoNotifyWhatsapp(true);
+                       setShowEditModal(false);
+                       setShowSemReparoModal(true);
+                     } catch(err: any) {
+                       setErrorMsg(err.message);
+                     } finally {
+                       setLoading(false);
+                     }
+                   }} className="w-full py-3 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center space-x-2 active:scale-95">
+                     <span className="material-symbols-outlined text-[18px]">verified</span>
+                     <span>Encerrar OS (Aparelho sem Defeito)</span>
+                   </button>
                  </div>
               );
             case "AGUARDANDO_AUTORIZACAO":
@@ -3388,6 +3428,21 @@ export default function KanbanBoard({
                 <div className="text-xs">
                   <strong className="block font-bold text-slate-900">Descarte — Oficina Descarta</strong>
                   <span className="text-slate-500">Equipamento considerado inviável. Cliente autorizou o descarte ecológico pela oficina.</span>
+                </div>
+              </label>
+
+              <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer transition select-none">
+                <input
+                  type="radio"
+                  name="closingReason"
+                  value="EQUIPAMENTO_SEM_DEFEITO"
+                  checked={selectedClosingReason === 'EQUIPAMENTO_SEM_DEFEITO'}
+                  onChange={() => setSelectedClosingReason('EQUIPAMENTO_SEM_DEFEITO')}
+                  className="mt-1 text-emerald-600 focus:ring-emerald-500"
+                />
+                <div className="text-xs">
+                  <strong className="block font-bold text-slate-900">Equipamento Sem Defeito</strong>
+                  <span className="text-slate-500">Aparelho não apresentou problemas após análise técnica. OS será finalizada sem custo.</span>
                 </div>
               </label>
             </div>

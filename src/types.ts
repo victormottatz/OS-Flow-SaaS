@@ -75,7 +75,8 @@ export type OSClosingReason =
   | 'ORCAMENTO_RECUSADO'
   | 'SEM_CONSERTO'
   | 'DESCARTE_CLIENTE_RETIRA'
-  | 'DESCARTE_OFICINA';
+  | 'DESCARTE_OFICINA'
+  | 'EQUIPAMENTO_SEM_DEFEITO';
 
 export type WarrantyType = 'NENHUMA' | 'FABRICA' | 'MGV';
 

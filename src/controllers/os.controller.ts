@@ -1266,7 +1266,8 @@ export class OSController {
       const isSemReparo = closingReason === 'ORCAMENTO_RECUSADO'
         || closingReason === 'SEM_CONSERTO'
         || closingReason === 'DESCARTE_CLIENTE_RETIRA'
-        || closingReason === 'DESCARTE_OFICINA';
+        || closingReason === 'DESCARTE_OFICINA'
+        || closingReason === 'EQUIPAMENTO_SEM_DEFEITO';
 
       if (targetStatus === "FINALIZADO" || targetStatus === "PRONTO_RETIRADA") {
         // Se NÃO for sem reparo, aplica as travas de laudo técnico, custo e serialização

@@ -619,13 +619,15 @@ export class MigrationRulesEngine {
     const reasons = regrasSatisfeitas.map(r => `${r.evidence} (${r.points >= 0 ? '+' : ''}${r.points} pts)`);
     const motivoResumo = reasons.join(' E ');
 
+    const isWarranty = os.warrantyType !== "NENHUMA" || (Array.isArray(os.tags) && os.tags.some((t: any) => t.name === "Em Garantia"));
+
     return {
       orderId: os.id,
       osNumber: os.osNumber,
       clienteName: clientName,
       equipamentoName: deviceName,
       statusAtual: 'AGUARDANDO_AVALIACAO',
-      statusSugerido: 'AGUARDANDO_AUTORIZACAO',
+      statusSugerido: isWarranty ? 'EM_MANUTENCAO' : 'AGUARDANDO_AUTORIZACAO',
       scoreConfianca: finalScore,
       confidenceLevel,
       regrasSatisfeitas,
@@ -645,7 +647,7 @@ export interface AvaliacaoSuggestion {
   clienteName: string;
   equipamentoName: string;
   statusAtual: 'AGUARDANDO_AVALIACAO';
-  statusSugerido: 'AGUARDANDO_AUTORIZACAO';
+  statusSugerido: 'AGUARDANDO_AUTORIZACAO' | 'EM_MANUTENCAO';
   scoreConfianca: number;
   confidenceLevel: 'HIGH' | 'MEDIUM';
   regrasSatisfeitas: RuleSatisfied[];

@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Visualizador do Fluxo de OS — MGV Assistência Técnica</title>
+  <meta name="description" content="Painel visual interativo do fluxo de Ordem de Serviço da MGV Assistência Técnica em Equipamentos Estéticos.">
+
+  <!-- Google Fonts: Inter (com preconnect) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Mermaid.js CDN (defer para não bloquear) -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js" defer></script>
+
+  <style>
+    /* ============================================
+       DESIGN SYSTEM MGV — CSS Variables
+       ============================================ */
+    :root {
+      /* MGV Brand Palette */
+      --mgv-gold: #ffc107;
+      --mgv-gold-dark: #785900;
+      --mgv-gold-light: #fabd00;
+      --mgv-brown: #5d4e37;
+
+      /* Dark Theme (padrão) */
+      --bg-main: #0f172a;
+      --bg-card: #1e293b;
+      --bg-card-hover: #334155;
+      --bg-viewport: #090d16;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-blue: #38bdf8;
+      --accent-gold: var(--mgv-gold);
+      --accent-red: #f87171;
+      --accent-green: #4ade80;
+      --accent-purple: #c084fc;
+      --border-color: #334155;
+      --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+
+      /* Super Round */
+      --radius-full: 9999px;
+      --radius-xl: 12px;
+      --radius-2xl: 16px;
+
+      /* Focus Ring (A11y) */
+      --focus-ring: 0 0 0 3px rgba(255, 193, 7, 0.5);
+    }
+
+    /* Light Theme */
+    [data-theme="light"] {
+      --bg-main: #fafafa;
+      --bg-card: #ffffff;
+      --bg-card-hover: #f1f5f9;
+      --bg-viewport: #f1f5f9;
+      --text-main: #1e293b;
+      --text-muted: #64748b;
+      --border-color: #e2e8f0;
+    }
+
+    /* Print Theme */
+    @media print {
+      :root {
+        --bg-main: #ffffff;
+        --bg-card: #ffffff;
+        --bg-viewport: #ffffff;
+        --text-main: #000000;
+        --text-muted: #333333;
+        --border-color: #cccccc;
+      }
+    }
+
+    /* ============================================
+       RESET & BASE
+       ============================================ */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-family);
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      overflow-x: hidden;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    /* ============================================
+       FOCUS VISIBLE (A11y)
+       ============================================ */
+    :focus-visible {
+      outline: none;
+      box-shadow: var(--focus-ring);
+    }
+
+    /* ============================================
+       HEADER
+       ============================================ */
+    header {
+      background: rgba(30, 41, 59, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-color);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    [data-theme="light"] header {
+      background: rgba(255, 255, 255, 0.85);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .brand-logo {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, var(--mgv-gold-dark), var(--mgv-gold));
+      border-radius: var(--radius-xl);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 1rem;
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
+    }
+
+    .brand-title h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .brand-title p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    /* ============================================
+       CONTROLS BAR
+       ============================================ */
+    .controls-bar {
+      background-color: var(--bg-card);
+      border-bottom: 1px solid var(--border-color);
+      padding: 0.75rem 2rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: center;
+      justify-content: space-between;
+      transition: background-color 0.3s ease;
+    }
+
+    .filter-group, .action-group {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .control-label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-right: 0.5rem;
+    }
+
+    /* ============================================
+       BUTTONS — Super Round (rounded-full)
+       ============================================ */
+    .btn {
+      background: var(--bg-card-hover);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      padding: 0.5rem 1rem;
+      border-radius: var(--radius-full);
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-family: var(--font-family);
+    }
+
+    .btn:hover {
+      background: #475569;
+      transform: translateY(-1px);
+    }
+
+    .btn:focus-visible {
+      box-shadow: var(--focus-ring);
+    }
+
+    .btn.active {
+      background: var(--mgv-gold-dark);
+      border-color: var(--mgv-gold);
+      color: #fff;
+      box-shadow: 0 0 10px rgba(255, 193, 7, 0.4);
+    }
+
+    .btn-gold { border-color: rgba(255, 193, 7, 0.4); }
+    .btn-gold.active, .btn-gold:hover {
+      background: var(--mgv-gold-dark);
+      border-color: var(--mgv-gold);
+      color: #fff;
+      box-shadow: 0 0 10px rgba(255, 193, 7, 0.4);
+    }
+
+    .btn-red { border-color: rgba(248, 113, 113, 0.4); }
+    .btn-red.active, .btn-red:hover {
+      background: #dc2626;
+      border-color: var(--accent-red);
+      color: #fff;
+      box-shadow: 0 0 10px rgba(248, 113, 113, 0.4);
+    }
+
+    .btn-green { border-color: rgba(74, 222, 128, 0.4); }
+    .btn-green.active, .btn-green:hover {
+      background: #16a34a;
+      border-color: var(--accent-green);
+      color: #fff;
+    }
+
+    .btn-blue { border-color: rgba(56, 189, 248, 0.4); }
+    .btn-blue.active, .btn-blue:hover {
+      background: #0284c7;
+      border-color: var(--accent-blue);
+      color: #fff;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+    }
+
+    /* ============================================
+       MAIN LAYOUT
+       ============================================ */
+    main {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      flex: 1;
+      gap: 0;
+      position: relative;
+    }
+
+    .diagram-viewport {
+      background: var(--bg-viewport);
+      background-image:
+        radial-gradient(rgba(51, 65, 85, 0.4) 1px, transparent 1px);
+      background-size: 24px 24px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 2rem;
+      overflow: auto;
+      position: relative;
+      min-height: 600px;
+    }
+
+    .diagram-container {
+      transition: transform 0.2s ease-out;
+      transform-origin: center center;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+    }
+
+    /* ============================================
+       SIDE PANEL — Cards arredondados (rounded-xl)
+       ============================================ */
+    .side-panel {
+      background-color: var(--bg-card);
+      border-left: 1px solid var(--border-color);
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      overflow-y: auto;
+      max-height: calc(100vh - 120px);
+      transition: background-color 0.3s ease;
+    }
+
+    .panel-card {
+      background: var(--bg-main);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-xl);
+      padding: 1rem;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      transition: background-color 0.3s ease, border-color 0.3s ease;
+    }
+
+    .panel-card.gold-card { border-left: 4px solid var(--mgv-gold); }
+    .panel-card.red-card { border-left: 4px solid var(--accent-red); }
+    .panel-card.green-card { border-left: 4px solid var(--accent-green); }
+    .panel-card.purple-card { border-left: 4px solid var(--accent-purple); }
+
+    .panel-card h3 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .panel-card p {
+      font-size: 0.825rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    .panel-card code {
+      background: var(--bg-card-hover);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    /* ============================================
+       BADGES
+       ============================================ */
+    .badge {
+      display: inline-block;
+      padding: 0.2rem 0.5rem;
+      border-radius: var(--radius-full);
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .badge-gold { background: rgba(255, 193, 7, 0.2); color: var(--mgv-gold); }
+    .badge-red { background: rgba(248, 113, 113, 0.2); color: var(--accent-red); }
+    .badge-green { background: rgba(74, 222, 128, 0.2); color: var(--accent-green); }
+
+    /* ============================================
+       ZOOM INDICATOR
+       ============================================ */
+    .zoom-indicator {
+      position: fixed;
+      bottom: 1rem;
+      left: 1rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-full);
+      padding: 0.4rem 0.8rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      z-index: 50;
+      pointer-events: none;
+    }
+
+    /* ============================================
+       MERMAID OVERRIDES
+       ============================================ */
+    .mermaid svg {
+      max-width: 100% !important;
+      height: auto !important;
+    }
+
+    /* ============================================
+       PRINT STYLES — Light theme, clean PDF
+       ============================================ */
+    @media print {
+      header, .controls-bar, .side-panel, .zoom-indicator {
+        display: none !important;
+      }
+      main {
+        display: block !important;
+      }
+      .diagram-viewport {
+        background: #ffffff !important;
+        background-image: none !important;
+        padding: 1rem !important;
+        min-height: auto !important;
+      }
+      .diagram-container {
+        transform: none !important;
+      }
+      .mermaid svg {
+        filter: none !important;
+      }
+    }
+
+    /* ============================================
+       RESPONSIVE
+       ============================================ */
+    @media (max-width: 768px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+      .side-panel {
+        border-left: none;
+        border-top: 1px solid var(--border-color);
+        max-height: 300px;
+      }
+      header {
+        padding: 0.75rem 1rem;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }
+      .controls-bar {
+        padding: 0.5rem 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ============================================
+       HEADER
+       ============================================ -->
+  <header>
+    <div class="brand">
+      <div class="brand-logo" aria-hidden="true">MGV</div>
+      <div class="brand-title">
+        <h1>Visualizador do Fluxo de OS</h1>
+        <p>MGV Assistência Técnica &bull; Mapeamento de Processos</p>
+      </div>
+    </div>
+
+    <div class="action-group">
+      <button class="btn" id="btn-theme-toggle" aria-label="Alternar tema claro/escuro">🌓 Tema</button>
+      <button class="btn" id="btn-zoom-in" aria-label="Aumentar zoom do diagrama">🔍 +</button>
+      <button class="btn" id="btn-zoom-out" aria-label="Diminuir zoom do diagrama">🔍 -</button>
+      <button class="btn" id="btn-zoom-reset" aria-label="Restaurar zoom para 100%">🔄 Reset</button>
+      <button class="btn btn-green" id="btn-print" aria-label="Imprimir diagrama como PDF">🖨️ PDF</button>
+    </div>
+  </header>
+
+  <!-- ============================================
+       CONTROLS BAR — Filtros Didáticos
+       ============================================ -->
+  <div class="controls-bar" role="toolbar" aria-label="Filtros de visualização do diagrama">
+    <div class="filter-group">
+      <span class="control-label">Modos:</span>
+      <button class="btn active" id="btn-all" data-filter="all" aria-label="Mostrar todos os fluxos">🌟 Tudo</button>
+      <button class="btn btn-gold" id="btn-fabiola" data-filter="fabiola" aria-label="Destacar caso Fabíola — retirada temporária">🟡 Caso Fabíola</button>
+      <button class="btn btn-red" id="btn-reabertura" data-filter="reabertura" aria-label="Destacar fluxo de reabertura de OS">🔴 Reabertura</button>
+      <button class="btn btn-green" id="btn-financeiro" data-filter="financeiro" aria-label="Destacar fluxo financeiro">🟢 Financeiro</button>
+      <button class="btn btn-red" id="btn-recusa" data-filter="recusa" aria-label="Destacar fluxo de recusa e descarte">🟣 Recusa & Descarte</button>
+      <button class="btn btn-blue" id="btn-garantia" data-filter="garantia" aria-label="Destacar fluxo de garantia e auditoria">🔵 Garantia & Audit</button>
+    </div>
+
+    <div class="filter-group">
+      <span class="control-label">Status:</span>
+      <span class="badge badge-green">AuditLog Ativo</span>
+      <span class="badge badge-gold">Custódia Mapeada</span>
+    </div>
+  </div>
+
+  <!-- ============================================
+       MAIN — Diagrama + Painel Lateral
+       ============================================ -->
+  <main>
+    <div class="diagram-viewport" id="viewport">
+      <div class="diagram-container" id="diagram-container">
+        <div class="mermaid" id="mermaid-target">
+flowchart TD
+    classDef padrao fill:#1e3a8a,stroke:#3b82f6,color:#fff,stroke-width:2px
+    classDef fabiola fill:#785900,stroke:#ffc107,color:#fff,stroke-width:3px,font-weight:bold
+    classDef reabertura fill:#dc2626,stroke:#f87171,color:#fff,stroke-width:2px
+    classDef financeiro fill:#16a34a,stroke:#4ade80,color:#fff,stroke-width:2px
+    classDef recusa fill:#b91c1c,stroke:#ef4444,color:#fff,stroke-width:2px
+    classDef garantia fill:#7e22ce,stroke:#c084fc,color:#fff,stroke-width:2px
+    classDef auditoria stroke-dasharray: 5 5,fill:#334155,stroke:#94a3b8,color:#f8fafc
+
+    ENTRADA(["1. Entrada da OS / Triagem"])
+    AVALIACAO["2. Avaliacao Tecnica / Orcamento"]
+    AUTORIZACAO["Aprovacao / Decisao do Cliente"]
+    RECUSA_ORCAMENTO["Orcamento Recusado / Cancelado<br/>closingReason: ORCAMENTO_RECUSADO"]
+    DESCARTE_OFICINA["Descarte Autorizado na Oficina<br/>closingReason: DESCARTE_OFICINA"]
+    EXECUCAO["3. Execucao / Manutencao em Bancada"]
+    RETIRADA_TEMP["Retirada Temporaria pelo Cliente<br/>Status: AGUARDANDO_PECA<br/>Custodia: ENTREGUE_TEMP"]
+    PGTO_PARCIAL["Pagamento Parcial / Sinal Registrado<br/>Status Fin: PAGO_PARCIAL"]
+    AGUARDA_CASA["Aparelho em Uso na Casa do Cliente"]
+    RETORNO["Retorno do Aparelho a Oficina"]
+    TESTE_ESTRESSE["4. Teste de Estresse & Checklist Saida"]
+    CONCLUIDO["5. Servico Concluido / Pronto Retirada"]
+    PGTO_TOTAL["Quitacao Total / Saldo Zero"]
+    CREDIARIO_FATURADO["Faturamento em Crediario / Boleto<br/>Status Fin: CREDIARIO"]
+    ABANDONO_INADIMPLENTE["Retencao por Inadimplencia / Abandono<br/>abandonAlert: Active 90d"]
+    FINALIZADO["OS FINALIZADA<br/>Custodia: ENTREGUE_DEFINITIVO"]
+    MODAL_REABERTURA["Modal: Justificativa Obrigatoria<br/>Grava no AuditLog"]
+    GARANTIA_REABERTURA["Reabertura sob Garantia MGV/Fabrica<br/>WarrantyType: MGV / FABRICA"]
+    REABERTO["OS REABERTA<br/>Status: REABERTO"]
+    EDIT_LIVRE["Edicao Pontual de Dados<br/>Cliente, Equipamento, Obs"]
+
+    ENTRADA --> AVALIACAO
+    AVALIACAO --> AUTORIZACAO
+    AUTORIZACAO -- Aprovado --> EXECUCAO
+    AUTORIZACAO -- Recusado Devolucao --> RECUSA_ORCAMENTO
+    AUTORIZACAO -- Recusado Descarte --> DESCARTE_OFICINA
+    RECUSA_ORCAMENTO --> FINALIZADO
+    DESCARTE_OFICINA --> FINALIZADO
+    EXECUCAO -- Aguarda Peca Externa --> RETIRADA_TEMP
+    RETIRADA_TEMP --> PGTO_PARCIAL
+    PGTO_PARCIAL --> AGUARDA_CASA
+    AGUARDA_CASA -- Peca Chegou ao Estabelecimento --> RETORNO
+    RETORNO --> EXECUCAO
+    EXECUCAO --> TESTE_ESTRESSE
+    TESTE_ESTRESSE --> CONCLUIDO
+    CONCLUIDO -- Pgto Balcao --> PGTO_TOTAL
+    CONCLUIDO -- Faturado / Prazo --> CREDIARIO_FATURADO
+    CONCLUIDO -- Sem Retirada / Inadimplente --> ABANDONO_INADIMPLENTE
+    PGTO_TOTAL --> FINALIZADO
+    CREDIARIO_FATURADO --> FINALIZADO
+    ABANDONO_INADIMPLENTE --> FINALIZADO
+    FINALIZADO -- Contestacao / Ajuste --> MODAL_REABERTURA
+    FINALIZADO -- Defeito em Garantia --> GARANTIA_REABERTURA
+    MODAL_REABERTURA --> REABERTO
+    GARANTIA_REABERTURA --> REABERTO
+    REABERTO --> EXECUCAO
+    EDIT_LIVRE -.- ENTRADA
+    EDIT_LIVRE -.- RETIRADA_TEMP
+    EDIT_LIVRE -.- FINALIZADO
+
+    class ENTRADA,AVALIACAO,AUTORIZACAO,EXECUCAO,RETORNO,TESTE_ESTRESSE,CONCLUIDO,FINALIZADO padrao
+    class RETIRADA_TEMP,AGUARDA_CASA fabiola
+    class PGTO_PARCIAL,PGTO_TOTAL,CREDIARIO_FATURADO,ABANDONO_INADIMPLENTE financeiro
+    class RECUSA_ORCAMENTO,DESCARTE_OFICINA recusa
+    class GARANTIA_REABERTURA garantia
+    class MODAL_REABERTURA,REABERTO reabertura
+    class EDIT_LIVRE auditoria
+        </div>
+      </div>
+    </div>
+
+    <!-- Painel Lateral Explicativo -->
+    <aside class="side-panel" aria-label="Explicação dos fluxos do diagrama">
+
+      <div class="panel-card gold-card">
+        <h3>🟡 Caso Fabíola (Retirada Temp.)</h3>
+        <p>Equipamento retirado temporariamente pelo cliente enquanto aguarda peça externa.</p>
+        <br>
+        <p><strong>Regra:</strong> OS muda para <code>ENTREGUE_AGUARDANDO_PECA</code>, registra pagamento parcial e não é finalizada precocemente.</p>
+      </div>
+
+      <div class="panel-card red-card">
+        <h3>🔴 Reversão / Reabertura</h3>
+        <p>OS finalizada por engano ou retorno em garantia.</p>
+        <br>
+        <p><strong>Regra:</strong> Exige justificativa obrigatória e grava evento no <code>AuditLog</code> antes de voltar para bancada.</p>
+      </div>
+
+      <div class="panel-card green-card">
+        <h3>🟢 Gestão Financeira</h3>
+        <p>Separación entre OS e lançamentos na tabela de Pagamentos.</p>
+        <br>
+        <p><strong>Regra:</strong> Cliente pode pagar taxas intermediárias sem alterar custo final previsto da OS.</p>
+      </div>
+
+      <div class="panel-card purple-card">
+        <h3>🟣 Edição Livre & Rastreabilidade</h3>
+        <p>Atualizar telefone, endereço ou número de série em qualquer etapa sem bloquear a OS.</p>
+      </div>
+
+    </aside>
+  </main>
+
+  <!-- Zoom Indicator -->
+  <div class="zoom-indicator" id="zoom-indicator" aria-live="polite">Zoom: 100%</div>
+
+  <!-- ============================================
+       MÓDULOS JS — Carregados via <script> tags
+       ============================================ -->
+  <script>
+    // ============================================
+    // CUSTODY VIRTUAL MAP (sem alterar Prisma schema)
+    // ============================================
+    const CUSTODY_VIRTUAL_MAP = {
+      AGUARDANDO_ORCAMENTO: 'NA_OFICINA',
+      AGUARDANDO_APROVACAO: 'NA_OFICINA',
+      AGUARDANDO_PECA: 'NA_OFICINA',
+      EM_EXECUCAO: 'NA_OFICINA',
+      PRONTO_RETIRADA: 'NA_OFICINA',
+      FINALIZADO: 'ENTREGUE_DEFINITIVO',
+      REABERTO: 'NA_OFICINA',
+    };
+
+    function getCustodyStatus(osStatus, billingStatus) {
+      if (billingStatus === 'PAGO_PARCIAL') return 'ENTREGUE_TEMP';
+      return CUSTODY_VIRTUAL_MAP[osStatus] || 'NA_OFICINA';
+    }
+
+    // ============================================
+    // Mermaid initialization (v10 rules — 4 blocks)
+    // Tema inicial lido do data-theme do <html>
+    // ============================================
+    document.addEventListener('DOMContentLoaded', function() {
+      var initialTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+      mermaid.initialize({
+        startOnLoad: true,
+        theme: initialTheme === 'dark' ? 'dark' : 'default',
+        securityLevel: 'loose',
+        flowchart: {
+          useMaxWidth: false,
+          htmlLabels: true,
+          curve: 'basis'
+        }
+      });
+    });
+  </script>
+
+  <!-- Módulos Fase 1 — Theme, PanZoom, Filtro -->
+  <script src="modules/themeEngine.js" defer></script>
+  <script src="modules/panZoomEngine.js" defer></script>
+  <script src="modules/sectorFilter.js" defer></script>
+
+  <!-- Módulo Fase 2 — Documentation Viva (side panel dinâmico, tooltips, teclado) -->
+  <script src="modules/docViva.js" defer></script>
+
+  <!-- Módulo Fase 3 — FSM Simulator (simulador de estados da OS) -->
+  <script src="modules/fsmSimulator.js" defer></script>
+
+  <!-- Módulo Fase 4 — Telemetria & Dashboard (KPIs, gráficos, simulação real-time) -->
+  <script src="modules/telemetryDashboard.js" defer></script>
+
+  <!-- Módulo Fase 5 (Evolução v1.1.0) — CRUD de Ordens de Serviço -->
+  <script src="modules/osCrud.js" defer></script>
+
+</body>
+</html>
