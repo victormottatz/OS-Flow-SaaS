@@ -34,6 +34,12 @@ export default function Navbar({
   toggleSidebar
 }: NavbarProps) {
   const [showTagManager, setShowTagManager] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const handleTabClick = (tabId: string) => {
+    setCurrentTab(tabId);
+    setIsMobileMenuOpen(false);
+  };
 
   // Translate current tab ID to title string
   const getTabTitle = () => {
@@ -67,39 +73,54 @@ export default function Navbar({
 
   return (
     <>
-      {/* 1. FIXED LEFT SIDEBAR (Desktop only: md and above) */}
+      {/* Mobile Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-900/50 z-40 md:hidden backdrop-blur-sm"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* 1. FIXED LEFT SIDEBAR */}
       {/* GUIA: LARGURA DA SIDEBAR (70px recolhida / 260px expandida).
           Se alterar estes valores, ajuste JUNTO:
           - Navbar.tsx linha ~205 (header): 102px / 292px (= largura + 32)
           - App.tsx linhas ~239-240 e ~369 (conteúdo e rodapé): 70px / 260px
           Use sempre múltiplos "redondos" (70, 260, 300) para facilitar. */}
-      <aside className={`hidden md:flex flex-col h-screen fixed left-0 top-0 bg-primary-container text-white py-6 z-50 border-r border-slate-900 select-none transition-all duration-300 ${
-        isSidebarMinimized ? "w-[70px]" : "w-[260px]"
+      <aside className={`flex flex-col h-screen fixed left-0 top-0 bg-primary-container text-white py-6 z-50 border-r border-slate-900 select-none transition-all duration-300 ${
+        isMobileMenuOpen ? "translate-x-0 w-[260px]" : "-translate-x-full md:translate-x-0 " + (isSidebarMinimized ? "md:w-[70px]" : "md:w-[260px]")
       }`}>
         {/* Brand header */}
         <div className="px-4 mb-8 flex justify-center items-center h-10">
-          {isSidebarMinimized ? (
+          <div className={`flex items-center justify-between w-full px-2 ${isSidebarMinimized ? "md:hidden" : ""}`}>
+            <div className="flex items-center cursor-pointer group animate-fadein" onClick={() => handleTabClick("dashboard")}>
+              <AppLogo 
+                src="/logos/logo-v3-menu-lateral.png" 
+                fallbackSrc="/logos/logo-v3-menu-lateral.png" 
+                className="h-10 w-auto object-contain transition-all duration-300 group-hover:scale-105 active:scale-95" 
+              />
+            </div>
+            <button 
+              onClick={toggleSidebar} 
+              className="hidden md:block p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition cursor-pointer"
+              title="Recolher Menu"
+            >
+              <span className="material-symbols-outlined text-[18px]">menu_open</span>
+            </button>
+            <button 
+              onClick={() => setIsMobileMenuOpen(false)} 
+              className="md:hidden p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition cursor-pointer"
+              title="Fechar Menu"
+            >
+              <span className="material-symbols-outlined text-[18px]">close</span>
+            </button>
+          </div>
+          
+          <div className={`hidden ${isSidebarMinimized ? "md:flex" : "hidden"} items-center justify-center w-full`}>
             <div onClick={toggleSidebar} className="w-9 h-9 bg-secondary-container text-primary-container rounded-xl flex items-center justify-center font-bold shadow-md cursor-pointer hover:scale-105 active:scale-95 transition-all" title="Expandir Menu">
               <span className="material-symbols-outlined text-[20px] text-slate-950 font-bold" style={{ fontVariationSettings: "'FILL' 1" }}>bolt</span>
             </div>
-          ) : (
-            <div className="flex items-center justify-between w-full px-2">
-              <div className="flex items-center cursor-pointer group animate-fadein" onClick={() => setCurrentTab("dashboard")}>
-                <AppLogo 
-                  src="/logos/logo-v3-menu-lateral.png" 
-                  fallbackSrc="/logos/logo-v3-menu-lateral.png" 
-                  className="h-10 w-auto object-contain transition-all duration-300 group-hover:scale-105 active:scale-95" 
-                />
-              </div>
-              <button 
-                onClick={toggleSidebar} 
-                className="p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition cursor-pointer"
-                title="Recolher Menu"
-              >
-                <span className="material-symbols-outlined text-[18px]">menu_open</span>
-              </button>
-            </div>
-          )}
+          </div>
         </div>
 
         {/* Sidebar Nav Links */}
@@ -119,10 +140,10 @@ export default function Navbar({
             return (
               <button
                 key={item.id}
-                onClick={() => setCurrentTab(item.id)}
+                onClick={() => handleTabClick(item.id)}
                 title={isSidebarMinimized ? item.label : ""}
                 className={`w-full flex items-center transition duration-150 cursor-pointer ${
-                  isSidebarMinimized ? "justify-center py-3 px-0 rounded-xl" : "gap-3 px-4 py-3 rounded-xl"
+                  isSidebarMinimized ? "md:justify-center md:py-3 md:px-0 gap-3 px-4 py-3 rounded-xl" : "gap-3 px-4 py-3 rounded-xl"
                 } ${
                   active
                     ? "bg-slate-800 text-white border-l-4 border-secondary-container"
@@ -130,7 +151,7 @@ export default function Navbar({
                 }`}
               >
                 <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: active ? "'FILL' 1" : "'FILL' 0" }}>{item.icon}</span>
-                {!isSidebarMinimized && <span className="animate-fadein">{item.label}</span>}
+                <span className={`${isSidebarMinimized ? "md:hidden" : "animate-fadein"} block whitespace-nowrap`}>{item.label}</span>
               </button>
             );
           })}
@@ -139,49 +160,51 @@ export default function Navbar({
         {/* Sidebar Bottom Controls */}
         <div className="px-3 mt-auto space-y-4">
           {(user.role === UserRole.OWNER || user.role === UserRole.ATTENDANT) && (
-            isSidebarMinimized ? (
+            <>
               <button
-                onClick={() => setCurrentTab("os-create")}
-                className="w-11 h-11 mx-auto bg-secondary-container hover:bg-secondary-container-hover text-primary-container rounded-full font-bold flex items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer shadow-sm"
+                onClick={() => handleTabClick("os-create")}
+                className={`hidden ${isSidebarMinimized ? "md:flex" : "hidden"} w-11 h-11 mx-auto bg-secondary-container hover:bg-secondary-container-hover text-primary-container rounded-full font-bold items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer shadow-sm`}
                 title="Nova Ordem de Serviço"
               >
                 <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>add</span>
               </button>
-            ) : (
               <button
-                onClick={() => setCurrentTab("os-create")}
-                className="w-full bg-secondary-container hover:bg-secondary-container-hover text-primary-container py-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer shadow-sm animate-fadein"
+                onClick={() => handleTabClick("os-create")}
+                className={`w-full bg-secondary-container hover:bg-secondary-container-hover text-primary-container py-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer shadow-sm animate-fadein ${isSidebarMinimized ? "md:hidden" : "flex"}`}
               >
                 <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>add</span>
                 <span>Nova Ordem</span>
               </button>
-            )
+            </>
           )}
           
-          <div className={`pt-4 border-t border-slate-800 space-y-2 ${isSidebarMinimized ? "flex flex-col items-center" : ""}`}>
+          <div className={`pt-4 border-t border-slate-800 space-y-2 flex flex-col ${isSidebarMinimized ? "md:items-center" : ""}`}>
             <button
-              onClick={() => setCurrentTab("profile")}
+              onClick={() => handleTabClick("profile")}
               title={isSidebarMinimized ? "Meu Perfil" : ""}
               className={`flex items-center text-xs font-bold transition cursor-pointer ${
                 currentTab === "profile"
                   ? "text-white bg-slate-800 border-l-4 border-secondary-container"
                   : "text-slate-400 hover:text-white hover:bg-slate-800/40"
               } ${
-                isSidebarMinimized ? "justify-center p-2 rounded-xl" : "gap-3 px-4 py-2 w-full"
+                isSidebarMinimized ? "md:justify-center md:p-2 rounded-xl gap-3 px-4 py-2 w-full" : "gap-3 px-4 py-2 w-full rounded-xl"
               }`}
             >
               <span className="material-symbols-outlined text-[18px]">person</span>
-              {!isSidebarMinimized && <span className="animate-fadein">Meu Perfil</span>}
+              <span className={`${isSidebarMinimized ? "md:hidden" : "animate-fadein"} block whitespace-nowrap`}>Meu Perfil</span>
             </button>
             <button
-              onClick={() => alert("Central de Suporte MGV: Ligue para (11) 3218-9900 ou mande e-mail para suporte@mgv.com.br")}
+              onClick={() => {
+                alert("Central de Suporte MGV: Ligue para (11) 3218-9900 ou mande e-mail para suporte@mgv.com.br");
+                setIsMobileMenuOpen(false);
+              }}
               title={isSidebarMinimized ? "Suporte" : ""}
               className={`flex items-center text-xs font-bold text-slate-400 hover:text-white transition cursor-pointer ${
-                isSidebarMinimized ? "justify-center p-2 rounded-xl hover:bg-slate-800/40" : "gap-3 px-4 py-2 w-full"
+                isSidebarMinimized ? "md:justify-center md:p-2 rounded-xl hover:bg-slate-800/40 gap-3 px-4 py-2 w-full" : "gap-3 px-4 py-2 w-full rounded-xl"
               }`}
             >
               <span className="material-symbols-outlined text-[18px]">help</span>
-              {!isSidebarMinimized && <span className="animate-fadein">Suporte</span>}
+              <span className={`${isSidebarMinimized ? "md:hidden" : "animate-fadein"} block whitespace-nowrap`}>Suporte</span>
             </button>
             <button
               onClick={() => {
@@ -191,21 +214,21 @@ export default function Navbar({
               }}
               title={isSidebarMinimized ? "Trocar de Conta" : ""}
               className={`flex items-center text-xs font-bold text-slate-450 hover:text-indigo-400 transition cursor-pointer ${
-                isSidebarMinimized ? "justify-center p-2 rounded-xl hover:bg-slate-800/40" : "gap-3 px-4 py-2 w-full"
+                isSidebarMinimized ? "md:justify-center md:p-2 rounded-xl hover:bg-slate-800/40 gap-3 px-4 py-2 w-full" : "gap-3 px-4 py-2 w-full rounded-xl"
               }`}
             >
               <span className="material-symbols-outlined text-[18px]">switch_account</span>
-              {!isSidebarMinimized && <span className="animate-fadein">Trocar de Conta</span>}
+              <span className={`${isSidebarMinimized ? "md:hidden" : "animate-fadein"} block whitespace-nowrap`}>Trocar de Conta</span>
             </button>
             <button
               onClick={onLogout}
               title={isSidebarMinimized ? "Sair da Conta" : ""}
               className={`flex items-center text-xs font-bold text-slate-450 hover:text-red-400 transition cursor-pointer ${
-                isSidebarMinimized ? "justify-center p-2 rounded-xl hover:bg-slate-800/40" : "gap-3 px-4 py-2 w-full"
+                isSidebarMinimized ? "md:justify-center md:p-2 rounded-xl hover:bg-slate-800/40 gap-3 px-4 py-2 w-full" : "gap-3 px-4 py-2 w-full rounded-xl"
               }`}
             >
               <span className="material-symbols-outlined text-[18px]">logout</span>
-              {!isSidebarMinimized && <span className="animate-fadein">Sair da Conta</span>}
+              <span className={`${isSidebarMinimized ? "md:hidden" : "animate-fadein"} block whitespace-nowrap`}>Sair da Conta</span>
             </button>
           </div>
         </div>
@@ -214,10 +237,17 @@ export default function Navbar({
       {/* 2. STICKY TOP APP BAR (Header offset dynamic on desktop) */}
       {/* GUIA: DESLOCAMENTO do header conforme a sidebar.
           Valor = largura da sidebar + 32px de folga (102 = 70+32 / 292 = 260+32). */}
-      <header className={`h-16 w-full flex justify-between items-center pr-8 pl-6 border-b border-slate-200 bg-white sticky top-0 z-40 select-none transition-all duration-300 ${
+      <header className={`h-16 w-full flex justify-between items-center pr-8 pl-4 sm:pl-6 border-b border-slate-200 bg-white sticky top-0 z-40 select-none transition-all duration-300 ${
         isSidebarMinimized ? "md:pl-[102px]" : "md:pl-[292px]"
       }`}>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4">
+          <button 
+            className="md:hidden p-1 sm:-ml-2 text-slate-500 hover:text-slate-900 focus:outline-none"
+            onClick={() => setIsMobileMenuOpen(true)}
+            title="Abrir Menu"
+          >
+            <span className="material-symbols-outlined text-[24px]">menu</span>
+          </button>
           <h2 className="font-display font-bold text-base sm:text-lg text-slate-900 leading-none">{getTabTitle()}</h2>
           
           {/* Offline/Online Status Badge */}
