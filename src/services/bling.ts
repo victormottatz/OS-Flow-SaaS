@@ -222,6 +222,9 @@ export async function syncClientToBling(client: {
   rg?: string; // Tabela Client.rg armazena IE/RG no banco local
   stateInscription?: string;
   icmsContribuinteType?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
 }): Promise<number> {
   const token = await getAccessToken();
   if (!token) {
@@ -237,7 +240,7 @@ export async function syncClientToBling(client: {
       const searchResponse = await requestWithRetry(() => axios.get(
         "https://api.bling.com.br/Api/v3/contatos",
         {
-          params: { cnpj: documentSanitized, limite: 1 },
+          params: { numeroDocumento: documentSanitized, limite: 1 },
           headers: { Authorization: `Bearer ${token}` }
         }
       ));
@@ -255,36 +258,43 @@ export async function syncClientToBling(client: {
   let logradouro = "Não informado";
   let numero = "S/N";
   let bairro = "Centro";
-  let cep = "14000000"; // Fallback para Ribeirão Preto genérico
-  let municipio = "Ribeirão Preto";
-  let uf = "SP";
+  
+  // Usar campos diretos do cliente, se disponíveis
+  let cep = (client.zipCode || "").replace(/\D/g, "") || "14000000"; 
+  let municipio = client.city || "Ribeirão Preto";
+  let uf = client.state || "SP";
 
   const rawAddress = client.address || "";
 
   try {
-    // 1. Extrair CEP (formato XXXXX-XXX ou XXXXXXXX)
-    const cepMatch = rawAddress.match(/\b\d{5}-?\d{3}\b/);
-    if (cepMatch) {
-      cep = cepMatch[0].replace(/\D/g, "");
-    }
-
-    // 2. Extrair UF/Estado (ex: "SP", "/SP", "- SP")
-    const ufMatch = rawAddress.match(/[\/,\-\s]\s*([A-Za-z]{2})\b/);
-    if (ufMatch) {
-      const parsedUf = ufMatch[1].toUpperCase();
-      // Simples lista de UFs válidas brasileiras
-      const validUfs = ["AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"];
-      if (validUfs.includes(parsedUf)) {
-        uf = parsedUf;
+    // 1. Extrair CEP (formato XXXXX-XXX ou XXXXXXXX) se não fornecido
+    if (!client.zipCode) {
+      const cepMatch = rawAddress.match(/\b\d{5}-?\d{3}\b/);
+      if (cepMatch) {
+        cep = cepMatch[0].replace(/\D/g, "");
       }
     }
 
-    // 3. Extrair Município
-    const cityMatch = rawAddress.match(/([^,\-\/]+)\s*[\/-]\s*([A-Za-z]{2})\b/);
-    if (cityMatch) {
-      const potentialCity = cityMatch[1].trim();
-      if (potentialCity.length > 2 && potentialCity.toUpperCase() !== "BAIRRO") {
-        municipio = potentialCity;
+    // 2. Extrair UF/Estado se não fornecido
+    if (!client.state) {
+      const ufMatch = rawAddress.match(/[\/,\-\s]\s*([A-Za-z]{2})\b/);
+      if (ufMatch) {
+        const parsedUf = ufMatch[1].toUpperCase();
+        const validUfs = ["AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"];
+        if (validUfs.includes(parsedUf)) {
+          uf = parsedUf;
+        }
+      }
+    }
+
+    // 3. Extrair Município se não fornecido
+    if (!client.city) {
+      const cityMatch = rawAddress.match(/([^,\-\/]+)\s*[\/-]\s*([A-Za-z]{2})\b/);
+      if (cityMatch) {
+        const potentialCity = cityMatch[1].trim();
+        if (potentialCity.length > 2 && potentialCity.toUpperCase() !== "BAIRRO") {
+          municipio = potentialCity;
+        }
       }
     }
 
@@ -321,9 +331,6 @@ export async function syncClientToBling(client: {
   const nameSanitized = client.name.trim().replace(/\s{2,}/g, " ");
 
   // Classificação do Tipo de Contribuinte de ICMS
-  // 1 - Contribuinte ICMS (PJ com IE)
-  // 2 - Contribuinte isento (PJ sem IE / Isento)
-  // 9 - Não Contribuinte (PF ou PJ sem IE)
   let contribuinte = "9";
   let ie = "";
 
@@ -345,7 +352,7 @@ export async function syncClientToBling(client: {
 
   const payload = {
     nome: nameSanitized,
-    tipo: documentSanitized.length > 11 ? "Juridica" : "Física",
+    tipo: documentSanitized.length > 11 ? "J" : "F",
     cnpj: documentSanitized,
     email: client.email || "",
     telefone: phoneSanitized,

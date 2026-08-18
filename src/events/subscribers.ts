@@ -19,6 +19,9 @@ const syncClient = async (clientId: string, action: string) => {
         email: client.email || `${client.cpfCnpj.replace(/\D/g, "")}@cliente.sem.email.com`,
         address: client.address || "Endereço não informado",
         rg: client.rg || undefined,
+        city: client.city || undefined,
+        state: client.state || undefined,
+        zipCode: client.zipCode || undefined,
       });
       console.log(`[Subscribers] Cliente ${client.name} sincronizado com o Bling com sucesso (${action}).`);
     }
