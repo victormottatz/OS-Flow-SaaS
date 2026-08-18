@@ -67,6 +67,10 @@ const EQUIPMENT_PRESETS: Record<string, { brands: string[]; models: string[] }> 
     brands: ["KLD", "IBRAMED", "HTM"],
     models: ["Hygialux", "Antares", "Endophoton"]
   },
+  "Laser": {
+    brands: ["KLD", "IBRAMED", "HTM", "Outros"],
+    models: ["Diversos"]
+  },
   "Vapor de Ozônio": {
     brands: ["IBRAMED", "HTM"],
     models: ["Dermosteam", "Beautysteam"]
@@ -739,6 +743,7 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
                         <option value="Radiofrequência">Radiofrequência</option>
                         <option value="Eletroestimulador / Correntes">Eletroestimulador / Correntes</option>
                         <option value="Laserterapia / LED">Laserterapia / LED</option>
+                          <option value="Laser">Laser</option>
                         <option value="Laser de Diodo">Laser de Diodo</option>
                         <option value="Luz Intensa Pulsada (IPL)">Luz Intensa Pulsada (IPL)</option>
                         <option value="Laser de Baixa Intensidade (LLLT)">Laser de Baixa Intensidade (LLLT)</option>

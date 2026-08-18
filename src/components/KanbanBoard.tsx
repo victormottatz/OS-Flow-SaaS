@@ -1238,7 +1238,7 @@ export default function KanbanBoard({
 
     // Gate 3: Encerramento Sem Reparo (Orçamento Recusado / Sem Conserto)
     const isOrigemSemReparo = osToMove.status === "AGUARDANDO_AVALIACAO" || osToMove.status === "AGUARDANDO_AUTORIZACAO";
-    if (newStatus === "FINALIZADO" && isOrigemSemReparo) {
+    if ((newStatus === "FINALIZADO" || newStatus === "PRONTO_RETIRADA") && isOrigemSemReparo) {
       setSemReparoOS(osToMove);
       setSelectedClosingReason('ORCAMENTO_RECUSADO');
       setSemReparoNotifyWhatsapp(true);
@@ -1913,10 +1913,10 @@ export default function KanbanBoard({
             });
             if (!resDados.ok) throw new Error("Erro ao gravar dados.");
             
-            // Se o destino for FINALIZADO e a origem for um status de orçamento/avaliação,
+            // Se o destino for FINALIZADO ou PRONTO_RETIRADA e a origem for um status de orçamento/avaliação,
             // interceptamos e abrimos o modal de Motivo de Encerramento Sem Reparo.
             const isOrigemSemReparo = selectedOS.status === "AGUARDANDO_AVALIACAO" || selectedOS.status === "AGUARDANDO_AUTORIZACAO";
-            if (newStatus === "FINALIZADO" && isOrigemSemReparo) {
+            if ((newStatus === "FINALIZADO" || newStatus === "PRONTO_RETIRADA") && isOrigemSemReparo) {
               const osUpdatedForSemReparo = {
                 ...selectedOS,
                 diagnostic,
@@ -3479,7 +3479,7 @@ export default function KanbanBoard({
                       method: "PUT",
                       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
                       body: JSON.stringify({ 
-                        status: "FINALIZADO",
+                        status: "PRONTO_RETIRADA",
                         closingReason: selectedClosingReason
                       })
                     });

@@ -15,7 +15,7 @@ export function UpdatePopup() {
   }, []);
 
   useEffect(() => {
-    const hasSeenUpdate = localStorage.getItem('mgv_update_v4_6_seen');
+    const hasSeenUpdate = localStorage.getItem('mgv_update_v4_7_seen');
     if (!hasSeenUpdate) {
       const timer = setTimeout(() => {
         setIsOpen(true);
@@ -23,10 +23,10 @@ export function UpdatePopup() {
         const storageData = localStorage.getItem('mgv_notifications') || '[]';
         try {
           const current = JSON.parse(storageData);
-          if (!current.some((n: any) => n.title === "🚀 MANCHETE: MGV One Hub V4.6!")) {
+          if (!current.some((n: any) => n.title === "🚀 MANCHETE: MGV One Hub V4.7!")) {
             addNotification(
-              "🚀 MANCHETE: MGV One Hub V4.6!",
-              "Novo menu lateral expansível para mobile, Favicon no navegador e nova Logo na tela de Login.",
+              "🚀 MANCHETE: MGV One Hub V4.7!",
+              "Novo fluxo de OS Sem Reparo que aguarda retirada e nova categoria 'Laser' de equipamentos adicionada.",
               "success"
             );
           }
@@ -38,7 +38,7 @@ export function UpdatePopup() {
 
   const handleClose = () => {
     setIsOpen(false);
-    localStorage.setItem('mgv_update_v4_6_seen', 'true');
+    localStorage.setItem('mgv_update_v4_7_seen', 'true');
   };
 
   // Fecha o popup ao clicar fora da janela de conteúdo (backdrop)
@@ -73,7 +73,7 @@ export function UpdatePopup() {
                 Novidades na Atualização!
               </h2>
               <p className="text-blue-100 mt-1 font-medium z-10">
-                O MGV One Hub V4.6 chegou
+                O MGV One Hub V4.7 chegou
               </p>
               
               <button 
@@ -90,18 +90,18 @@ export function UpdatePopup() {
                 <li className="flex items-start gap-3">
                   <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0 mt-0.5" />
                   <div>
-                    <h3 className="text-slate-200 font-semibold text-base">Menu Lateral no Mobile</h3>
+                    <h3 className="text-slate-200 font-semibold text-base">Novo Fluxo: OS Sem Reparo</h3>
                     <p className="text-slate-400 text-sm mt-0.5 leading-relaxed">
-                      Agora é possível expandir o menu lateral também em dispositivos móveis. Adicionamos um botão rápido no topo para facilitar a navegação em qualquer tela.
+                      Ordens de Serviço com orçamento recusado ou sem defeito não serão mais finalizadas automaticamente. Elas agora aguardam a retirada do aparelho na coluna 'Pronto p/ Retirada'.
                     </p>
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
                   <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0 mt-0.5" />
                   <div>
-                    <h3 className="text-slate-200 font-semibold text-base">Favicon e Nova Logo de Login</h3>
+                    <h3 className="text-slate-200 font-semibold text-base">Nova Categoria de Aparelho: Laser</h3>
                     <p className="text-slate-400 text-sm mt-0.5 leading-relaxed">
-                      Adicionamos o ícone personalizado na aba do navegador (Favicon) para fácil identificação e atualizamos a logomarca preta e amarela na tela inicial de Login.
+                      Adicionamos "Laser" como um tipo de aparelho distinto, simplificando a catalogação e reposição de peças para esses equipamentos.
                     </p>
                   </div>
                 </li>

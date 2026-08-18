@@ -11,9 +11,11 @@ export class OSStateMachine {
     { from: "AGUARDANDO_AVALIACAO", to: "AGUARDANDO_AUTORIZACAO" },
     { from: "AGUARDANDO_AVALIACAO", to: "EM_MANUTENCAO" }, // Permite pular autorização para garantia ou início direto
     { from: "AGUARDANDO_AVALIACAO", to: "FINALIZADO" },
+    { from: "AGUARDANDO_AVALIACAO", to: "PRONTO_RETIRADA" }, // Recusa/Sem defeito/Descarte onde o cliente retira
     { from: "AGUARDANDO_AUTORIZACAO", to: "EM_MANUTENCAO" },
     { from: "AGUARDANDO_AUTORIZACAO", to: "AGUARDANDO_PECA" },
     { from: "AGUARDANDO_AUTORIZACAO", to: "FINALIZADO" },
+    { from: "AGUARDANDO_AUTORIZACAO", to: "PRONTO_RETIRADA" }, // Orçamento recusado/Descarte onde o cliente retira
     { from: "AGUARDANDO_PECA", to: "EM_MANUTENCAO" },
     { from: "EM_MANUTENCAO", to: "AGUARDANDO_PECA" },
     { from: "EM_MANUTENCAO", to: "PRONTO_RETIRADA" },

@@ -1355,6 +1355,8 @@ export class OSController {
                       profitValue,
                       profitMarginPercent
                     }
+                  : targetStatus === "PRONTO_RETIRADA" && closingReason // Mantém a recusa se enviada
+                  ? { closingReason }
                   : { closingReason: null })
               }
             : {
