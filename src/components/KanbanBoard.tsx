@@ -1977,6 +1977,23 @@ export default function KanbanBoard({
             });
             if (!resStatus.ok) {
               const errData = await resStatus.json().catch(() => ({}));
+              
+              if (errData.code === "DEVICE_INCOMPLETE" && errData.device) {
+                setOnboardingOS(selectedOS);
+                setOnboardingDevice(errData.device);
+                setOnboardingTargetStatus(newStatus as OSStatus);
+                setOnbType(errData.device.type || "Ultrassom (Fisio/Estética)");
+                setOnbBrand(errData.device.brand === "Indefinido" ? "" : errData.device.brand);
+                setOnbModel(errData.device.model === "Indefinido" ? "" : errData.device.model);
+                setOnbSerial(errData.device.serialNumber === "Sem Série" ? "" : errData.device.serialNumber);
+                setOnbDesc(errData.device.description === "Sem observações." ? "" : errData.device.description);
+                setOnbErrorMsg("");
+                setOnbSuccessMsg("");
+                setShowEditModal(false);
+                setShowOnboardingModal(true);
+                return;
+              }
+              
               throw new Error(errData.error || "Erro ao mudar fase.");
             }
             
