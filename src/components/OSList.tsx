@@ -135,6 +135,33 @@ export default function OSList({ isOffline, onRefresh, userRole }: OSListProps) 
     }
   };
 
+  const handleStatusChange = async (osId: string, newStatus: OSStatus) => {
+    if (!confirm(`Tem certeza que deseja mover esta Ordem de Serviço para a fase "${newStatus.replace(/_/g, ' ')}"?`)) return;
+    
+    try {
+      const token = localStorage.getItem("mgv_token") || "";
+      const resStatus = await fetch(`/api/ordens-servico/${osId}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({ status: newStatus })
+      });
+      
+      if (!resStatus.ok) {
+        const errData = await resStatus.json().catch(() => ({}));
+        if (errData.code === "DEVICE_INCOMPLETE") {
+           alert("Aparelho com cadastro incompleto.\n\nPor favor, vá até a tela da Oficina (Kanban) e mude a fase lá. Assim, a tela para completar a Marca e Modelo do aparelho será exibida corretamente para você.");
+           return;
+        }
+        throw new Error(errData.error || "Erro ao mudar fase da OS.");
+      }
+      
+      alert("Fase da OS alterada com sucesso!");
+      onRefresh();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
   const getOSTotal = (os: OrdemServico) => {
     if (os.totalCost !== undefined && os.totalCost !== null && os.totalCost > 0) {
       return os.totalCost;
@@ -396,17 +423,34 @@ export default function OSList({ isOffline, onRefresh, userRole }: OSListProps) 
                         <p className="text-[10px] text-slate-400 font-mono mt-0.5">{os.client?.phone || "Telefone não cadastrado"}</p>
                       </td>
                       <td className="px-6 py-4">
-                        <p className="font-bold text-slate-850">{os.device?.type || "Aparelho"} {os.device?.brand || ""}</p>
-                        <p className="text-[10px] text-slate-500 font-semibold mt-0.5">Modelo: {os.device?.model || "N/D"}</p>
+                        <p className="font-bold text-slate-850">
+                          {os.device?.brand || "Aparelho"} {os.device?.type || ""} {os.device?.model && os.device.model.toLowerCase() !== 'indefinido' ? `(${os.device.model})` : ""}
+                        </p>
                       </td>
                       <td className="px-6 py-4 font-medium text-slate-500">
                         {new Date(os.createdAt).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" })}
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex flex-col items-start gap-1">
-                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold border ${getStatusBadgeClass(os.status, os.closingReason)}`}>
-                            {getStatusName(os.status, os.closingReason)}
-                          </span>
+                          <select 
+                            value={os.status}
+                            onChange={(e) => handleStatusChange(os.id, e.target.value as OSStatus)}
+                            className={`inline-flex items-center px-2 py-1 rounded-full text-[10px] font-bold border cursor-pointer outline-none appearance-none ${getStatusBadgeClass(os.status, os.closingReason)}`}
+                            style={{ textAlign: 'center', textAlignLast: 'center' }}
+                            title="Clique para alterar a fase da OS"
+                          >
+                            <option value="AGUARDANDO_AVALIACAO">Aguardando Avaliação</option>
+                            <option value="AGUARDANDO_AUTORIZACAO">Aguardando Autorização</option>
+                            <option value="AGUARDANDO_PECA">Aguardando Peça</option>
+                            <option value="EM_MANUTENCAO">Em Manutenção</option>
+                            <option value="PRONTO_RETIRADA">Pronto p/ Retirada</option>
+                            <option value="PAGO_PRONTO_RETIRADA">Pago Pronto p/ Retirada</option>
+                            {os.status === "FINALIZADO" && os.closingReason ? (
+                              <option value="FINALIZADO">{getStatusName(os.status, os.closingReason)}</option>
+                            ) : (
+                              <option value="FINALIZADO">Finalizado</option>
+                            )}
+                          </select>
                           <div className="flex flex-wrap gap-1">
                             {[13, 16, 18, 23].includes(os.statusCode) && (
                               <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8.5px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200">
