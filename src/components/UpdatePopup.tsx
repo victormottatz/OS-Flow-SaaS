@@ -15,30 +15,25 @@ export function UpdatePopup() {
   }, []);
 
   useEffect(() => {
-    const hasSeenUpdate = localStorage.getItem('mgv_update_v4_7_seen');
-    if (!hasSeenUpdate) {
-      const timer = setTimeout(() => {
-        setIsOpen(true);
-        // Adiciona a notificação na hora que o popup abre!
-        const storageData = localStorage.getItem('mgv_notifications') || '[]';
-        try {
-          const current = JSON.parse(storageData);
-          if (!current.some((n: any) => n.title === "🚀 MANCHETE: MGV One Hub V4.7!")) {
-            addNotification(
-              "🚀 MANCHETE: MGV One Hub V4.7!",
-              "Novo fluxo de OS Sem Reparo que aguarda retirada e nova categoria 'Laser' de equipamentos adicionada.",
-              "success"
-            );
-          }
-        } catch (e) {}
-      }, 1500);
-      return () => clearTimeout(timer);
+    const savedVersion = localStorage.getItem("mgv_last_update_version");
+    if (savedVersion !== "4.11.0") {
+      setIsOpen(true);
+      
+      // Notificação silenciosa no sino
+      addNotification({
+        title: "🚀 MGV ONE HUB Atualizado (v4.11.0)",
+        message: "Liberada a movimentação livre e reabertura de OS no Kanban. Correção no encerramento de Aparelhos Sem Defeito.",
+        type: "system",
+        read: false
+      });
+      
+      localStorage.setItem("mgv_last_update_version", "4.11.0");
     }
-  }, []);
+  }, [addNotification]);
 
   const handleClose = () => {
     setIsOpen(false);
-    localStorage.setItem('mgv_update_v4_7_seen', 'true');
+    localStorage.setItem('mgv_update_v4_8_seen', 'true');
   };
 
   // Fecha o popup ao clicar fora da janela de conteúdo (backdrop)
@@ -65,16 +60,14 @@ export function UpdatePopup() {
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
             className="relative w-full max-w-lg bg-slate-900 border border-slate-700 shadow-2xl rounded-2xl overflow-hidden"
           >
-            {/* Cabeçalho com Degradê Gradiente Premium */}
             <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 flex flex-col items-center justify-center text-center relative overflow-hidden">
               <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
-              <Sparkles className="w-12 h-12 text-white mb-2 drop-shadow-md animate-pulse" />
-              <h2 className="text-2xl font-bold text-white tracking-tight drop-shadow-sm">
-                Novidades na Atualização!
+              <span className="bg-indigo-500 text-indigo-50 text-[10px] font-black tracking-widest uppercase px-2 py-1 rounded mb-2 inline-block">Nova Atualização</span>
+              <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                <span className="material-symbols-outlined text-[28px]">rocket_launch</span>
+                MGV ONE HUB
               </h2>
-              <p className="text-blue-100 mt-1 font-medium z-10">
-                O MGV One Hub V4.7 chegou
-              </p>
+              <p className="text-indigo-200 mt-1 text-sm">Versão 4.11.0 • Agosto de 2026</p>
               
               <button 
                 onClick={handleClose}
@@ -84,27 +77,33 @@ export function UpdatePopup() {
               </button>
             </div>
 
-            {/* Corpo de Conteúdo */}
             <div className="p-6">
-              <ul className="space-y-4">
-                <li className="flex items-start gap-3">
-                  <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0 mt-0.5" />
-                  <div>
-                    <h3 className="text-slate-200 font-semibold text-base">Novo Fluxo: OS Sem Reparo</h3>
-                    <p className="text-slate-400 text-sm mt-0.5 leading-relaxed">
-                      Ordens de Serviço com orçamento recusado ou sem defeito não serão mais finalizadas automaticamente. Elas agora aguardam a retirada do aparelho na coluna 'Pronto p/ Retirada'.
-                    </p>
-                  </div>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0 mt-0.5" />
-                  <div>
-                    <h3 className="text-slate-200 font-semibold text-base">Nova Categoria de Aparelho: Laser</h3>
-                    <p className="text-slate-400 text-sm mt-0.5 leading-relaxed">
-                      Adicionamos "Laser" como um tipo de aparelho distinto, simplificando a catalogação e reposição de peças para esses equipamentos.
-                    </p>
-                  </div>
-                </li>
+              <ul className="space-y-6">
+            {/* Alteração 1 */}
+            <div className="flex gap-4">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center border border-blue-200">
+                <span className="material-symbols-outlined text-blue-600 text-[20px]">drag_pan</span>
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-200 text-sm">Movimentação Livre no Kanban (Reabrir OS)</h3>
+                <p className="text-slate-400 text-xs mt-1 leading-relaxed">
+                  Atendendo a pedidos, removemos a trava rígida de fases. Agora você pode reabrir uma OS Finalizada voltando-a para a bancada, ou pular etapas livremente arrastando o card.
+                </p>
+              </div>
+            </div>
+
+            {/* Alteração 2 */}
+            <div className="flex gap-4">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center border border-emerald-200">
+                <span className="material-symbols-outlined text-emerald-600 text-[20px]">check_circle</span>
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-200 text-sm">Correção: Aparelho Sem Defeito</h3>
+                <p className="text-slate-400 text-xs mt-1 leading-relaxed">
+                  Corrigido o erro que impedia encerrar uma OS sem defeito. O sistema não exige mais que você preencha a Base Instalada (marca/modelo/série) caso a OS não tenha conserto.
+                </p>
+              </div>
+            </div>
               </ul>
 
               <div className="mt-8 pt-5 border-t border-slate-800 flex justify-end">

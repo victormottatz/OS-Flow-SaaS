@@ -1214,7 +1214,7 @@ export class OSController {
 
   async updateStatus(req: Request, res: Response) {
     const { id } = req.params;
-    const { status, closingReason, paymentMethod, invoiceType, paymentNotes, paymentDate, paymentDetails } = req.body;
+    const { status, closingReason, paymentMethod, invoiceType, paymentNotes, paymentDate, paymentDetails, syncClientWithErp } = req.body;
 
     if (!status) {
       res.status(400).json({ error: "Status é obrigatório." });
@@ -1223,7 +1223,8 @@ export class OSController {
 
     try {
       const currentOS = await prisma.ordemServico.findUnique({
-        where: { id }
+        where: { id },
+        include: { tags: true }
       });
       if (!currentOS || currentOS.deletedAt) {
         res.status(404).json({ error: "Ordem de Serviço não encontrada." });
@@ -1233,8 +1234,16 @@ export class OSController {
       const previousStatus = currentOS.status as OSStatus;
       const targetStatus = status as OSStatus;
 
+      // Identifica se é um encerramento sem reparo
+      const isSemReparo = closingReason === 'ORCAMENTO_RECUSADO'
+        || closingReason === 'SEM_CONSERTO'
+        || closingReason === 'DESCARTE_CLIENTE_RETIRA'
+        || closingReason === 'DESCARTE_OFICINA'
+        || closingReason === 'EQUIPAMENTO_SEM_DEFEITO';
+
       // Validação de dispositivo incompleto (Lazy Loading / Base Instalada)
-      if (previousStatus !== targetStatus) {
+      // Bypassa se for um encerramento sem conserto/sem defeito
+      if (previousStatus !== targetStatus && !isSemReparo) {
         const device = await prisma.device.findUnique({
           where: { id: currentOS.deviceId }
         });
@@ -1248,10 +1257,11 @@ export class OSController {
         }
       }
 
-      // DDD: Validação de Máquina de Estados Finita (FSM) (Bypass para OWNER, ADMIN e SUPERVISOR)
+      // DDD: Validação de Máquina de Estados Finita (FSM) 
+      // DESATIVADA PARA PERMITIR MOVIMENTAÇÃO LIVRE E REABERTURA DE O.S. (Solicitação do Trello - Fase 5)
+      /* 
       const userRole = req.headers["x-user-role"] as string;
       const isManager = userRole === "OWNER" || userRole === "ADMIN" || userRole === "SUPERVISOR";
-
       if (!isManager && !await OSStateMachine.canTransition(previousStatus, targetStatus)) {
         res.status(422).json({
           error: `Transição de status inválida: Não é permitido mover de '${previousStatus}' para '${targetStatus}'.`,
@@ -1259,15 +1269,9 @@ export class OSController {
         });
         return;
       }
+      */
 
       const osUsedParts = typeof currentOS.usedParts === "string" ? JSON.parse(currentOS.usedParts) : currentOS.usedParts || [];
-
-      // Identifica se é um encerramento sem reparo
-      const isSemReparo = closingReason === 'ORCAMENTO_RECUSADO'
-        || closingReason === 'SEM_CONSERTO'
-        || closingReason === 'DESCARTE_CLIENTE_RETIRA'
-        || closingReason === 'DESCARTE_OFICINA'
-        || closingReason === 'EQUIPAMENTO_SEM_DEFEITO';
 
       if (targetStatus === "FINALIZADO" || targetStatus === "PRONTO_RETIRADA") {
         // Se NÃO for sem reparo, aplica as travas de laudo técnico, custo e serialização
@@ -1300,7 +1304,8 @@ export class OSController {
             return;
           }
           
-          const isWarranty = currentOS.warrantyType !== "NENHUMA" || await isOSInWarranty(currentOS);
+          const hasManualTag = currentOS.tags && currentOS.tags.some((t: any) => t.name === "Em Garantia" || t.name === "Garantia");
+          const isWarranty = currentOS.warrantyType !== "NENHUMA" || hasManualTag || await isOSInWarranty(currentOS);
           const labor = currentOS.laborCost || 0;
           if (!isWarranty && labor === 0 && osUsedParts.length === 0) {
             res.status(422).json({
@@ -1458,7 +1463,7 @@ export class OSController {
                 usedParts: osUsedParts
               };
 
-              const result = await sendOsToBling(osSnapshot, clientSnapshot, partsDbSnapshot, true, { invoiceType });
+              const result = await sendOsToBling(osSnapshot, clientSnapshot, partsDbSnapshot, true, { invoiceType, syncClientWithErp });
               if (result.success) {
                 let sefazMsg = "";
                 if (result.notaFiscalId) sefazMsg += `NF-e/NFC-e: ${result.notaFiscalId}. `;
