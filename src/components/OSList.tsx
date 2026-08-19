@@ -6,8 +6,7 @@
 import React, { useState, useEffect } from "react";
 import { OrdemServico, OSStatus, EntradaFoto } from "../types";
 import { useOSList } from "../hooks/useOSList";
-import { SearchScope } from "../utils/searchUtils";
-
+import { ExportToExcelButton } from "./ExportToExcelButton";
 import { usePrintDocument } from "../hooks/usePrintDocument";
 import { resolveTemplateForOS, DOCUMENT_TEMPLATES, DocumentTemplate } from "../config/documents.config";
 import { downloadDocumentPdf } from "../utils/downloadDocument";
@@ -76,7 +75,6 @@ export default function OSList({ isOffline, onRefresh, userRole }: OSListProps) 
   const [activePrintTemplate, setActivePrintTemplate] = useState<DocumentTemplate | null>(null);
   const [lightboxPhoto, setLightboxPhoto] = useState<EntradaFoto | null>(null);
   const [modalTab, setModalTab] = useState<"laudo" | "pecas" | "entrada" | "saida">("laudo");
-  const [searchScope, setSearchScope] = useState<SearchScope>("all");
   const [editTagIds, setEditTagIds] = useState<string[]>([]);
   const [savingTags, setSavingTags] = useState(false);
 
@@ -283,24 +281,16 @@ export default function OSList({ isOffline, onRefresh, userRole }: OSListProps) 
       </div>
 
       {/* Control Panel (Search + Status Filter) */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col lg:flex-row items-center gap-4">
+      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col gap-4">
         {/* Search Field with Scope Dropdown Selector */}
-        <div className="flex-1 relative w-full group flex flex-col sm:flex-row items-center gap-2">
+        <div className="relative w-full group flex flex-col sm:flex-row items-center gap-2">
           <div className="relative w-full flex-1">
             <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors">search</span>
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder={
-                searchScope === "osNumber" ? "Pesquisar por número da OS..." :
-                searchScope === "name" ? "Pesquisar por nome do cliente..." :
-                searchScope === "phone" ? "Pesquisar por número ou dígitos do telefone..." :
-                searchScope === "document" ? "Pesquisar por CPF ou CNPJ..." :
-                searchScope === "address" ? "Pesquisar por endereço..." :
-                searchScope === "device" ? "Pesquisar por marca, modelo ou nº de série..." :
-                "Pesquisar por OS, cliente, aparelho, laudo ou sintomas..."
-              }
+              placeholder="Pesquisar por OS, cliente, aparelho, laudo ou sintomas..."
               className="w-full pl-12 pr-10 py-3 bg-slate-50/50 border border-slate-200 rounded-xl text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-medium text-slate-800 placeholder:text-slate-400"
             />
             {searchTerm && (
@@ -313,24 +303,10 @@ export default function OSList({ isOffline, onRefresh, userRole }: OSListProps) 
               </button>
             )}
           </div>
-
-          <select
-            value={searchScope}
-            onChange={(e) => setSearchScope(e.target.value as SearchScope)}
-            className="w-full sm:w-auto px-3.5 py-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition shrink-0 cursor-pointer shadow-xs"
-          >
-            <option value="all">🔍 Todos os Campos</option>
-            <option value="osNumber">📋 Nº da OS</option>
-            <option value="name">👤 Nome do Cliente</option>
-            <option value="phone">📞 Telefone</option>
-            <option value="document">📄 CPF / CNPJ</option>
-            <option value="address">📍 Endereço</option>
-            <option value="device">💻 Equipamento / Série</option>
-          </select>
         </div>
 
         {/* Filter Buttons */}
-        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto shrink-0 border-t lg:border-t-0 pt-3 lg:pt-0">
+        <div className="flex flex-wrap items-center gap-2 w-full shrink-0 border-t border-slate-100 pt-3">
           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-2 hidden xl:inline">Status:</label>
           {(() => {
             const totalAllOS = countsByStatus ? Object.values(countsByStatus).reduce((a, b) => a + b, 0) : total;
