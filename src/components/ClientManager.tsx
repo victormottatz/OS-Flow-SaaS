@@ -297,6 +297,8 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
       alert("Fase da OS alterada com sucesso!");
       if (selectedDevice360) {
         openDeviceHistory(selectedDevice360);
+      } else if (activeClient360Id) {
+        openClient360(activeClient360Id);
       }
     } catch (err: any) {
       alert(err.message);
@@ -2358,9 +2360,30 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
                                       <span className="font-mono font-bold text-slate-800 text-xs bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">
                                         {os.osNumber}
                                       </span>
-                                      <span className={`text-[9px] uppercase font-extrabold px-2 py-0.5 rounded-full border ${statusColor}`}>
-                                        {os.status.replace("_", " ")}
-                                      </span>
+                                      <select 
+                                        value={os.status}
+                                        onChange={(e) => handleStatusChange(os.id, e.target.value)}
+                                        className={`text-[9px] uppercase font-extrabold px-2 py-0.5 rounded-full border cursor-pointer outline-none appearance-none ${statusColor}`}
+                                        style={{ textAlign: 'center', textAlignLast: 'center' }}
+                                        title="Clique para alterar a fase da OS"
+                                      >
+                                        <option value="AGUARDANDO_AVALIACAO">Aguardando Avaliação</option>
+                                        <option value="AGUARDANDO_AUTORIZACAO">Aguardando Autorização</option>
+                                        <option value="AGUARDANDO_PECA">Aguardando Peça</option>
+                                        <option value="EM_MANUTENCAO">Em Manutenção</option>
+                                        <option value="PRONTO_RETIRADA">Pronto p/ Retirada</option>
+                                        <option value="PAGO_PRONTO_RETIRADA">Pago Pronto p/ Retirada</option>
+                                        {os.status === "FINALIZADO" && os.closingReason ? (
+                                          <option value="FINALIZADO">{
+                                            os.closingReason === 'ORCAMENTO_RECUSADO' ? 'Sem Reparo (Recusado)' :
+                                            os.closingReason === 'DESCARTE_CLIENTE_RETIRA' ? 'Descarte (Cliente Retira)' :
+                                            os.closingReason === 'DESCARTE_OFICINA' ? 'Descarte (Oficina)' :
+                                            'Finalizado'
+                                          }</option>
+                                        ) : (
+                                          <option value="FINALIZADO">Finalizado</option>
+                                        )}
+                                      </select>
                                     </div>
                                     <span className="text-[10px] text-slate-450 font-bold">
                                       {new Date(os.createdAt).toLocaleDateString('pt-BR')}
