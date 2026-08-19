@@ -50,6 +50,7 @@ import OSWhatsAppPanel from "./OSWhatsAppPanel";
 import TagSelector from "./TagSelector";
 import { matchOS, SearchScope } from "../utils/searchUtils";
 import { validateFiscalData } from "../services/nfeService";
+import { EditableClientPhone } from "./EditableClientPhone";
 
 
 interface KanbanBoardProps {
@@ -113,6 +114,9 @@ const KanbanCard = React.memo(({
     ? os.totalCost
     : Math.max(0, (os.usedParts?.filter(i => i.category !== "SERVICO").reduce((s, i) => s + (i.price * i.quantity), 0) || 0) + (os.laborCost || 0) - (os.discount || 0));
 
+  const isWarranty = os.warrantyType !== "NENHUMA" || (Array.isArray(os?.tags) && (os.tags as any[]).some((t: any) => t.name === "Em Garantia" || t.name === "Garantia"));
+  const cardBgColor = isWarranty ? "bg-amber-50" : "bg-white";
+
   // Calcular status do teste de estresse
   const getStressTestBadge = () => {
     if (!os.stressTestStartedAt) return null;
@@ -149,7 +153,7 @@ const KanbanCard = React.memo(({
           onClick(os);
         }
       }} 
-      className={`bg-white rounded-2xl border p-3.5 shadow-sm cursor-pointer transition-all duration-300 hover:shadow-md hover:scale-[1.01] flex flex-col space-y-2 select-text ${
+      className={`${cardBgColor} rounded-2xl border p-3.5 shadow-sm cursor-pointer transition-all duration-300 hover:shadow-md hover:scale-[1.01] flex flex-col space-y-2 select-text ${
         isSelected ? "border-l-4 border-rose-500 bg-rose-50/5 ring-2 ring-rose-500/20" : getOSCardBorders(os.status)
       }`}
     >
@@ -659,7 +663,7 @@ export default function KanbanBoard({
       template.id,
       os.id,
       `${template.nomeArquivo}-${os.osNumber}`,
-      new Date().toISOString()
+      os.originalExitDate ? new Date(os.originalExitDate).toISOString() : new Date().toISOString()
     );
     if (!ok) {
       setActivePrintOS(os);
@@ -698,6 +702,7 @@ export default function KanbanBoard({
   const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().substring(0, 10));
   const [paymentDetails, setPaymentDetails] = useState<{ method: string; amount: number }[]>([]);
   const [paymentAmountInput, setPaymentAmountInput] = useState("");
+  const [syncClientWithErp, setSyncClientWithErp] = useState(false);
   const [invoiceType, setInvoiceType] = useState("nenhum");
   const [showFiscalFixModal, setShowFiscalFixModal] = useState(false);
   const [fiscalFixClient, setFiscalFixClient] = useState<any | null>(null);
@@ -1546,7 +1551,7 @@ export default function KanbanBoard({
       }
       setSuccessMsg("Laudo pericial e peças salvas com sucesso!");
       onRefresh();
-      setTimeout(() => { setShowEditModal(false); setSuccessMsg(""); }, 1200);
+      setTimeout(() => { setSuccessMsg(""); }, 1200);
     } catch (err: any) { setErrorMsg(err.message); } finally { setLoading(false); }
   };
 
@@ -2102,6 +2107,10 @@ export default function KanbanBoard({
                      <span className="material-symbols-outlined text-[18px]">task_alt</span>
                      <span>Entregar ao Cliente (Finalizar OS)</span>
                    </button>
+                   <button type="button" onClick={(e) => saveAndMove(e, "EM_MANUTENCAO")} className="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm rounded-xl transition flex items-center justify-center space-x-2 shadow-sm active:scale-95">
+                     <span className="material-symbols-outlined text-[18px]">settings_backup_restore</span>
+                     <span>Reabrir OS (Voltar para Bancada)</span>
+                   </button>
                  </div>
               );
             case "FINALIZADO":
@@ -2114,6 +2123,10 @@ export default function KanbanBoard({
                    <button type="button" onClick={() => handlePrintRecibo(selectedOS)} className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm rounded-xl transition flex items-center justify-center space-x-2 shadow-sm active:scale-95">
                      <span className="material-symbols-outlined text-[18px]">print</span>
                      <span>Imprimir Recibo Novamente</span>
+                   </button>
+                   <button type="button" onClick={(e) => saveAndMove(e, "EM_MANUTENCAO")} className="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm rounded-xl transition flex items-center justify-center space-x-2 shadow-sm active:scale-95">
+                     <span className="material-symbols-outlined text-[18px]">settings_backup_restore</span>
+                     <span>Reabrir OS (Voltar para Bancada)</span>
                    </button>
                  </div>
               );
@@ -2209,7 +2222,13 @@ export default function KanbanBoard({
 
               {/* Status information banner */}
               <div className="bg-white p-4 rounded-xl border border-slate-200/80 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs select-text">
-                <p><span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block">Cliente proprietário</span> <strong className="text-slate-800 text-sm mt-0.5 block">{(selectedOS as any).client?.name}</strong></p>
+                <div>
+                  <span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block">Cliente proprietário</span> 
+                  <strong className="text-slate-800 text-sm mt-0.5 block">{(selectedOS as any).client?.name}</strong>
+                  <div className="mt-1">
+                    <EditableClientPhone client={(selectedOS as any).client} onPhoneUpdated={() => onRefresh()} />
+                  </div>
+                </div>
                 <p><span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block">Dispositivo em conserto</span> <strong className="text-slate-800 text-sm mt-0.5 block">{(selectedOS as any).device?.type} {(selectedOS as any).device?.brand} ({(selectedOS as any).device?.model})</strong></p>
                 {(selectedOS as any).tags && (selectedOS as any).tags.length > 0 && (
                   <p className="sm:col-span-2 border-t border-slate-100 pt-2">
@@ -3363,7 +3382,7 @@ export default function KanbanBoard({
           template={activePrintTemplate || resolveTemplateForOS(activePrintOS)}
           os={activePrintOS}
           hidden
-          dataEmissao={new Date().toISOString()}
+          dataEmissao={activePrintOS.originalExitDate ? new Date(activePrintOS.originalExitDate).toISOString() : new Date().toISOString()}
         />
       )}
 
@@ -3699,8 +3718,19 @@ export default function KanbanBoard({
             )}
 
             {paymentModalOS.targetStatus === "FINALIZADO" && !isPaymentWarranty(paymentModalOS.id) && (
-              <div className="space-y-2 border-t border-slate-100 pt-3 mt-3">
-                <label className="block text-xs font-extrabold text-slate-700">Tipo de Emissão Fiscal:</label>
+              <div className="space-y-4 border-t border-slate-100 pt-3 mt-3">
+                <label className="flex items-center space-x-2 bg-indigo-50/50 p-2 rounded-lg border border-indigo-100 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={syncClientWithErp}
+                    onChange={(e) => setSyncClientWithErp(e.target.checked)}
+                    className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                  />
+                  <span className="text-xs font-semibold text-slate-700">Atualizar dados do cliente no ERP ao faturar</span>
+                </label>
+                
+                <div className="space-y-2">
+                  <label className="block text-xs font-extrabold text-slate-700">Tipo de Emissão Fiscal:</label>
                 <select
                   value={invoiceType}
                   onChange={(e) => setInvoiceType(e.target.value)}
@@ -3712,13 +3742,14 @@ export default function KanbanBoard({
                   <option value="nfce">🎫 Apenas NFC-e (Modelo 65 - Cupom Fiscal)</option>
                   <option value="nfse">⚙️ Apenas NFS-e (Serviços/Mão de Obra)</option>
                 </select>
+                </div>
               </div>
             )}
 
             <div className="flex gap-3 pt-3 mt-3 border-t border-slate-100">
               <button
                 type="button"
-                onClick={() => { setPaymentModalOS(null); setPaymentMethod(""); setPaymentDetails([]); setPaymentNotes(""); setPaymentAmountInput(""); }}
+                onClick={() => { setPaymentModalOS(null); setPaymentMethod(""); setPaymentDetails([]); setPaymentNotes(""); setPaymentAmountInput(""); setSyncClientWithErp(false); }}
                 className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-3 rounded-xl transition cursor-pointer text-xs"
               >
                 Cancelar
@@ -3768,7 +3799,8 @@ export default function KanbanBoard({
                               paymentNotes,
                               paymentDate,
                               paymentDetails: finalDetails,
-                              invoiceType
+                              invoiceType,
+                              syncClientWithErp
                             })
                       })
                     });
@@ -3789,6 +3821,7 @@ export default function KanbanBoard({
                     setPaymentDetails([]);
                     setPaymentNotes("");
                     setPaymentAmountInput("");
+                    setSyncClientWithErp(false);
                   }
                 }}
                 disabled={!isPaymentWarranty(paymentModalOS.id) && paymentDetails.length === 0 && !paymentMethod}
