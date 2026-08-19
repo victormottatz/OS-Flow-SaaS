@@ -274,6 +274,35 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
     }
   };
 
+  const handleReopenOS = async (osId: string) => {
+    if (!confirm("Tem certeza que deseja reabrir esta Ordem de Serviço na Fase Técnica (Em Manutenção)?")) return;
+    
+    try {
+      const token = localStorage.getItem("mgv_token") || "";
+      const resStatus = await fetch(`/api/ordens-servico/${osId}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({ status: "EM_MANUTENCAO" })
+      });
+      
+      if (!resStatus.ok) {
+        const errData = await resStatus.json().catch(() => ({}));
+        if (errData.code === "DEVICE_INCOMPLETE") {
+           alert("Aparelho com cadastro incompleto.\n\nPor favor, vá até a tela da Oficina (Kanban) e clique no botão de reabrir lá. Assim, a tela para completar a Marca e Modelo do aparelho será exibida corretamente para você.");
+           return;
+        }
+        throw new Error(errData.error || "Erro ao reabrir OS.");
+      }
+      
+      alert("OS Reaberta com sucesso e enviada de volta à Bancada!");
+      if (selectedDevice360) {
+        openDeviceHistory(selectedDevice360);
+      }
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
   const handleAddNote = async (deviceId: string) => {
     if (!newNoteContent.trim()) return;
     setIsSavingNote(true);
@@ -1951,7 +1980,18 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
                                       
                                       <div className="text-right mt-3 border-t border-slate-100 pt-2 flex justify-between items-center text-[10px] text-slate-400 uppercase tracking-widest font-bold">
                                         <span>Diagnóstico: {os.diagnostic ? "Preenchido" : "Pendente"}</span>
-                                        <span>Total: <span className="font-mono text-slate-800 font-bold normal-case text-xs">R$ {os.totalCost?.toFixed(2) || '0.00'}</span></span>
+                                        <div className="flex items-center gap-4">
+                                          {(os.status === "FINALIZADO" || os.status === "PRONTO_RETIRADA" || os.status === "AGUARDANDO_AVALIACAO" || os.status === "AGUARDANDO_AUTORIZACAO") && (
+                                            <button 
+                                              onClick={() => handleReopenOS(os.id)}
+                                              className="text-amber-600 hover:text-amber-700 bg-amber-50 hover:bg-amber-100 px-2 py-1 rounded transition flex items-center gap-1 font-extrabold cursor-pointer border border-amber-200"
+                                            >
+                                              <span className="material-symbols-outlined text-[14px]">settings_backup_restore</span>
+                                              Voltar para Bancada
+                                            </button>
+                                          )}
+                                          <span>Total: <span className="font-mono text-slate-800 font-bold normal-case text-xs">R$ {os.totalCost?.toFixed(2) || '0.00'}</span></span>
+                                        </div>
                                       </div>
                                     </div>
                                   </div>
