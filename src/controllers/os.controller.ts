@@ -1524,6 +1524,7 @@ export class OSController {
         updated.financialDueDate = postBilling.financialDueDate;
       }
 
+      const userRole = req.headers["x-user-role"] as string;
       const isProfitEnabled = await featureFlags.isEnabled("OS_PROFITABILITY_CALC");
       const showProfit = userRole === "OWNER" && isProfitEnabled;
 
