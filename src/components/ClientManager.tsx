@@ -274,27 +274,27 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
     }
   };
 
-  const handleReopenOS = async (osId: string) => {
-    if (!confirm("Tem certeza que deseja reabrir esta Ordem de Serviço na Fase Técnica (Em Manutenção)?")) return;
+  const handleStatusChange = async (osId: string, newStatus: string) => {
+    if (!confirm(`Tem certeza que deseja mover esta Ordem de Serviço para a fase "${newStatus.replace(/_/g, ' ')}"?`)) return;
     
     try {
       const token = localStorage.getItem("mgv_token") || "";
       const resStatus = await fetch(`/api/ordens-servico/${osId}/status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-        body: JSON.stringify({ status: "EM_MANUTENCAO" })
+        body: JSON.stringify({ status: newStatus })
       });
       
       if (!resStatus.ok) {
         const errData = await resStatus.json().catch(() => ({}));
         if (errData.code === "DEVICE_INCOMPLETE") {
-           alert("Aparelho com cadastro incompleto.\n\nPor favor, vá até a tela da Oficina (Kanban) e clique no botão de reabrir lá. Assim, a tela para completar a Marca e Modelo do aparelho será exibida corretamente para você.");
+           alert("Aparelho com cadastro incompleto.\n\nPor favor, vá até a tela da Oficina (Kanban) e mude a fase lá. Assim, a tela para completar a Marca e Modelo do aparelho será exibida corretamente para você.");
            return;
         }
-        throw new Error(errData.error || "Erro ao reabrir OS.");
+        throw new Error(errData.error || "Erro ao mudar fase da OS.");
       }
       
-      alert("OS Reaberta com sucesso e enviada de volta à Bancada!");
+      alert("Fase da OS alterada com sucesso!");
       if (selectedDevice360) {
         openDeviceHistory(selectedDevice360);
       }
@@ -1951,7 +1951,25 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
                                     <div className="flex justify-between items-start mb-2">
                                       <div>
                                         <span className="font-mono font-bold text-slate-900 text-xs bg-slate-100 px-2 py-0.5 rounded border border-slate-200 mr-2">{os.osNumber}</span>
-                                        <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full border ${statusColor}`}>{displayLabel}</span>
+                                        <select 
+                                          value={os.status}
+                                          onChange={(e) => handleStatusChange(os.id, e.target.value)}
+                                          className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full border cursor-pointer outline-none appearance-none ${statusColor}`}
+                                          style={{ textAlign: 'center', textAlignLast: 'center' }}
+                                          title="Clique para alterar a fase da OS"
+                                        >
+                                          <option value="AGUARDANDO_AVALIACAO">Aguardando Avaliação</option>
+                                          <option value="AGUARDANDO_AUTORIZACAO">Aguardando Autorização</option>
+                                          <option value="AGUARDANDO_PECA">Aguardando Peça</option>
+                                          <option value="EM_MANUTENCAO">Em Manutenção</option>
+                                          <option value="PRONTO_RETIRADA">Pronto p/ Retirada</option>
+                                          <option value="PAGO_PRONTO_RETIRADA">Pago Pronto p/ Retirada</option>
+                                          {os.status === "FINALIZADO" && os.closingReason ? (
+                                            <option value="FINALIZADO">{displayLabel}</option>
+                                          ) : (
+                                            <option value="FINALIZADO">Finalizado</option>
+                                          )}
+                                        </select>
                                       </div>
                                       <span className="text-[10px] text-slate-400 font-semibold">{new Date(os.createdAt).toLocaleDateString('pt-BR')}</span>
                                     </div>
@@ -1980,18 +1998,7 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
                                       
                                       <div className="text-right mt-3 border-t border-slate-100 pt-2 flex justify-between items-center text-[10px] text-slate-400 uppercase tracking-widest font-bold">
                                         <span>Diagnóstico: {os.diagnostic ? "Preenchido" : "Pendente"}</span>
-                                        <div className="flex items-center gap-4">
-                                          {(os.status === "FINALIZADO" || os.status === "PRONTO_RETIRADA" || os.status === "AGUARDANDO_AVALIACAO" || os.status === "AGUARDANDO_AUTORIZACAO") && (
-                                            <button 
-                                              onClick={() => handleReopenOS(os.id)}
-                                              className="text-amber-600 hover:text-amber-700 bg-amber-50 hover:bg-amber-100 px-2 py-1 rounded transition flex items-center gap-1 font-extrabold cursor-pointer border border-amber-200"
-                                            >
-                                              <span className="material-symbols-outlined text-[14px]">settings_backup_restore</span>
-                                              Voltar para Bancada
-                                            </button>
-                                          )}
-                                          <span>Total: <span className="font-mono text-slate-800 font-bold normal-case text-xs">R$ {os.totalCost?.toFixed(2) || '0.00'}</span></span>
-                                        </div>
+                                        <span>Total: <span className="font-mono text-slate-800 font-bold normal-case text-xs">R$ {os.totalCost?.toFixed(2) || '0.00'}</span></span>
                                       </div>
                                     </div>
                                   </div>
