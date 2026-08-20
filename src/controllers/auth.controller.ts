@@ -58,7 +58,7 @@ export class AuthController {
       });
     } catch (err: any) {
       console.error("[Auth Login Error]:", err);
-      res.status(503).json({ error: "Falha ao conectar com o banco de dados. Verifique a conexão do servidor ou se o Supabase está ativo no painel." });
+      res.status(503).json({ error: "Falha ao conectar com o banco de dados. Verifique a conexão do servidor PostgreSQL." });
     }
   }
 

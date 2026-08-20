@@ -1,0 +1,102 @@
+﻿id;nome;cpf_cnpj;telefone;telefone2;email;endereco;cidade;uf;cep;origem_legado_mdb;total_os;total_dispositivos;criado_em;suspeito_dado_real
+36cc12e5-122b-4974-bdeb-173d01ca75e6;AMANDA CASTRO;;(16)99178-4774;;;"Endereço não informado, Centro, Ribeirão Preto - SP";Ribeirão Preto;SP;;SIM;0;2;2024-07-23;SIM - REVISAR
+387c29a0-c0cb-450e-babd-7c9f96a6f1aa;ANA LAURA R. DELIA MARTINS;233.149.368-50;(16)99120-7187;(19)99174-7802;;"Endereço não informado, Centro, Ribeirão Preto - SP";Ribeirão Preto;SP;;SIM;2;2;2024-06-11;SIM - REVISAR
+de7b0bd1-45eb-461f-b4f0-f61be0433dfc;BRENO NEVES SENSINI;395.823.988-92;(16)99785-5084;;;"Endereço não informado, Centro, Ribeirão Preto - SP";Ribeirão Preto;SP;;SIM;0;0;2023-03-01;NAO
+8a818e47-dbeb-4de9-b875-7ac733d40a8a;CASSIA APARECIDA DA SILVA;214.423.188-56;;;;"Endereço não informado, Centro, Ribeirão Preto - SP";Ribeirão Preto;SP;;SIM;0;0;2024-06-05;NAO
+c3c7f472-2c65-4c3d-8f91-32f30953bbdf;Cliente de Teste Audit;12803820207;(11) 99999-9999;;cliente_audit@teste.com;"Rua das Flores, 123 - SP";;SP;;NAO;0;0;;NAO
+99c55f3d-7ee4-4df0-9a6e-32c970bb3ed1;Cliente de Teste Audit;51199928867;(11) 99999-9999;;cliente_audit@teste.com;"Rua das Flores, 123 - SP";;SP;;NAO;0;0;;NAO
+9e60bc9c-903d-46a6-b10d-c8b4c5337dd0;Cliente de Teste Audit;72940892564;(11) 99999-9999;;cliente_audit@teste.com;"Rua das Flores, 123 - SP";;SP;;NAO;0;0;;NAO
+a2d7ec68-bd49-4c09-894b-8d22e3a83674;Cliente de Teste Audit;48088389165;(11) 99999-9999;;cliente_audit@teste.com;"Rua das Flores, 123 - SP";;SP;;NAO;0;0;;NAO
+e3426f90-9b1e-4e57-a31f-288760ef708b;Cliente de Teste Audit;11649992930;(11) 99999-9999;;cliente_audit@teste.com;"Rua das Flores, 123 - SP";;SP;;NAO;0;0;;NAO
+a74d5a5c-9e6a-415a-b039-e5229da108a7;Cliente de Teste Audit;35768426683;(11) 99999-9999;;cliente_audit@teste.com;"Rua das Flores, 123 - SP";;SP;;NAO;0;0;;NAO
+abe78230-6ae1-4fc5-aace-51cf5a17f4f3;Cliente de Teste Audit;27890186539;(11) 99999-9999;;cliente_audit@teste.com;"Rua das Flores, 123 - SP";;SP;;NAO;0;0;;NAO
+fd58dc21-ce77-45c3-8f52-2f62e192264a;Cliente de Teste Audit;28746112699;(11) 99999-9999;;cliente_audit@teste.com;"Rua das Flores, 123 - SP";;SP;;NAO;0;0;;NAO
+fab22b45-05bf-41ed-b7d5-aaa57763499b;Cliente de Teste Audit;92455597091;(11) 99999-9999;;cliente_audit@teste.com;"Rua das Flores, 123 - SP";;SP;;NAO;0;0;;NAO
+0707d6b6-5475-439f-8b60-2f7060c34c40;Cliente de Teste Audit;17365686346;(11) 99999-9999;;cliente_audit@teste.com;"Rua das Flores, 123 - SP";;SP;;NAO;0;0;;NAO
+2ab8c81d-fa75-414b-8653-ae5ba70fc8c0;Cliente de Teste Audit;29372734583;(11) 99999-9999;;cliente_audit@teste.com;"Rua das Flores, 123 - SP";;SP;;NAO;0;0;;NAO
+4838e02f-dec6-4af4-a361-0576b50274a3;Cliente de Teste Audit;36644010260;(11) 99999-9999;;cliente_audit@teste.com;"Rua das Flores, 123 - SP";;SP;;NAO;0;0;;NAO
+72a6ad6e-3dd5-4e3c-a80d-2f5ec1ee09c3;Cliente de Teste Audit;91958911458;(11) 99999-9999;;cliente_audit@teste.com;"Rua das Flores, 123 - SP";;SP;;NAO;0;0;;NAO
+d1098367-a7e4-4cbd-8c37-538a1011c2dc;Cliente de Teste Audit;55331847475;(11) 99999-9999;;cliente_audit@teste.com;"Rua das Flores, 123 - SP";;SP;;NAO;0;0;;NAO
+f4e912b3-7d3c-4c6b-921d-cab387579057;Cliente de Teste Audit;50802790225;(11) 99999-9999;;cliente_audit@teste.com;"Rua das Flores, 123 - SP";;SP;;NAO;0;0;;NAO
+e77bc536-da8e-49f2-88a0-dae09e5aa90c;Cliente de Teste Audit;63376364311;(11) 99999-9999;;cliente_audit@teste.com;"Rua das Flores, 123 - SP";;SP;;NAO;0;0;;NAO
+dd6cbbb6-9a8d-4609-acac-a3a85a170d6c;Cliente de Teste Audit;56616154469;(11) 99999-9999;;cliente_audit@teste.com;"Rua das Flores, 123 - SP";;SP;;NAO;0;0;;NAO
+7c453e8c-6721-46ff-8bb5-19aa7af174d9;Cliente de Teste Audit;98168562641;(11) 99999-9999;;cliente_audit@teste.com;"Rua das Flores, 123 - SP";;SP;;NAO;0;0;;NAO
+78e915c9-14ab-48b1-bbb7-cb43c95881ba;Cliente de Teste Audit;24491776554;(11) 99999-9999;;cliente_audit@teste.com;"Rua das Flores, 123 - SP";;SP;;NAO;0;0;;NAO
+fdbdd28f-6e65-45b7-af56-40f1d702db53;Cliente de Teste Audit;38474807760;(11) 99999-9999;;cliente_audit@teste.com;"Rua das Flores, 123 - SP";;SP;;NAO;0;0;;NAO
+9bcbafe8-1993-4faa-b8bd-ac3716674748;Cliente de Teste Audit;32690490204;(11) 99999-9999;;cliente_audit@teste.com;"Rua das Flores, 123 - SP";;SP;;NAO;0;0;;NAO
+c8f3038c-beff-4df9-8d50-061bf6ad7f3f;Cliente de Teste Audit;94080725371;(11) 99999-9999;;cliente_audit@teste.com;"Rua das Flores, 123 - SP";;SP;;NAO;0;0;;NAO
+7da9c124-2964-4a00-a507-faf5c2bbd74e;Cliente de Teste Audit;75613772117;(11) 99999-9999;;cliente_audit@teste.com;"Rua das Flores, 123 - SP";;SP;;NAO;0;0;;NAO
+8c9ad586-866a-4c4f-ae46-b8ed9ebed49e;Cliente de Teste Audit;92260613405;(11) 99999-9999;;cliente_audit@teste.com;"Rua das Flores, 123 - SP";;SP;;NAO;0;0;;NAO
+71111948-c20d-4488-b39b-4cfa2c773ff0;Cliente Equipamento Audit;38116776133;(11) 99999-9999;;cliente_equipamento@teste.com;"Rua das Palmeiras, 456 - SP";;SP;;NAO;0;1;;NAO
+2d2dc720-a45a-4094-8e4d-ef32610b654b;Cliente Equipamento Audit;12295077013;(11) 99999-9999;;cliente_equipamento@teste.com;"Rua das Palmeiras, 456 - SP";;SP;;NAO;0;0;;NAO
+5253def3-b224-4d5a-b03b-fd38d1d24991;Cliente Equipamento Audit;92985695617;(11) 99999-9999;;cliente_equipamento@teste.com;"Rua das Palmeiras, 456 - SP";;SP;;NAO;0;0;;NAO
+5897511e-99fa-41be-af61-a09991911d46;Cliente Equipamento Audit;60635162755;(11) 99999-9999;;cliente_equipamento@teste.com;"Rua das Palmeiras, 456 - SP";;SP;;NAO;0;1;;NAO
+3d1cbcb2-8185-4b36-a5fe-323976f089a0;Cliente Equipamento Audit;73947388769;(11) 99999-9999;;cliente_equipamento@teste.com;"Rua das Palmeiras, 456 - SP";;SP;;NAO;0;1;;NAO
+56990b0d-0018-404f-b664-177a243e8bae;Cliente Equipamento Audit;15638605391;(11) 99999-9999;;cliente_equipamento@teste.com;"Rua das Palmeiras, 456 - SP";;SP;;NAO;0;1;;NAO
+591306db-d5b0-487c-92ba-2c75311e8cbf;Cliente Equipamento Audit;16024921738;(11) 99999-9999;;cliente_equipamento@teste.com;"Rua das Palmeiras, 456 - SP";;SP;;NAO;0;0;;NAO
+8534068c-f3d6-42fd-bfe6-e74712885b33;Cliente Equipamento Audit;41633990078;(11) 99999-9999;;cliente_equipamento@teste.com;"Rua das Palmeiras, 456 - SP";;SP;;NAO;0;0;;NAO
+095c05b4-1769-40a2-856d-622a828ca953;Cliente Equipamento Audit;87656883900;(11) 99999-9999;;cliente_equipamento@teste.com;"Rua das Palmeiras, 456 - SP";;SP;;NAO;0;0;;NAO
+7b7bbb60-e754-4514-baf9-8ce0a9515e6c;Cliente Equipamento Audit;12370264828;(11) 99999-9999;;cliente_equipamento@teste.com;"Rua das Palmeiras, 456 - SP";;SP;;NAO;0;0;;NAO
+bb511fc7-8142-433d-b61e-9519f9abdbe3;Cliente Equipamento Audit;81030956114;(11) 99999-9999;;cliente_equipamento@teste.com;"Rua das Palmeiras, 456 - SP";;SP;;NAO;0;1;;NAO
+aaafde47-e90f-4df7-bda4-125dfe5f4762;Cliente Equipamento Audit;12737438948;(11) 99999-9999;;cliente_equipamento@teste.com;"Rua das Palmeiras, 456 - SP";;SP;;NAO;0;0;;NAO
+b68a5aae-cc99-41a6-bdbe-9923c109116f;Cliente Equipamento Audit;68333314149;(11) 99999-9999;;cliente_equipamento@teste.com;"Rua das Palmeiras, 456 - SP";;SP;;NAO;0;1;;NAO
+b8d4f5c6-7913-4edd-89ed-899a5dbdec6f;Cliente Equipamento Audit;14566563272;(11) 99999-9999;;cliente_equipamento@teste.com;"Rua das Palmeiras, 456 - SP";;SP;;NAO;0;1;;NAO
+be8cf306-793e-4b0b-bcae-465da914854f;Cliente Equipamento Audit;48469355125;(11) 99999-9999;;cliente_equipamento@teste.com;"Rua das Palmeiras, 456 - SP";;SP;;NAO;0;0;;NAO
+c441bed1-e6b0-4e47-a68b-21ca64187976;Cliente Equipamento Audit;11719989546;(11) 99999-9999;;cliente_equipamento@teste.com;"Rua das Palmeiras, 456 - SP";;SP;;NAO;0;0;;NAO
+db614f1f-7632-4298-a8d6-d44680c20f29;Cliente Equipamento Audit;73225619849;(11) 99999-9999;;cliente_equipamento@teste.com;"Rua das Palmeiras, 456 - SP";;SP;;NAO;0;1;;NAO
+e06d7caf-7d18-4a6f-bce3-b8c8960ee83d;Cliente Equipamento Audit;65895621280;(11) 99999-9999;;cliente_equipamento@teste.com;"Rua das Palmeiras, 456 - SP";;SP;;NAO;0;1;;NAO
+e07da23e-8e37-45a0-8a93-1d255f19c488;Cliente Equipamento Audit;83522530245;(11) 99999-9999;;cliente_equipamento@teste.com;"Rua das Palmeiras, 456 - SP";;SP;;NAO;0;1;;NAO
+f34a928d-9cb5-4728-8376-b4fffa09a076;Cliente Equipamento Audit;70773460276;(11) 99999-9999;;cliente_equipamento@teste.com;"Rua das Palmeiras, 456 - SP";;SP;;NAO;0;1;;NAO
+fc8d67f1-952a-4220-9d4b-2a0adb4e9f28;Cliente Equipamento Audit;89218497364;(11) 99999-9999;;cliente_equipamento@teste.com;"Rua das Palmeiras, 456 - SP";;SP;;NAO;0;0;;NAO
+2596e621-41ad-4a86-ae69-0fc53fb72af9;Cliente Equipamento Audit;20445498554;(11) 99999-9999;;cliente_equipamento@teste.com;"Rua das Palmeiras, 456 - SP";;SP;;NAO;0;0;;NAO
+50a271a3-2e1b-483c-802b-6c6db4bdd318;Cliente Equipamento Audit;36518114379;(11) 99999-9999;;cliente_equipamento@teste.com;"Rua das Palmeiras, 456 - SP";;SP;;NAO;0;1;;NAO
+52185867-7446-4dc8-965d-a95c7b18e730;Cliente Equipamento Audit;26984731520;(11) 99999-9999;;cliente_equipamento@teste.com;"Rua das Palmeiras, 456 - SP";;SP;;NAO;0;0;;NAO
+6d2e03a5-55ba-4bf8-b476-a004a83c1e78;Cliente OS Audit;79653046091;(11) 99999-7777;;cliente_os@teste.com;"Rua das Flores, 789 - SP";;SP;;NAO;0;0;;NAO
+cc6a6623-e7f0-4ba9-9b3d-85112a489602;Cliente OS Audit;95763139938;(11) 99999-7777;;cliente_os@teste.com;"Rua das Flores, 789 - SP";;SP;;NAO;0;0;;NAO
+352e4d6b-15d5-43f9-af94-570df510f144;Cliente OS Audit;16274209413;(11) 99999-7777;;cliente_os@teste.com;"Rua das Flores, 789 - SP";;SP;;NAO;0;0;;NAO
+33678442-2f00-44b7-b66b-653962440eca;Cliente OS Audit;28361895565;(11) 99999-7777;;cliente_os@teste.com;"Rua das Flores, 789 - SP";;SP;;NAO;0;0;;NAO
+cffe8d5f-57dd-45d6-aeb4-e203635d4e3b;Cliente OS Audit;58112497583;(11) 99999-7777;;cliente_os@teste.com;"Rua das Flores, 789 - SP";;SP;;NAO;0;0;;NAO
+7a89a89f-cd3f-4cfe-932d-d0c10b942cad;Cliente OS Audit;38117586452;(11) 99999-7777;;cliente_os@teste.com;"Rua das Flores, 789 - SP";;SP;;NAO;0;1;;NAO
+772768ae-f101-48cc-93b5-7fe62297b92e;Cliente OS Audit;36087903422;(11) 99999-7777;;cliente_os@teste.com;"Rua das Flores, 789 - SP";;SP;;NAO;0;1;;NAO
+259a67a5-940f-41aa-8bd4-b34cdd4c9fed;Cliente OS Audit;53179253501;(11) 99999-7777;;cliente_os@teste.com;"Rua das Flores, 789 - SP";;SP;;NAO;0;1;;NAO
+60e7e5ef-0925-45bf-8482-1fc643e62f7b;Cliente OS Audit;68476991890;(11) 99999-7777;;cliente_os@teste.com;"Rua das Flores, 789 - SP";;SP;;NAO;0;1;;NAO
+f8cf4884-431b-4324-81b3-c96f4d9803b7;Cliente OS Audit;33555872536;(11) 99999-7777;;cliente_os@teste.com;"Rua das Flores, 789 - SP";;SP;;NAO;0;0;;NAO
+029a6617-3cfd-45d3-864b-11ed6234f74b;Cliente OS Audit;71347052481;(11) 99999-7777;;cliente_os@teste.com;"Rua das Flores, 789 - SP";;SP;;NAO;0;1;;NAO
+f62301c5-0ffe-413e-947a-afc01a916893;Cliente OS Audit;75836567392;(11) 99999-7777;;cliente_os@teste.com;"Rua das Flores, 789 - SP";;SP;;NAO;0;0;;NAO
+fd4b3c07-0c4e-4967-bfe0-485b23ccf1db;Cliente OS Audit;42057216637;(11) 99999-7777;;cliente_os@teste.com;"Rua das Flores, 789 - SP";;SP;;NAO;0;0;;NAO
+a8988545-1224-4e89-a882-b31aa4829d5b;Cliente OS Audit;65664591149;(11) 99999-7777;;cliente_os@teste.com;"Rua das Flores, 789 - SP";;SP;;NAO;0;1;;NAO
+a84ce373-45bc-47a6-aa77-5313b89828d8;Cliente OS Audit;51589504354;(11) 99999-7777;;cliente_os@teste.com;"Rua das Flores, 789 - SP";;SP;;NAO;0;1;;NAO
+dae7eb0e-dc05-483e-92c5-20609f3ed001;Cliente OS Audit;58716722505;(11) 99999-7777;;cliente_os@teste.com;"Rua das Flores, 789 - SP";;SP;;NAO;0;1;;NAO
+e74776ac-c2a7-433e-8341-23b2659885f5;Cliente OS Audit;61217603956;(11) 99999-7777;;cliente_os@teste.com;"Rua das Flores, 789 - SP";;SP;;NAO;0;0;;NAO
+afa0ee01-636c-479b-8a88-cf4b889b76d2;Cliente OS Audit;55943204302;(11) 99999-7777;;cliente_os@teste.com;"Rua das Flores, 789 - SP";;SP;;NAO;0;1;;NAO
+7bc2b6f5-e3c5-4809-bb99-d267696ba3cf;Cliente OS Audit;51762753204;(11) 99999-7777;;cliente_os@teste.com;"Rua das Flores, 789 - SP";;SP;;NAO;0;0;;NAO
+bf22d659-c1c2-4e09-bf6f-490b3d00e753;Cliente OS Audit;36964064727;(11) 99999-7777;;cliente_os@teste.com;"Rua das Flores, 789 - SP";;SP;;NAO;0;1;;NAO
+9e8b1a1c-6998-4c00-966c-1245432feb37;Cliente OS Audit;87036386911;(11) 99999-7777;;cliente_os@teste.com;"Rua das Flores, 789 - SP";;SP;;NAO;0;0;;NAO
+97228ab3-5020-4899-a74e-03eb60a690a6;Cliente OS Audit;53085978770;(11) 99999-7777;;cliente_os@teste.com;"Rua das Flores, 789 - SP";;SP;;NAO;0;1;;NAO
+12fd91e0-2a23-4e7e-b466-8fb785297ed6;Cliente OS Audit;30245796707;(11) 99999-7777;;cliente_os@teste.com;"Rua das Flores, 789 - SP";;SP;;NAO;0;1;;NAO
+6366d6d8-4318-426c-93a6-59d2b622068e;Cliente Teste Checklist;59873528302;11999998888;;checklist@teste.com;"Rua das Flores, 456 - SP";;SP;;NAO;0;0;;NAO
+37afe1d1-3dd8-45c2-92b1-07d1714b1fc5;CONSUMIDOR;;;;;"Endereço não informado, Centro, Ribeirão Preto - SP";Ribeirão Preto;SP;;SIM;0;0;2025-08-01;NAO
+7521ad39-c014-463d-8f93-ac669d8cf847;DANIELA;;(16)99202-6252;;;"Endereço não informado, Centro, Ribeirão Preto - SP";Ribeirão Preto;SP;;SIM;1;1;2023-11-16;SIM - REVISAR
+9f47dca2-3759-436a-93c5-72ce055ad595;DAYANE TIBÉRIO MARTINS;462.090.908-42;(19)99855-2702;;;"Endereço não informado, Centro, Ribeirão Preto - SP";Ribeirão Preto;SP;;SIM;1;1;2023-10-05;SIM - REVISAR
+5607411f-04b8-40c2-9932-02aa921a0dbd;DEUSENI;;;;;"Endereço não informado, Centro, Ribeirão Preto - SP";Ribeirão Preto;SP;;SIM;1;1;2023-10-31;SIM - REVISAR
+0948776a-534f-4c46-8c11-07909c9dbe1f;DEUSENI;;;;;"Endereço não informado, Centro, Ribeirão Preto - SP";Ribeirão Preto;SP;;SIM;0;0;2023-10-31;NAO
+d22200f9-17f8-43c3-aeb3-bda0c1a19b56;ELAINE;;(16)99161-1275;;;"Endereço não informado, Centro, Ribeirão Preto - SP";FRANCA;SP;;SIM;1;1;2023-09-22;SIM - REVISAR
+7c15c4be-f0db-4b77-aa8b-e9caeb2aa3b8;ELAINE MONTANARI;;(16)99642-5520;;;"Endereço não informado, Centro, Ribeirão Preto - SP";Franca;SP;;SIM;0;0;2024-07-24;NAO
+7f4152da-b572-4469-bc08-b67d3840f03c;GLAUCE;;(16)99781-0551;;;"Endereço não informado, Centro, Ribeirão Preto - SP";Araraquara;SP;;SIM;0;2;2023-10-17;SIM - REVISAR
+f3495d00-b408-4ffe-bfca-7cbb612e0fb7;JACY CARVALHO;;(16)99207-7740;;;"Endereço não informado, Centro, Ribeirão Preto - SP";Ribeirão Preto;SP;;SIM;0;0;2023-03-14;NAO
+487a0cce-e01f-4271-9690-4fabaa3ca9d4;João da Silva Teste;96891539311;11999999999;;joao@teste.com;"Rua Teste, 123 - SP";;SP;;NAO;0;1;;SIM - REVISAR
+fde26146-9931-4fd3-a4dc-41924ffb1314;João da Silva Teste;27431103422;11999999999;;joao@teste.com;"Rua Teste, 123 - SP";;SP;;NAO;0;1;;SIM - REVISAR
+5f3681db-a94e-47a2-9eff-1aa2bb37b99f;LIA;;(16)99217-6633;;;"Endereço não informado, Centro, Ribeirão Preto - SP";RIBEIRAO PRETO;SP;;SIM;1;1;2023-11-22;SIM - REVISAR
+6c469dc6-3af4-46de-86d5-fb05f0aaea89;MAGIA DAS MÃOS;;(16)99397-5393;;;"Endereço não informado, Centro, Ribeirão Preto - SP";Ribeirão Preto;SP;;SIM;4;3;2023-08-07;SIM - REVISAR
+5d40b8cc-be68-420e-850a-eae16f1ac228;MARIA HELENA DA SILVA VARGAS;;;;;"Endereço não informado, Centro, Ribeirão Preto - SP";Ribeirão Preto;SP;;SIM;1;1;2023-08-04;SIM - REVISAR
+c30b8d2b-7b26-4a16-b3a6-29a8afd7ca68;MARIA ISABELA RIBEIRO;;(16)99212-4053;;;"Endereço não informado, Centro, Ribeirão Preto - SP";Ribeirão Preto;SP;;SIM;0;1;2024-08-05;SIM - REVISAR
+c603d546-f61d-46c7-b0d7-c11cc2335e22;MAURO VIEIRA;;(14)99701-0599;;;"Endereço não informado, Centro, Ribeirão Preto - SP";Ribeirão Preto;SP;;SIM;1;1;2024-06-17;SIM - REVISAR
+50fe6b27-2264-4a93-84df-7093a080894e;NORIVAL;;;;;"Endereço não informado, Centro, Ribeirão Preto - SP";Ribeirão Preto;SP;;SIM;0;0;2024-06-06;NAO
+ff44b0a0-7944-40f7-9c50-06a093578926;RAFAEL SILVA DOS ANJOS;491.505.558-20;(16)99637-3929;;;"Endereço não informado, Centro, Ribeirão Preto - SP";Ribeirão Preto;SP;;SIM;0;0;2024-02-28;NAO
+6c6157e9-ba14-43a4-ac58-69d67338fa80;RAFAELA MARÇAL;;(16)99260-6426;;;"Endereço não informado, Centro, Ribeirão Preto - SP";Ribeirão Preto;SP;;SIM;1;1;2023-11-30;SIM - REVISAR
+c169cf2d-5e9a-4aca-b8e5-10ed15adddb4;RENATA;;17  9 9723-7329;;;"Endereço não informado, Centro, Ribeirão Preto - SP";Ribeirão Preto;SP;;SIM;0;1;2026-01-23;SIM - REVISAR
+ef666695-12ae-4aba-959d-12eee84da3b2;SABRINA CREPALDI;;;;;"Endereço não informado, Centro, Ribeirão Preto - SP";Ribeirão Preto;SP;;SIM;1;1;2023-11-23;SIM - REVISAR
+38a773ed-43a0-4317-bf3b-4663ca2a8e2c;SULMA MACEDO DE OLIVEIRA;;(16)99162-4567;;;"Endereço não informado, Centro, Ribeirão Preto - SP";Ribeirão Preto;SP;;SIM;0;0;2023-03-14;NAO
+2139d254-a767-4727-b9eb-594c9f68feab;TALITA;;(16)99977-8865;;;"Endereço não informado, Centro, Ribeirão Preto - SP";porto ferreira;SP;;SIM;0;1;2023-10-17;SIM - REVISAR
+487ee0d2-4857-4c9f-b710-ed8725fdefbe;terrLARISSA;;;;;"Endereço não informado, Centro, Ribeirão Preto - SP";terra roxa;SP;;SIM;2;2;2023-10-31;SIM - REVISAR
+612a6347-9031-4f30-b511-dbeca826e680;VINICIUS MARQUES;;(35)99230-0256;;;"Endereço não informado, Centro, Ribeirão Preto - SP";Ribeirão Preto;SP;;SIM;17;15;2023-11-28;SIM - REVISAR

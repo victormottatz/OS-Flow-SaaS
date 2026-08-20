@@ -16,18 +16,31 @@ export function UpdatePopup() {
 
   useEffect(() => {
     const savedVersion = localStorage.getItem("mgv_last_update_version");
+<<<<<<< HEAD
     if (savedVersion !== "4.12.1") {
+=======
+    if (savedVersion !== "4.12.0") {
+>>>>>>> c72c5553d67b24aebea58cf01c44f5fdb5593cc9
       setIsOpen(true);
       
       // Notificação silenciosa no sino
       addNotification({
+<<<<<<< HEAD
         title: "🚀 MGV ONE HUB Atualizado (v4.12.1)",
         message: "Conexão Oficial com a Evolution API corrigida! O QR Code agora funciona perfeitamente.",
+=======
+        title: "🚀 MGV ONE HUB Atualizado (v4.12.0)",
+        message: "Nova funcionalidade: Integração oficial do WhatsApp liberada para notificações.",
+>>>>>>> c72c5553d67b24aebea58cf01c44f5fdb5593cc9
         type: "system",
         read: false
       });
       
+<<<<<<< HEAD
       localStorage.setItem("mgv_last_update_version", "4.12.1");
+=======
+      localStorage.setItem("mgv_last_update_version", "4.12.0");
+>>>>>>> c72c5553d67b24aebea58cf01c44f5fdb5593cc9
     }
   }, [addNotification]);
 
@@ -66,7 +79,11 @@ export function UpdatePopup() {
                 <span className="material-symbols-outlined text-[28px]">rocket_launch</span>
                 MGV ONE HUB
               </h2>
+<<<<<<< HEAD
               <p className="text-indigo-200 mt-1 text-sm">Versão 4.12.1 • Agosto de 2026</p>
+=======
+              <p className="text-indigo-200 mt-1 text-sm">Versão 4.12.0 • Agosto de 2026</p>
+>>>>>>> c72c5553d67b24aebea58cf01c44f5fdb5593cc9
               
               <button 
                 onClick={handleClose}
@@ -78,6 +95,7 @@ export function UpdatePopup() {
 
             <div className="p-6">
               <ul className="space-y-6">
+<<<<<<< HEAD
                 {/* Alteração 1 */}
                 <div className="flex gap-4">
                   <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center border border-blue-200">
@@ -90,6 +108,45 @@ export function UpdatePopup() {
                     </p>
                   </div>
                 </div>
+=======
+            {/* Alteração 1: WhatsApp */}
+            <div className="flex gap-4">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-green-100 flex items-center justify-center border border-green-200">
+                <span className="material-symbols-outlined text-green-600 text-[20px]">chat</span>
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-200 text-sm">Integração Oficial com WhatsApp</h3>
+                <p className="text-slate-400 text-xs mt-1 leading-relaxed">
+                  Envie orçamentos, avisos de retirada e mensagens manuais diretamente pelo WhatsApp do cliente, de dentro da OS, conectando-se a Evolution API.
+                </p>
+              </div>
+            </div>
+            {/* Alteração 1 */}
+            <div className="flex gap-4">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center border border-blue-200">
+                <span className="material-symbols-outlined text-blue-600 text-[20px]">drag_pan</span>
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-200 text-sm">Movimentação Livre no Kanban (Reabrir OS)</h3>
+                <p className="text-slate-400 text-xs mt-1 leading-relaxed">
+                  Atendendo a pedidos, removemos a trava rígida de fases. Agora você pode reabrir uma OS Finalizada voltando-a para a bancada, ou pular etapas livremente arrastando o card.
+                </p>
+              </div>
+            </div>
+
+            {/* Alteração 2 */}
+            <div className="flex gap-4">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center border border-emerald-200">
+                <span className="material-symbols-outlined text-emerald-600 text-[20px]">check_circle</span>
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-200 text-sm">Correção: Aparelho Sem Defeito</h3>
+                <p className="text-slate-400 text-xs mt-1 leading-relaxed">
+                  Corrigido o erro que impedia encerrar uma OS sem defeito. O sistema não exige mais que você preencha a Base Instalada (marca/modelo/série) caso a OS não tenha conserto.
+                </p>
+              </div>
+            </div>
+>>>>>>> c72c5553d67b24aebea58cf01c44f5fdb5593cc9
               </ul>
 
               <div className="mt-8 pt-5 border-t border-slate-800 flex justify-end">

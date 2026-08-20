@@ -233,7 +233,7 @@ export default function DocumentShell({
         )}
 
         {wants("pecasAplicadas") && os.usedParts && os.usedParts.length > 0 && (
-          <div>
+          <div className="break-inside-avoid">
             <h4 className="font-bold text-slate-800 uppercase text-[10px] tracking-wider mb-2">
               Insumos e Peças Aplicadas
             </h4>
@@ -285,7 +285,7 @@ export default function DocumentShell({
         )}
 
         {wants("assinaturas") && (
-          <div className="mt-14 grid grid-cols-2 gap-12 text-center text-[11px]">
+          <div className="mt-8 break-inside-avoid grid grid-cols-2 gap-12 text-center text-[11px]">
             <div className="border-t-2 border-slate-700 pt-3">
               <p className="font-bold text-slate-900">{template.tecnicoAssinatura}</p>
               <p className="text-[9px] text-slate-500 font-medium mt-0.5">Assinatura / Carimbo</p>

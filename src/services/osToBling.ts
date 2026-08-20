@@ -60,7 +60,8 @@ export async function sendOsToBling(
       state: clientState,
       rg: client.rg || undefined,
       stateInscription: extraOptions?.clientStateInscription,
-      icmsContribuinteType: extraOptions?.clientIcmsType
+      icmsContribuinteType: extraOptions?.clientIcmsType,
+      syncClientWithErp: extraOptions?.syncClientWithErp
     });
 
     // 3. Separar itens de produtos (peças) e de serviços
@@ -172,7 +173,7 @@ export async function sendOsToBling(
             valor: os.discount,
             unidade: "VALOR"
           } : undefined,
-          observacoes: `Faturamento de Peças. OS Origem: ${os.osNumber}`
+          observacoes: `Faturamento de Peças. OS Origem: ${os.osNumber}` + (os.paymentNotes ? ` | Obs: ${os.paymentNotes}` : ``) + (os.paymentDate ? ` | Pagamento: ${new Date(os.paymentDate).toISOString().split("T")[0].split("-").reverse().join("/")}` : ``)
         };
 
         let pedidoId: number | undefined;
@@ -276,7 +277,7 @@ export async function sendOsToBling(
             valor: os.discount,
             unidade: "VALOR"
           } : undefined,
-          observacoes: `Faturamento de Serviços/Mão de Obra. OS Origem: ${os.osNumber}`
+          observacoes: `Faturamento de Serviços/Mão de Obra. OS Origem: ${os.osNumber}` + (os.paymentNotes ? ` | Obs: ${os.paymentNotes}` : ``) + (os.paymentDate ? ` | Pagamento: ${new Date(os.paymentDate).toISOString().split("T")[0].split("-").reverse().join("/")}` : ``)
         };
 
         let pedidoId: number | undefined;

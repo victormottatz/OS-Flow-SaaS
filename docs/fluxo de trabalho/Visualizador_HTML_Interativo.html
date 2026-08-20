@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Visualizador Interativo - Fluxo de Trabalho de OS (MGV Assistência Técnica)</title>
+  
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Mermaid.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+
+  <style>
+    :root {
+      --bg-main: #0f172a;
+      --bg-card: #1e293b;
+      --bg-card-hover: #334155;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-blue: #38bdf8;
+      --accent-gold: #fbbf24;
+      --accent-red: #f87171;
+      --accent-green: #4ade80;
+      --accent-purple: #c084fc;
+      --border-color: #334155;
+      --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-family);
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Header Principal */
+    header {
+      background: rgba(30, 41, 59, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-color);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .brand-logo {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, #0284c7, #38bdf8);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 1.2rem;
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);
+    }
+
+    .brand-title h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .brand-title p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    /* Barra de Ações & Filtros */
+    .controls-bar {
+      background-color: var(--bg-card);
+      border-bottom: 1px solid var(--border-color);
+      padding: 0.75rem 2rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .filter-group, .action-group {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .control-label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-right: 0.5rem;
+    }
+
+    .btn {
+      background: var(--bg-card-hover);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .btn:hover {
+      background: #475569;
+      transform: translateY(-1px);
+    }
+
+    .btn.active {
+      background: #0284c7;
+      border-color: #38bdf8;
+      color: #fff;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+    }
+
+    .btn-gold {
+      border-color: rgba(251, 191, 36, 0.4);
+    }
+
+    .btn-gold.active, .btn-gold:hover {
+      background: #d97706;
+      border-color: var(--accent-gold);
+      color: #fff;
+      box-shadow: 0 0 10px rgba(251, 191, 36, 0.4);
+    }
+
+    .btn-red {
+      border-color: rgba(248, 113, 113, 0.4);
+    }
+
+    .btn-red.active, .btn-red:hover {
+      background: #dc2626;
+      border-color: var(--accent-red);
+      color: #fff;
+      box-shadow: 0 0 10px rgba(248, 113, 113, 0.4);
+    }
+
+    .btn-green {
+      border-color: rgba(74, 222, 128, 0.4);
+    }
+
+    .btn-green.active, .btn-green:hover {
+      background: #16a34a;
+      border-color: var(--accent-green);
+      color: #fff;
+    }
+
+    /* Área Principal do Diagrama */
+    main {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      flex: 1;
+      gap: 0;
+      position: relative;
+    }
+
+    .diagram-viewport {
+      background: #090d16;
+      background-image: 
+        radial-gradient(rgba(51, 65, 85, 0.4) 1px, transparent 1px);
+      background-size: 24px 24px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 2rem;
+      overflow: auto;
+      position: relative;
+      min-height: 600px;
+    }
+
+    .diagram-container {
+      transition: transform 0.2s ease-out;
+      transform-origin: center center;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+    }
+
+    /* Painel Lateral Explicações */
+    .side-panel {
+      background-color: var(--bg-card);
+      border-left: 1px solid var(--border-color);
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      overflow-y: auto;
+      max-height: calc(100vh - 120px);
+    }
+
+    .panel-card {
+      background: var(--bg-main);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1rem;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+
+    .panel-card.gold-card {
+      border-left: 4px solid var(--accent-gold);
+    }
+
+    .panel-card.red-card {
+      border-left: 4px solid var(--accent-red);
+    }
+
+    .panel-card.green-card {
+      border-left: 4px solid var(--accent-green);
+    }
+
+    .panel-card.purple-card {
+      border-left: 4px solid var(--accent-purple);
+    }
+
+    .panel-card h3 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .panel-card p {
+      font-size: 0.825rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .badge-gold { background: rgba(251, 191, 36, 0.2); color: var(--accent-gold); }
+    .badge-red { background: rgba(248, 113, 113, 0.2); color: var(--accent-red); }
+    .badge-green { background: rgba(74, 222, 128, 0.2); color: var(--accent-green); }
+
+    /* Customização dos Nodes do Mermaid */
+    .mermaid svg {
+      max-width: 100% !important;
+      height: auto !important;
+    }
+
+    /* Estilo de Impressão */
+    @media print {
+      header, .controls-bar, .side-panel {
+        display: none !important;
+      }
+      main {
+        display: block !important;
+      }
+      .diagram-viewport {
+        background: white !important;
+        padding: 0 !important;
+      }
+      .mermaid svg {
+        filter: invert(1) hue-rotate(180deg);
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <div class="brand-logo">MGV</div>
+      <div class="brand-title">
+        <h1>Visualizador Interativo do Fluxo de OS</h1>
+        <p>MGV Assistência Técnica &bull; Mapeamento Didático de Processos</p>
+      </div>
+    </div>
+
+    <div class="action-group">
+      <button class="btn" onclick="zoomIn()" title="Aumentar Zoom">🔍 +</button>
+      <button class="btn" onclick="zoomOut()" title="Diminuir Zoom">🔍 -</button>
+      <button class="btn" onclick="resetZoom()" title="Tamanho Normal">🔄 Reset</button>
+      <button class="btn btn-green" onclick="window.print()" title="Imprimir em PDF">🖨️ PDF</button>
+    </div>
+  </header>
+
+  <!-- Barra de Filtros Didáticos -->
+  <div class="controls-bar">
+    <div class="filter-group">
+      <span class="control-label">Modos de Visualização:</span>
+      <button class="btn active" id="btn-all" onclick="setFilter('all')">🌟 Mostrar Tudo</button>
+      <button class="btn btn-gold" id="btn-fabiola" onclick="setFilter('fabiola')">🟡 Caso Fabíola (Retirada Temp.)</button>
+      <button class="btn btn-red" id="btn-reabertura" onclick="setFilter('reabertura')">🔴 Reversão / Reabertura</button>
+      <button class="btn btn-green" id="btn-financeiro" onclick="setFilter('financeiro')">🟢 Fluxo Financeiro</button>
+    </div>
+
+    <div class="filter-group">
+      <span class="control-label">Status da Arquitetura:</span>
+      <span class="badge badge-green">AuditLog Ativo</span>
+      <span class="badge badge-gold">Retirada Temp. Mapeada</span>
+    </div>
+  </div>
+
+  <!-- Conteúdo Principal -->
+  <main>
+    <!-- Viewport do Diagrama -->
+    <div class="diagram-viewport" id="viewport">
+      <div class="diagram-container" id="diagram-container">
+        <div class="mermaid" id="mermaid-target">
+flowchart TD
+    classDef padrao fill:#1e3a8a,stroke:#3b82f6,color:#fff,stroke-width:2px;
+    classDef fabiola fill:#d97706,stroke:#fbbf24,color:#fff,stroke-width:3px,font-weight:bold;
+    classDef reabertura fill:#dc2626,stroke:#f87171,color:#fff,stroke-width:2px;
+    classDef financeiro fill:#16a34a,stroke:#4ade80,color:#fff,stroke-width:2px;
+    classDef auditoria stroke-dasharray: 5 5,fill:#334155,stroke:#94a3b8,color:#f8fafc;
+
+    ENTRADA(["1. Entrada da OS"]) :::padrao --> AVALIACAO["2. Triagem / Orçamento"] :::padrao
+    AVALIACAO --> EXECUCAO["3. Execução / Manutenção"] :::padrao
+
+    EXECUCAO -- Aguarda Peça Externa --> RETIRADA_TEMP["Retirada Temporária pelo Cliente<br/>Status OS: AGUARDANDO_PECA<br/>Custódia: ENTREGUE_TEMP"] :::fabiola
+    RETIRADA_TEMP --> PGTO_PARCIAL["Pagamento Parcial Registrado<br/>Status Fin: PAGO_PARCIAL"] :::financeiro
+    PGTO_PARCIAL --> AGUARDA_CASA["Aparelho na Casa do Cliente"] :::fabiola
+    AGUARDA_CASA -- Peça Chegou ao Estabelecimento --> RETORNO["Retorno do Aparelho à Oficina"] :::padrao
+    RETORNO --> EXECUCAO
+
+    EXECUCAO --> CONCLUIDO["4. Serviço Concluído"] :::padrao
+    CONCLUIDO --> PGTO_TOTAL["Quitação Total / Saldo Zero"] :::financeiro
+    PGTO_TOTAL --> FINALIZADO["OS FINALIZADA<br/>Custódia: ENTREGUE_DEFINITIVO"] :::padrao
+
+    FINALIZADO -- Erro / Retorno Garantia --> MODAL_REABERTURA["Modal: Justificativa Obrigatória<br/>Grava no AuditLog"] :::auditoria
+    MODAL_REABERTURA --> REABERTO["OS REABERTA<br/>Status: REABERTO"] :::reabertura
+    REABERTO --> EXECUCAO
+
+    EDIT_LIVRE["Edição Pontual de Dados<br/>Cliente, Equipamento, Obs"] :::auditoria -.- ENTRADA
+    EDIT_LIVRE -.- RETIRADA_TEMP
+    EDIT_LIVRE -.- FINALIZADO
+        </div>
+      </div>
+    </div>
+
+    <!-- Painel Lateral Explicativo -->
+    <div class="side-panel">
+      
+      <div class="panel-card gold-card">
+        <h3>🟡 Caso Fabíola (Retirada Temp.)</h3>
+        <p>Acontece quando o equipamento precisa de uma peça que vai demorar, mas a cliente deseja utilizar o equipamento enquanto espera.</p>
+        <br>
+        <p><strong>Regra:</strong> A OS muda para <code>ENTREGUE_AGUARDANDO_PECA</code>, registra pagamento parcial e não é finalizada precocemente.</p>
+      </div>
+
+      <div class="panel-card red-card">
+        <h3>🔴 Reversão / Reabertura de OS</h3>
+        <p>Quando a OS foi finalizada por engano ou o aparelho retornou em garantia.</p>
+        <br>
+        <p><strong>Regra:</strong> Exige que o atendente digite uma justificativa obrigatória e grava o evento no <code>AuditLog</code> antes de voltar para a bancada.</p>
+      </div>
+
+      <div class="panel-card green-card">
+        <h3>🟢 Gestão Financeira Parcial</h3>
+        <p>Separação entre a Ordem de Serviço e os lançamentos na tabela de Pagamentos.</p>
+        <br>
+        <p><strong>Regra:</strong> O cliente pode pagar taxas intermediárias ou sinais sem alterar o custo final previsto da OS.</p>
+      </div>
+
+      <div class="panel-card purple-card">
+        <h3>🟣 Edição Livre & Rastreabilidade</h3>
+        <p>Permite atualizar telefone, endereço ou número de série do aparelho em qualquer etapa do processo sem bloquear a OS.</p>
+      </div>
+
+    </div>
+  </main>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      securityLevel: 'loose',
+      flowchart: {
+        useMaxWidth: false,
+        htmlLabels: true,
+        curve: 'basis'
+      }
+    });
+
+    let currentZoom = 1;
+    const container = document.getElementById('diagram-container');
+
+    function zoomIn() {
+      currentZoom += 0.15;
+      applyZoom();
+    }
+
+    function zoomOut() {
+      if (currentZoom > 0.4) {
+        currentZoom -= 0.15;
+        applyZoom();
+      }
+    }
+
+    function resetZoom() {
+      currentZoom = 1;
+      applyZoom();
+    }
+
+    function applyZoom() {
+      container.style.transform = `scale(${currentZoom})`;
+    }
+
+    // Filtros de Destaque Visual
+    function setFilter(filterType) {
+      document.querySelectorAll('.controls-bar .btn').forEach(btn => btn.classList.remove('active'));
+      
+      const svg = document.querySelector('.mermaid svg');
+      if (!svg) return;
+
+      const nodes = svg.querySelectorAll('.node');
+
+      if (filterType === 'all') {
+        document.getElementById('btn-all').classList.add('active');
+        nodes.forEach(n => n.style.opacity = '1');
+      } else if (filterType === 'fabiola') {
+        document.getElementById('btn-fabiola').classList.add('active');
+        nodes.forEach(n => {
+          if (n.classList.contains('fabiola') || n.classList.contains('financeiro')) {
+            n.style.opacity = '1';
+          } else {
+            n.style.opacity = '0.25';
+          }
+        });
+      } else if (filterType === 'reabertura') {
+        document.getElementById('btn-reabertura').classList.add('active');
+        nodes.forEach(n => {
+          if (n.classList.contains('reabertura') || n.classList.contains('auditoria')) {
+            n.style.opacity = '1';
+          } else {
+            n.style.opacity = '0.25';
+          }
+        });
+      } else if (filterType === 'financeiro') {
+        document.getElementById('btn-financeiro').classList.add('active');
+        nodes.forEach(n => {
+          if (n.classList.contains('financeiro')) {
+            n.style.opacity = '1';
+          } else {
+            n.style.opacity = '0.25';
+          }
+        });
+      }
+    }
+  </script>
+</body>
+</html>

@@ -14,12 +14,28 @@ export class ClientsController {
       const where: any = { deletedAt: null };
 
       if (search) {
+        const unmaskedSearch = search.replace(/\D/g, "");
+        const searchWords = search.split(/\s+/).filter(w => w.length > 0);
+
         where.OR = [
           { name: { contains: search, mode: "insensitive" } },
           { cpfCnpj: { contains: search, mode: "insensitive" } },
           { email: { contains: search, mode: "insensitive" } },
           { phone: { contains: search, mode: "insensitive" } }
         ];
+
+        if (unmaskedSearch) {
+          where.OR.push({ cpfCnpj: { contains: unmaskedSearch, mode: "insensitive" } });
+          where.OR.push({ phone: { contains: unmaskedSearch, mode: "insensitive" } });
+        }
+
+        if (searchWords.length > 1) {
+          where.OR.push({
+            AND: searchWords.map(word => ({
+              name: { contains: word, mode: "insensitive" }
+            }))
+          });
+        }
       }
 
       const [activeClients, total] = await Promise.all([

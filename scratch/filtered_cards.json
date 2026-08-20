@@ -1,0 +1,20 @@
+{
+  "priorizacao": [
+    {
+      "name": "FINALIZAR O.S. NÃO APROVADA>>. Quando o cliente recusar, a ordem de serviço precisa ir para \"pronto para retirada\" e não ser encerrada automaticamente pois a cliente recusa e na maioria das vezes não retira na hora.",
+      "desc": "",
+      "labels": [],
+      "due": null,
+      "checklists": []
+    }
+  ],
+  "ajustes": [
+    {
+      "name": "INCLUIR A OPÇÃO LASER NO TIPO DO APARELHO / laserterapia é outro tipo de tratamento.",
+      "desc": "![image.webp](https://trello.com/1/cards/6a6b3f046253fa47905e242b/attachments/6a6b3f0eb9a26e98a15116c8/previews/6a6b3f0fb9a26e98a15116d9/download/image.webp)\n\n![image.webp](https://trello.com/1/cards/6a6b3f046253fa47905e242b/attachments/6a6b547e2183287bcef0461a/previews/6a6b547e2183287bcef04655/download/image.webp)",
+      "labels": [],
+      "due": null,
+      "checklists": []
+    }
+  ]
+}
