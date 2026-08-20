@@ -3,9 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
+  url      = "postgresql://postgres:k6k2tHwYChVlRTQg@179.198.121.203:5433/postgres_teste?schema=public"
 }
 
 model User {
@@ -25,41 +24,41 @@ model User {
 }
 
 model Client {
-  id           String         @id @default(uuid())
-  name         String
-  cpfCnpj      String
-  phone        String
-  email        String
-  address      String
-  deletedAt    DateTime?
-  legacyId     String?        @unique
-  birthday     DateTime?
-  blocked      Boolean        @default(false)
-  city         String         @default("")
-  clientType   Int            @default(0)
-  complement   String         @default("")
-  contact      String         @default("")
-  createdAt    DateTime?
-  creditLimit  String         @default("0")
-  fantasyName  String         @default("")
-  gender       Int            @default(0)
-  lastSaleAt   DateTime?
-  neighborhood String         @default("")
-  nfeEmail     String         @default("")
-  notes        String         @default("")
-  number       String         @default("")
-  phone2       String         @default("")
-  rg           String         @default("")
-  sellerCode   Int            @default(0)
-  state        String         @default("")
-  status       Int            @default(1)
-  suframa      String         @default("")
-  website      String         @default("")
-  zipCode      String         @default("")
+  id             String         @id @default(uuid())
+  name           String
+  cpfCnpj        String
+  phone          String
+  email          String
+  address        String
+  deletedAt      DateTime?
+  legacyId       String?        @unique
+  birthday       DateTime?
+  blocked        Boolean        @default(false)
+  city           String         @default("")
+  clientType     Int            @default(0)
+  complement     String         @default("")
+  contact        String         @default("")
+  createdAt      DateTime?
+  creditLimit    String         @default("0")
+  fantasyName    String         @default("")
+  gender         Int            @default(0)
+  lastSaleAt     DateTime?
+  neighborhood   String         @default("")
+  nfeEmail       String         @default("")
+  notes          String         @default("")
+  number         String         @default("")
+  phone2         String         @default("")
+  rg             String         @default("")
+  sellerCode     Int            @default(0)
+  state          String         @default("")
+  status         Int            @default(1)
+  suframa        String         @default("")
+  website        String         @default("")
+  zipCode        String         @default("")
   blingContactId String?
-  devices      Device[]
-  orders       OrdemServico[]
-  tags         Tag[]
+  devices        Device[]
+  orders         OrdemServico[]
+  tags           Tag[]          @relation("ClientToTag")
 
   @@map("clients")
 }
@@ -84,7 +83,7 @@ model Device {
   deviceNotes       DeviceNote[]
   client            Client?        @relation(fields: [clientId], references: [id])
   orders            OrdemServico[]
-  tags              Tag[]
+  tags              Tag[]          @relation("DeviceToTag")
 
   @@map("devices")
 }
@@ -173,11 +172,7 @@ model Part {
   sku                 String?
   stockMin            Int       @default(0)
   supplier            String?
-  supplierId          String?
-  supplierRel         Supplier? @relation(fields: [supplierId], references: [id])
   reserved            Int       @default(0)
-
-  // --- Identificação e Classificação ---
   unit                String    @default("UN")
   gtin                String?
   ncm                 String?
@@ -189,32 +184,20 @@ model Part {
   partSubgroup        String?
   weightGross         Float     @default(0.0)
   weightNet           Float     @default(0.0)
-
-  // --- Tributação ICMS ---
   cstOrigem           String    @default("0")
   cstIcms             String    @default("000")
   icmsAliq            Float     @default(0.0)
   icmsStAliq          Float     @default(0.0)
   icmsRedBc           Float     @default(100.0)
-
-  // --- CFOP ---
   cfopIntraEstadual   String    @default("5102")
   cfopInterEstadual   String    @default("6102")
-
-  // --- IPI ---
   ipiAliq             Float     @default(0.0)
   ipiEnquadramento    String    @default("999")
-
-  // --- PIS / COFINS ---
   pisAliq             Float     @default(0.0)
   cofinsAliq          Float     @default(0.0)
-
-  // --- Outros Fiscais ---
   totalTributos       Float     @default(0.0)
   cBenef              String?
   indEscala           String    @default("S")
-
-  // --- ICMS-ST Retido ---
   bcStRetido          Float     @default(0.0)
   icmsStRetido        Float     @default(0.0)
   aliqSt              Float     @default(0.0)
@@ -223,10 +206,11 @@ model Part {
   bcEfet              Float     @default(0.0)
   icmsEfetAliq        Float     @default(0.0)
   icmsEfetValor       Float     @default(0.0)
+  supplierId          String?
+  supplierRel         Supplier? @relation(fields: [supplierId], references: [id])
 
   @@map("parts")
 }
-
 
 model OrdemServico {
   id                   String               @id @default(uuid())
@@ -262,8 +246,6 @@ model OrdemServico {
   recurrent            Boolean              @default(false)
   laudoMacro           String?
   closingReason        OSClosingReason?
-  profitValue          Float?
-  profitMarginPercent  Float?
   abandonAlert         DateTime?
   advancePayment       Float?
   attendantId          Int                  @default(0)
@@ -304,30 +286,30 @@ model OrdemServico {
   warrantyType         WarrantyType         @default(NENHUMA)
   financialStatus      OSFinancialStatus    @default(PENDENTE)
   paymentMethod        String?
-  paymentNotes         String?
-  paymentDate          DateTime?
-  paymentDetails       Json?                @default("[]")
   financialDueDate     DateTime?
   webKey               String?
   webPassword          String?
-  
-  // --- Novos Campos de Handoff e Logística (Fase 2) ---
-  clientDecision       String?
   approvedBudgetAmount Float?
-  returnMethod         String?
-  packagingCleaned     Boolean              @default(false)
   benchLocation        String?
+  clientDecision       String?
+  packagingCleaned     Boolean              @default(false)
+  returnMethod         String?
+  paymentDate          DateTime?
+  paymentDetails       Json?                @default("[]")
+  paymentNotes         String?
+  profitMarginPercent  Float?
+  profitValue          Float?
   messageHistories     MessageHistory[]
   client               Client?              @relation(fields: [clientId], references: [id])
   device               Device?              @relation(fields: [deviceId], references: [id])
   conciliationItems    OSConciliationItem[]
-  tags                 Tag[]
+  tags                 Tag[]                @relation("OrdemServicoToTag")
 
-  @@map("ordem_servicos")
   @@index([deletedAt, status, createdAt(sort: Desc)])
   @@index([deletedAt, status, financialStatus])
   @@index([deviceId, deletedAt, createdAt])
   @@index([clientId, deletedAt])
+  @@map("ordem_servicos")
 }
 
 model BlingConfig {
@@ -341,18 +323,17 @@ model BlingConfig {
 }
 
 model Tag {
-  id          String    @id @default(uuid())
+  id          String         @id @default(uuid())
   name        String
-  colorHex    String    @default("#94a3b8")
-  scope       TagScope  @default(GLOBAL)
-  description String    @default("")
+  colorHex    String         @default("#94a3b8")
+  createdAt   DateTime       @default(now())
+  description String         @default("")
   ownerId     String?
-  createdAt   DateTime  @default(now())
-
-  owner       User?     @relation(fields: [ownerId], references: [id])
-  clients     Client[]
-  devices     Device[]
-  orders      OrdemServico[]
+  scope       TagScope       @default(GLOBAL)
+  owner       User?          @relation(fields: [ownerId], references: [id])
+  clients     Client[]       @relation("ClientToTag")
+  devices     Device[]       @relation("DeviceToTag")
+  orders      OrdemServico[] @relation("OrdemServicoToTag")
 
   @@map("tags")
 }
@@ -519,6 +500,63 @@ model MigrationMapping {
   @@map("migration_mappings")
 }
 
+model Supplier {
+  id             String    @id @default(uuid())
+  legacyId       String?   @unique @map("legacy_id")
+  name           String    @map("razao_social")
+  fantasyName    String?   @map("fantasia")
+  cpfCnpj        String?   @map("cnpj_cpf")
+  ie             String?   @map("ie_rg")
+  address        String?   @map("endereco")
+  neighborhood   String?   @map("bairro")
+  city           String?   @map("cidade")
+  state          String?   @map("uf")
+  zipCode        String?   @map("cep")
+  phone          String?   @map("telefone")
+  fax            String?   @map("fax")
+  email          String?   @map("email")
+  contactName    String?   @map("contato")
+  isCarrier      Boolean   @default(false) @map("transportadora")
+  website        String?   @map("site")
+  im             String?   @map("inscricao_municipal")
+  notes          String?   @map("observacao")
+  createdAt      DateTime  @default(now()) @map("cadastrado_em")
+  lastPurchaseAt DateTime? @map("ultima_compra_em")
+  deletedAt      DateTime? @map("deleted_at")
+  parts          Part[]
+
+  @@map("fornecedores")
+}
+
+model CustomField {
+  id         String             @id @default(uuid())
+  entityType String
+  label      String
+  type       String
+  options    String[]           @default([])
+  required   Boolean            @default(false)
+  order      Int                @default(0)
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  deletedAt  DateTime?
+  values     CustomFieldValue[]
+
+  @@map("custom_fields")
+}
+
+model CustomFieldValue {
+  id            String      @id @default(uuid())
+  customFieldId String
+  entityId      String
+  value         String
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  customField   CustomField @relation(fields: [customFieldId], references: [id])
+
+  @@unique([customFieldId, entityId])
+  @@map("custom_field_values")
+}
+
 enum UserRole {
   OWNER
   EDITOR
@@ -566,63 +604,4 @@ enum OSFinancialStatus {
   PAGAR_DEPOIS
   PAGO
   INADIMPLENTE
-}
-
-model Supplier {
-  id             String    @id @default(uuid())
-  name           String    @map("razao_social")
-  fantasyName    String?   @map("fantasia")
-  cpfCnpj        String?   @map("cnpj_cpf")
-  ie             String?   @map("ie_rg")
-  im             String?   @map("inscricao_municipal")
-  address        String?   @map("endereco")
-  neighborhood   String?   @map("bairro")
-  city           String?   @map("cidade")
-  state          String?   @map("uf")
-  zipCode        String?   @map("cep")
-  phone          String?   @map("telefone")
-  fax            String?   @map("fax")
-  email          String?   @map("email")
-  website        String?   @map("site")
-  contactName    String?   @map("contato")
-  isCarrier      Boolean   @default(false) @map("transportadora")
-  notes          String?   @map("observacao")
-  legacyId       String?   @unique @map("legacy_id")
-  createdAt      DateTime  @default(now()) @map("cadastrado_em")
-  deletedAt      DateTime? @map("deleted_at")
-  lastPurchaseAt DateTime? @map("ultima_compra_em")
-
-  parts          Part[]
-
-  @@map("fornecedores")
-}
-
-model CustomField {
-  id          String             @id @default(uuid())
-  entityType  String             // "CLIENT", "DEVICE", "ORDEM_SERVICO"
-  label       String
-  type        String             // "TEXT", "NUMBER", "CHECKBOX", "SELECT"
-  options     String[]           @default([]) // Opções para tipo SELECT
-  required    Boolean            @default(false)
-  order       Int                @default(0)
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  deletedAt   DateTime?
-  values      CustomFieldValue[]
-
-  @@map("custom_fields")
-}
-
-model CustomFieldValue {
-  id            String      @id @default(uuid())
-  customFieldId String
-  entityId      String      // ID do Client, Device ou OrdemServico
-  value         String
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-
-  customField   CustomField @relation(fields: [customFieldId], references: [id])
-
-  @@unique([customFieldId, entityId])
-  @@map("custom_field_values")
 }

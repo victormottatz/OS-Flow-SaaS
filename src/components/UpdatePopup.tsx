@@ -16,18 +16,18 @@ export function UpdatePopup() {
 
   useEffect(() => {
     const savedVersion = localStorage.getItem("mgv_last_update_version");
-    if (savedVersion !== "4.11.0") {
+    if (savedVersion !== "4.12.0") {
       setIsOpen(true);
       
       // Notificação silenciosa no sino
       addNotification({
-        title: "🚀 MGV ONE HUB Atualizado (v4.11.0)",
-        message: "Liberada a movimentação livre e reabertura de OS no Kanban. Correção no encerramento de Aparelhos Sem Defeito.",
+        title: "🚀 MGV ONE HUB Atualizado (v4.12.0)",
+        message: "Nova funcionalidade: Integração oficial do WhatsApp liberada para notificações.",
         type: "system",
         read: false
       });
       
-      localStorage.setItem("mgv_last_update_version", "4.11.0");
+      localStorage.setItem("mgv_last_update_version", "4.12.0");
     }
   }, [addNotification]);
 
@@ -67,7 +67,7 @@ export function UpdatePopup() {
                 <span className="material-symbols-outlined text-[28px]">rocket_launch</span>
                 MGV ONE HUB
               </h2>
-              <p className="text-indigo-200 mt-1 text-sm">Versão 4.11.0 • Agosto de 2026</p>
+              <p className="text-indigo-200 mt-1 text-sm">Versão 4.12.0 • Agosto de 2026</p>
               
               <button 
                 onClick={handleClose}
@@ -79,6 +79,18 @@ export function UpdatePopup() {
 
             <div className="p-6">
               <ul className="space-y-6">
+            {/* Alteração 1: WhatsApp */}
+            <div className="flex gap-4">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-green-100 flex items-center justify-center border border-green-200">
+                <span className="material-symbols-outlined text-green-600 text-[20px]">chat</span>
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-200 text-sm">Integração Oficial com WhatsApp</h3>
+                <p className="text-slate-400 text-xs mt-1 leading-relaxed">
+                  Envie orçamentos, avisos de retirada e mensagens manuais diretamente pelo WhatsApp do cliente, de dentro da OS, conectando-se a Evolution API.
+                </p>
+              </div>
+            </div>
             {/* Alteração 1 */}
             <div className="flex gap-4">
               <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center border border-blue-200">

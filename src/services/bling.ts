@@ -225,6 +225,7 @@ export async function syncClientToBling(client: {
   city?: string;
   state?: string;
   zipCode?: string;
+  syncClientWithErp?: boolean;
 }): Promise<number> {
   const token = await getAccessToken();
   if (!token) {
@@ -372,6 +373,11 @@ export async function syncClientToBling(client: {
   };
 
   if (contactId) {
+    if (client.syncClientWithErp === false) {
+      console.log(`[Bling Sync] Contato existente ID: ${contactId}. Atualização ignorada (checkbox desmarcado).`);
+      return contactId;
+    }
+    
     console.log(`[Bling Sync] Atualizando contato existente ID: ${contactId}`);
     try {
       await requestWithRetry(() => axios.put(`https://api.bling.com.br/Api/v3/contatos/${contactId}`, payload, {

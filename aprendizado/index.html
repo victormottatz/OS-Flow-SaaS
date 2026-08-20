@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<!--
+  ============================================================
+  MGV SANDBOX DE APRENDIZADO — HTML
+  ============================================================
+  Este é um arquivo HTML "puro", igual ao que você pode criar
+  em qualquer editor de texto. Ele organiza o CONTEÚDO e a
+  ESTRUTURA da página (títulos, botões, colunas, cartões).
+
+  Os 3 pilares da programação web:
+    - HTML  -> define a ESTRUTURA (o esqueleto)   => este arquivo
+    - CSS   -> define o VISUAL (as roupas)        => styles.css
+    - JS    -> define o COMPORTAMENTO (o cérebro) => script.js
+
+  Abra este arquivo com dois cliques no navegador. Para editar,
+  use o VS Code (botão direito > "Abrir com Code").
+  ============================================================
+-->
+<html lang="pt-BR">
+
+<head>
+  <!-- Meta tags de configuração da página -->
+  <meta charset="UTF-8" />
+  <!-- Faz o site se adaptar a celulares/tablets -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MGV Sandbox — Aprenda HTML, CSS e JS</title>
+
+  <!--
+    Aqui CONECTAMOS o CSS (styles.css) à página.
+    O atributo href aponta para o arquivo de estilo na mesma pasta.
+  -->
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+
+  <!-- ======================= BARRA DE NAVEGAÇÃO ======================= -->
+  <!--
+    <nav>: tag semântica para barra de navegação (menu do topo).
+    Muitas tags já têm um "significado" (semântica) e isso ajuda
+    o navegador e pessoas com leitores de tela a entenderem a página.
+  -->
+  <nav class="navbar">
+    <h1 class="logo">🔧 ndbox</h1>
+    <span class="tag">Aprendendo HTML · CSS · JS</span>
+  </nav>
+
+  <!-- ======================= CABEÇALHO DA PÁGINA ======================= -->
+  <header class="cabecalho">
+    <h2>Painel de Ordens de Serviço</h2>
+    <p class="subtitulo">
+      Exemplo minimalista inspirado no sistema MGV. Mova os cartões
+      entre as colunas clicando nos botões, e adicione novas OS.
+    </p>
+
+    <!--
+      FORMULÁRIO para criar uma nova OS.
+      <input type="text">  -> campo onde o usuário digita
+      <button>             -> botão que dispara uma ação
+      O "cérebro" que faz esse formulário funcionar está no script.js.
+    -->
+    <div class="formulario">
+      <input type="text" id="campoNovaOs" placeholder="Digite a descrição da nova OS..." />
+      <button id="botaoAdicionar" class="botao">+ Adicionar OS</button>
+    </div>
+  </header>
+
+  <!--
+    <main>: a área principal da página.
+    <div>: um "bloco" genérico (a div mais usada para agrupar coisas).
+    <section>: representa uma seção lógica da página (aqui, o kanban).
+  -->
+  <main class="container">
+    <section class="kanban">
+
+      <!--
+        TRÊS COLUNAS. Cada uma é uma <div class="coluna">.
+        Repare que as colunas têm um "data-status" diferente.
+        O JavaScript vai usar isso para saber onde cada OS pertence.
+      -->
+      <div class="coluna" data-status="aguardando">
+        <h3 class="titulo-coluna">🕐 Aguardando</h3>
+        <div class="cartoes" id="aguardando">
+          <!--
+            Os cartões iniciais serão criados pelo JavaScript.
+            Aqui a coluna começa vazia: a mágica acontece no script.js.
+          -->
+        </div>
+      </div>
+
+      <div class="coluna" data-status="manutencao">
+        <h3 class="titulo-coluna">🔧 Em Manutenção</h3>
+        <div class="cartoes" id="manutencao"></div>
+      </div>
+
+      <div class="coluna" data-status="pronto">
+        <h3 class="titulo-coluna">✅ Pronto</h3>
+        <div class="cartoes" id="pronto"></div>
+      </div>
+
+    </section>
+  </main>
+
+  <!--
+    CONECTAMOS o JavaScript no FINAL do <body>.
+    Por quê? O HTML é lido de cima para baixo. Se o script viesse
+    no <head>, ele rodaria ANTES dos botões existirem e não
+    encontraria nem o formulário nem as colunas.
+  -->
+  <script src="script.js"></script>
+</body>
+
+</html>

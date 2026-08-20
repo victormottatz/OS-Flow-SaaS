@@ -1,0 +1,235 @@
+/* ============================================================
+   MGV SANDBOX DE APRENDIZADO — CSS
+   ============================================================
+   Este arquivo dá o VISUAL (as "roupas") da página.
+   O navegador já sabe que ele pertence à página porque o
+   index.html o "chamou" lá no <head> com a tag <link>.
+
+   O que você vai aprender aqui:
+     - Variáveis CSS          (para reutilizar cores)
+     - Estilos de elemento    (body, h1, button...)
+     - Estados (hover/focus)  (quando o mouse passa por cima)
+     - Flexbox                (para alinhar colunas lado a lado)
+
+   As cores lembram o visual "Glassmorphism Dark" do MGV:
+   fundo escuro translúcido, vidro com desfoque e toques de teal.
+   ============================================================ */
+
+/* --- VARIÁVEIS CSS -------------------------------------------------
+   Guardamos as cores em variáveis para não repetir valores mágicos.
+   Se quiser mudar o tema inteiro, é só alterar aqui embaixo.        */
+:root {
+  --fundo: #0f172a;          /* azul-escuro quase preto (slate-900)   */
+  --vidro: rgba(255, 255, 255, 0.06); /* branco bem transparente      */
+  --borda: rgba(255, 255, 255, 0.12); /* bordas sutis                  */
+  --texto: #e2e8f0;          /* texto claro                           */
+  --texto-fraco: #94a3b8;    /* texto mais apagado                    */
+  --teal: #14b8a6;           /* cor de destaque (teal)                */
+  --teal-claro: #5eead4;     /* teal mais claro para texto            */
+}
+
+/* --- RESET BÁSICO --------------------------------------------------
+   O * significa "todos os elementos". Zeramos margens e ajustamos a
+   caixa para que largura/altura incluam o padding automaticamente.  */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* --- FUNDO DA PÁGINA ----------------------------------------------
+   Aplicamos tudo ao <body> (o "corpo" da página, envolve tudo).    */
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+  background: radial-gradient(circle at top, #1e293b, #0f172a);
+  color: var(--texto);
+  min-height: 100vh; /* garante que o fundo cubra a tela toda */
+  padding: 24px;
+}
+
+/* --- BARRA DE NAVEGAÇÃO -------------------------------------------
+   Flexbox (display:flex + justify-content:space-between) coloca o
+   logo à esquerda e a tag à direita, na mesma linha.               */
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--vidro);
+  border: 1px solid var(--borda);
+  backdrop-filter: blur(12px); /* efeito "vidro fosco"              */
+  padding: 16px 24px;
+  border-radius: 14px;
+  margin-bottom: 24px;
+}
+
+.logo {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.tag {
+  font-size: 13px;
+  color: var(--texto-fraco);
+}
+
+/* --- CABEÇALHO ---------------------------------------------------- */
+.cabecalho {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.cabecalho h2 {
+  font-size: 28px;
+}
+
+.subtitulo {
+  color: var(--texto-fraco);
+  max-width: 560px;
+  margin: 8px auto 24px auto;
+  line-height: 1.5;
+}
+
+/* --- FORMULÁRIO --------------------------------------------------- */
+.formulario {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* Input (campo de digitar) */
+.formulario input {
+  flex: 1;
+  max-width: 420px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--borda);
+  background: var(--vidro);
+  color: var(--texto);
+  font-size: 15px;
+  outline: none; /* tira a borda padrão de foco do navegador */
+  transition: border-color 0.2s;
+}
+
+/* Estado de FOCUS: quando o usuário clica/no campo.
+   Usamos um anel teal, igual o sistema MGV faz.               */
+.formulario input:focus {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.25);
+}
+
+/* --- BOTÃO (reutilizável) -----------------------------------------
+   Classe .botao pode ser usada em vários botões da página.      */
+.botao {
+  padding: 12px 20px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #14b8a6, #6366f1); /* teal->indigo */
+  color: #fff;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer; /* mostra a "mãozinha" sobre o botão         */
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+/* Estado HOVER: quando o mouse passa POR CIMA do botão.
+   Aplica uma leve escala (efeito de "crescer") + sombra.       */
+.botao:hover {
+  transform: scale(1.03);
+  box-shadow: 0 8px 24px rgba(20, 184, 166, 0.35);
+}
+
+/* --- CONTAINER / KANBAN -------------------------------------------
+   Flexbox alinha as 3 colunas lado a lado.
+   O kanban interno é uma <section> com essa classe.            */
+.container {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.kanban {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+/* --- COLUNAS ------------------------------------------------------ */
+.coluna {
+  flex: 1; /* cada coluna ocupa o mesmo espaço               */
+  background: var(--vidro);
+  border: 1px solid var(--borda);
+  backdrop-filter: blur(12px);
+  border-radius: 14px;
+  padding: 16px;
+  min-height: 320px;
+}
+
+.titulo-coluna {
+  font-size: 15px;
+  margin-bottom: 14px;
+  color: var(--teal-claro);
+}
+
+/* --- CARTÕES (as OS) ----------------------------------------------
+   Cada cartão é criado pelo JS, mas ganha visual daqui.        */
+.cartao {
+  background: rgba(30, 41, 59, 0.85); /* slate-800 translúcido  */
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: transform 0.15s;
+}
+
+.cartao:hover {
+  transform: translateY(-2px);
+}
+
+/* Número da OS (identificador, estilo "chip") */
+.cartao .numero {
+  font-size: 12px;
+  color: var(--teal-claro);
+  opacity: 0.8;
+}
+
+.cartao .descricao {
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+/* Botão pequeno dentro do cartão (mover para coluna) */
+.cartao .botao-mini {
+  padding: 8px 12px;
+  font-size: 13px;
+  border-radius: 8px;
+  border: 1px solid var(--teal);
+  background: transparent;
+  color: var(--teal-claro);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.cartao .botao-mini:hover {
+  background: var(--teal);
+  color: #0f172a;
+}
+
+/* Mensagem quando a coluna está vazia */
+.coluna-vazia {
+  color: var(--texto-fraco);
+  font-size: 13px;
+  text-align: center;
+  padding: 20px 0;
+}
+
+/* --- RESPONSIVIDADE ------------------------------------------------
+   Quando a tela for menor que 720px, as colunas empilham
+   verticalmente em vez de ficarem lado a lado (ótimo p/ celular). */
+@media (max-width: 720px) {
+  .kanban {
+    flex-direction: column;
+  }
+}
