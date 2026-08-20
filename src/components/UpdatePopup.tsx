@@ -16,24 +16,23 @@ export function UpdatePopup() {
 
   useEffect(() => {
     const savedVersion = localStorage.getItem("mgv_last_update_version");
-    if (savedVersion !== "4.11.0") {
+    if (savedVersion !== "4.12.1") {
       setIsOpen(true);
       
       // Notificação silenciosa no sino
       addNotification({
-        title: "🚀 MGV ONE HUB Atualizado (v4.11.0)",
-        message: "Liberada a movimentação livre e reabertura de OS no Kanban. Correção no encerramento de Aparelhos Sem Defeito.",
+        title: "🚀 MGV ONE HUB Atualizado (v4.12.1)",
+        message: "Conexão Oficial com a Evolution API corrigida! O QR Code agora funciona perfeitamente.",
         type: "system",
         read: false
       });
       
-      localStorage.setItem("mgv_last_update_version", "4.11.0");
+      localStorage.setItem("mgv_last_update_version", "4.12.1");
     }
   }, [addNotification]);
 
   const handleClose = () => {
     setIsOpen(false);
-    localStorage.setItem('mgv_update_v4_8_seen', 'true');
   };
 
   // Fecha o popup ao clicar fora da janela de conteúdo (backdrop)
@@ -67,7 +66,7 @@ export function UpdatePopup() {
                 <span className="material-symbols-outlined text-[28px]">rocket_launch</span>
                 MGV ONE HUB
               </h2>
-              <p className="text-indigo-200 mt-1 text-sm">Versão 4.11.0 • Agosto de 2026</p>
+              <p className="text-indigo-200 mt-1 text-sm">Versão 4.12.1 • Agosto de 2026</p>
               
               <button 
                 onClick={handleClose}
@@ -79,31 +78,18 @@ export function UpdatePopup() {
 
             <div className="p-6">
               <ul className="space-y-6">
-            {/* Alteração 1 */}
-            <div className="flex gap-4">
-              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center border border-blue-200">
-                <span className="material-symbols-outlined text-blue-600 text-[20px]">drag_pan</span>
-              </div>
-              <div>
-                <h3 className="font-bold text-slate-200 text-sm">Movimentação Livre no Kanban (Reabrir OS)</h3>
-                <p className="text-slate-400 text-xs mt-1 leading-relaxed">
-                  Atendendo a pedidos, removemos a trava rígida de fases. Agora você pode reabrir uma OS Finalizada voltando-a para a bancada, ou pular etapas livremente arrastando o card.
-                </p>
-              </div>
-            </div>
-
-            {/* Alteração 2 */}
-            <div className="flex gap-4">
-              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center border border-emerald-200">
-                <span className="material-symbols-outlined text-emerald-600 text-[20px]">check_circle</span>
-              </div>
-              <div>
-                <h3 className="font-bold text-slate-200 text-sm">Correção: Aparelho Sem Defeito</h3>
-                <p className="text-slate-400 text-xs mt-1 leading-relaxed">
-                  Corrigido o erro que impedia encerrar uma OS sem defeito. O sistema não exige mais que você preencha a Base Instalada (marca/modelo/série) caso a OS não tenha conserto.
-                </p>
-              </div>
-            </div>
+                {/* Alteração 1 */}
+                <div className="flex gap-4">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center border border-blue-200">
+                    <span className="material-symbols-outlined text-blue-600 text-[20px]">qr_code_scanner</span>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-200 text-sm">Integração WhatsApp Finalizada</h3>
+                    <p className="text-slate-400 text-xs mt-1 leading-relaxed">
+                      O painel de Configurações do WhatsApp agora se conecta diretamente à Evolution API para gerar o QR Code correto. A simulação foi desativada e a integração está em produção.
+                    </p>
+                  </div>
+                </div>
               </ul>
 
               <div className="mt-8 pt-5 border-t border-slate-800 flex justify-end">

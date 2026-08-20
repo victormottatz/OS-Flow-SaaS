@@ -100,6 +100,66 @@ export class WhatsAppController {
       res.status(500).json({ error: err.message });
     }
   }
+  async connect(req: Request, res: Response) {
+    const apiUrl = process.env.WHATSAPP_API_URL || "https://whatsapp.mgvrp.com.br";
+    const apiToken = process.env.WHATSAPP_API_TOKEN || "K8kL3mZ9pQ2wE5";
+    const instanceName = "mgv_hub";
+
+    try {
+      // Tenta criar a instância com fetch nativo (suporta node 18+)
+      await fetch(`${apiUrl}/instance/create`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", apikey: apiToken },
+        body: JSON.stringify({
+          instanceName,
+          token: instanceName,
+          qrcode: true
+        })
+      }).catch(() => {});
+
+      // Pega o QR code
+      const response = await fetch(`${apiUrl}/instance/connect/${instanceName}`, {
+        headers: { apikey: apiToken }
+      });
+      const data = await response.json();
+      res.json(data);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+
+  async getState(req: Request, res: Response) {
+    const apiUrl = process.env.WHATSAPP_API_URL || "https://whatsapp.mgvrp.com.br";
+    const apiToken = process.env.WHATSAPP_API_TOKEN || "K8kL3mZ9pQ2wE5";
+    const instanceName = "mgv_hub";
+
+    try {
+      const response = await fetch(`${apiUrl}/instance/connectionState/${instanceName}`, {
+        headers: { apikey: apiToken }
+      });
+      const data = await response.json();
+      res.json(data);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+
+  async logout(req: Request, res: Response) {
+    const apiUrl = process.env.WHATSAPP_API_URL || "https://whatsapp.mgvrp.com.br";
+    const apiToken = process.env.WHATSAPP_API_TOKEN || "K8kL3mZ9pQ2wE5";
+    const instanceName = "mgv_hub";
+
+    try {
+      const response = await fetch(`${apiUrl}/instance/logout/${instanceName}`, {
+        method: "DELETE",
+        headers: { apikey: apiToken }
+      });
+      const data = await response.json();
+      res.json(data);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  }
 }
 
 export const whatsAppController = new WhatsAppController();

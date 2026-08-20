@@ -86,33 +86,75 @@ export default function WhatsAppSettingsPanel() {
     }
   };
 
-  const simulateQRCode = () => {
+  const [qrCodeBase64, setQrCodeBase64] = useState<string>('');
+  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
+
+  const fetchQRCode = async () => {
     setPairingStatus('loading');
-    setTimeout(() => {
-      setPairingStatus('qrcode');
-    }, 1500);
+    try {
+      const activeToken = localStorage.getItem('mgv_token') || '';
+      const response = await axios.post('/api/whatsapp/instance/connect', {}, {
+        headers: { Authorization: `Bearer ${activeToken}` }
+      });
+      
+      if (response.data && response.data.base64) {
+        setQrCodeBase64(response.data.base64);
+        setPairingStatus('qrcode');
+        
+        // Iniciar polling para verificar se conectou
+        if (pollingInterval) clearInterval(pollingInterval);
+        const interval = setInterval(checkConnectionState, 3000);
+        setPollingInterval(interval);
+      } else {
+        alert('Falha ao gerar QR Code: Resposta inválida da API.');
+        setPairingStatus('disconnected');
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Erro ao conectar na Evolution API.');
+      setPairingStatus('disconnected');
+    }
   };
 
-  const simulateConnect = () => {
+  const checkConnectionState = async () => {
+    try {
+      const activeToken = localStorage.getItem('mgv_token') || '';
+      const response = await axios.get('/api/whatsapp/instance/state', {
+        headers: { Authorization: `Bearer ${activeToken}` }
+      });
+      
+      if (response.data && response.data.instance?.state === 'open') {
+        setPairingStatus('connected');
+        if (pollingInterval) {
+          clearInterval(pollingInterval);
+          setPollingInterval(null);
+        }
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  // Limpa o polling ao desmontar
+  useEffect(() => {
+    return () => {
+      if (pollingInterval) clearInterval(pollingInterval);
+    };
+  }, [pollingInterval]);
+
+  const disconnectInstance = async () => {
     setPairingStatus('loading');
-    setTimeout(() => {
+    try {
+      const activeToken = localStorage.getItem('mgv_token') || '';
+      await axios.delete('/api/whatsapp/instance/logout', {
+        headers: { Authorization: `Bearer ${activeToken}` }
+      });
+      setPairingStatus('disconnected');
+    } catch (error) {
+      console.error(error);
+      alert('Erro ao desconectar na Evolution API.');
       setPairingStatus('connected');
-      // Fora salvar token/url de teste se tiver vazio
-      setValues(prev => ({
-        ...prev,
-        WHATSAPP_API_URL: prev.WHATSAPP_API_URL || 'http://localhost:8080',
-        WHATSAPP_API_TOKEN: prev.WHATSAPP_API_TOKEN || 'EVO-SIMULADO-TOKEN'
-      }));
-    }, 2000);
-  };
-
-  const simulateDisconnect = () => {
-    setPairingStatus('disconnected');
-    setValues(prev => ({
-      ...prev,
-      WHATSAPP_API_URL: '',
-      WHATSAPP_API_TOKEN: ''
-    }));
+    }
   };
 
   if (loading) {
@@ -155,7 +197,7 @@ export default function WhatsAppSettingsPanel() {
                 <p className="text-sm text-slate-500 mt-1">Gere um QR Code para iniciar o pareamento com a Evolution API.</p>
               </div>
               <button 
-                onClick={simulateQRCode}
+                onClick={fetchQRCode}
                 className="mt-4 px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium transition-colors shadow-sm flex items-center gap-2"
               >
                 <span className="material-symbols-outlined text-lg">qr_code_scanner</span>
@@ -173,12 +215,19 @@ export default function WhatsAppSettingsPanel() {
 
           {pairingStatus === 'qrcode' && (
             <div className="flex flex-col items-center justify-center h-full space-y-4 animate-fade-in">
-              <div className="p-4 bg-white rounded-2xl shadow-md border border-slate-100 cursor-pointer" onClick={simulateConnect}>
-                {/* Dummy QR Code UI - clickable for demo */}
-                <div className="w-48 h-48 bg-[url('https://upload.wikimedia.org/wikipedia/commons/d/d0/QR_code_for_mobile_English_Wikipedia.svg')] bg-cover bg-center opacity-80 hover:opacity-100 transition-opacity"></div>
+              <div className="p-4 bg-white rounded-2xl shadow-md border border-slate-100">
+                {qrCodeBase64 ? (
+                  <img src={qrCodeBase64} alt="QR Code" className="w-48 h-48" />
+                ) : (
+                  <div className="w-48 h-48 bg-slate-100 flex items-center justify-center text-slate-400">
+                    <span className="material-symbols-outlined">qr_code</span>
+                  </div>
+                )}
               </div>
               <p className="text-slate-600 font-medium">Escaneie o QR Code com seu WhatsApp</p>
-              <p className="text-xs text-slate-400">(Dica: Clique no QR Code para simular a conexo)</p>
+              <button onClick={() => setPairingStatus('disconnected')} className="text-xs text-rose-500 hover:underline">
+                Cancelar
+              </button>
             </div>
           )}
 
@@ -195,10 +244,10 @@ export default function WhatsAppSettingsPanel() {
                 <p className="text-sm text-slate-500 mt-1">Sua API est pronta para enviar mensagens.</p>
               </div>
               <button 
-                onClick={simulateDisconnect}
+                onClick={disconnectInstance}
                 className="mt-4 px-6 py-2 text-rose-500 hover:bg-rose-50 rounded-xl font-medium transition-colors"
               >
-                Desconectar Sesso
+                Desconectar Aparelho
               </button>
             </div>
           )}
