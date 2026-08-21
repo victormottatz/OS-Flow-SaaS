@@ -87,18 +87,32 @@ export default function WhatsAppSettingsPanel() {
   };
 
   const [qrCodeBase64, setQrCodeBase64] = useState<string>('');
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
 
   const fetchQRCode = async () => {
     setPairingStatus('loading');
+    setErrorMessage(null);
     try {
       const activeToken = localStorage.getItem('mgv_token') || '';
       const response = await axios.post('/api/whatsapp/instance/connect', {}, {
         headers: { Authorization: `Bearer ${activeToken}` }
       });
       
-      if (response.data && response.data.base64) {
-        setQrCodeBase64(response.data.base64);
+      // Se já retornar conectado (Modo Simulado ou instância já aberta)
+      if (response.data && response.data.instance && response.data.instance.state === 'open' && !response.data.base64) {
+        setPairingStatus('connected');
+        return;
+      }
+
+      let qr = response.data?.base64 || response.data?.qrcode?.base64 || '';
+      if (qr) {
+        if (!qr.startsWith('data:image')) {
+          qr = `data:image/png;base64,${qr}`;
+        }
+        setQrCodeBase64(qr);
+        setPairingCode(response.data.pairingCode || response.data.code || null);
         setPairingStatus('qrcode');
         
         // Iniciar polling para verificar se conectou
@@ -106,12 +120,14 @@ export default function WhatsAppSettingsPanel() {
         const interval = setInterval(checkConnectionState, 3000);
         setPollingInterval(interval);
       } else {
-        alert('Falha ao gerar QR Code: Resposta inválida da API.');
+        const errorText = response.data?.error || 'A Evolution API não retornou o QR Code.';
+        setErrorMessage(errorText);
         setPairingStatus('disconnected');
       }
-    } catch (error) {
-      console.error(error);
-      alert('Erro ao conectar na Evolution API.');
+    } catch (error: any) {
+      console.error('[WhatsApp Panel] Erro ao conectar na Evolution API:', error);
+      const apiErrMsg = error.response?.data?.error || error.message || 'Erro de comunicação com o servidor da Evolution API.';
+      setErrorMessage(apiErrMsg);
       setPairingStatus('disconnected');
     }
   };
@@ -125,6 +141,7 @@ export default function WhatsAppSettingsPanel() {
       
       if (response.data && response.data.instance?.state === 'open') {
         setPairingStatus('connected');
+        setErrorMessage(null);
         if (pollingInterval) {
           clearInterval(pollingInterval);
           setPollingInterval(null);
@@ -144,15 +161,19 @@ export default function WhatsAppSettingsPanel() {
 
   const disconnectInstance = async () => {
     setPairingStatus('loading');
+    setErrorMessage(null);
     try {
       const activeToken = localStorage.getItem('mgv_token') || '';
       await axios.delete('/api/whatsapp/instance/logout', {
         headers: { Authorization: `Bearer ${activeToken}` }
       });
       setPairingStatus('disconnected');
-    } catch (error) {
+      setQrCodeBase64('');
+      setPairingCode(null);
+    } catch (error: any) {
       console.error(error);
-      alert('Erro ao desconectar na Evolution API.');
+      const apiErrMsg = error.response?.data?.error || 'Erro ao desconectar na Evolution API.';
+      setErrorMessage(apiErrMsg);
       setPairingStatus('connected');
     }
   };
@@ -187,6 +208,16 @@ export default function WhatsAppSettingsPanel() {
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col items-center justify-center text-center min-h-[350px]">
           <h3 className="text-lg font-semibold text-slate-800 mb-6 w-full text-left">Status da Conexo</h3>
           
+          {errorMessage && (
+            <div className="w-full mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-sm flex items-start gap-2 text-left animate-fade-in">
+              <span className="material-symbols-outlined text-rose-500 text-lg shrink-0 mt-0.5">error</span>
+              <div className="flex-1">
+                <p className="font-semibold">Erro de Conexão</p>
+                <p className="text-xs mt-0.5 opacity-90">{errorMessage}</p>
+              </div>
+            </div>
+          )}
+
           {pairingStatus === 'disconnected' && (
             <div className="flex flex-col items-center justify-center h-full space-y-4 animate-fade-in">
               <div className="w-24 h-24 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
@@ -209,7 +240,7 @@ export default function WhatsAppSettingsPanel() {
           {pairingStatus === 'loading' && (
             <div className="flex flex-col items-center justify-center h-full space-y-4 animate-fade-in">
               <div className="w-24 h-24 rounded-full border-4 border-slate-100 border-t-emerald-500 animate-spin"></div>
-              <p className="text-slate-600 font-medium">Processando conexo...</p>
+              <p className="text-slate-600 font-medium">Processando conexão com a Evolution API...</p>
             </div>
           )}
 
@@ -217,14 +248,19 @@ export default function WhatsAppSettingsPanel() {
             <div className="flex flex-col items-center justify-center h-full space-y-4 animate-fade-in">
               <div className="p-4 bg-white rounded-2xl shadow-md border border-slate-100">
                 {qrCodeBase64 ? (
-                  <img src={qrCodeBase64} alt="QR Code" className="w-48 h-48" />
+                  <img src={qrCodeBase64} alt="QR Code" className="w-52 h-52 object-contain" />
                 ) : (
-                  <div className="w-48 h-48 bg-slate-100 flex items-center justify-center text-slate-400">
-                    <span className="material-symbols-outlined">qr_code</span>
+                  <div className="w-52 h-52 bg-slate-100 flex items-center justify-center text-slate-400">
+                    <span className="material-symbols-outlined text-4xl">qr_code</span>
                   </div>
                 )}
               </div>
-              <p className="text-slate-600 font-medium">Escaneie o QR Code com seu WhatsApp</p>
+              {pairingCode && (
+                <div className="text-xs bg-slate-100 px-3 py-1.5 rounded-lg text-slate-700 font-mono">
+                  Código de Pareamento: <strong>{pairingCode}</strong>
+                </div>
+              )}
+              <p className="text-slate-600 font-medium text-sm">Escaneie o QR Code com seu WhatsApp no celular</p>
               <button onClick={() => setPairingStatus('disconnected')} className="text-xs text-rose-500 hover:underline">
                 Cancelar
               </button>

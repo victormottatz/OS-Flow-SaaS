@@ -6,7 +6,6 @@
 import React, { useState, useEffect } from "react";
 import { OrdemServico, OSStatus, EntradaFoto } from "../types";
 import { useOSList } from "../hooks/useOSList";
-import { ExportToExcelButton } from "./ExportToExcelButton";
 import { usePrintDocument } from "../hooks/usePrintDocument";
 import { resolveTemplateForOS, DOCUMENT_TEMPLATES, DocumentTemplate } from "../config/documents.config";
 import { downloadDocumentPdf } from "../utils/downloadDocument";

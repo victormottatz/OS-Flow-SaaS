@@ -53,6 +53,13 @@ Sempre que concluir e aplicar uma nova atualização no sistema principal (Deplo
 1. **Atualizar o `UpdatePopup.tsx`**: Modificar o arquivo para incrementar a versão e atualizar o resumo visual das novas funcionalidades implementadas.
 2. **Atualizar a Notificação no Sino**: Garantir que a chamada de `addNotification` no `UpdatePopup.tsx` seja atualizada para a manchete da nova versão, para que os usuários recebam a notificação dentro do próprio sistema.
 
+## 🛠️ Workflows e Processos Padronizados
+
+O projeto conta com uma extensa biblioteca de workflows unificada na pasta `.agents/workflows`. Para garantir a padronização e o uso das melhores práticas:
+1. **Consulta Proativa**: Sempre que for iniciar uma tarefa que se enquadre nas categorias disponíveis (ex: criar nova API, componente, testes, deploy, segurança), o agente deve propor e utilizar o workflow correspondente.
+2. **Processos Core**: O agente deve estar ciente e utilizar os documentos de fluxo principal (`01_PRD_REQUIREMENTS`, `02_ARCHITECTURE_DESIGN`, `03_TASKS_VERIFICATION`, `04_REVIEW_RELEASE`) para estruturar grandes entregas.
+3. **Categorias Cobertas**: `ai-tools`, `creative`, `database`, `debugging`, `deployment`, `development`, `documentation`, `git`, `security` e `testing`.
+
 ## 🦁 14 Rules (Lion Lab) - Resumo de Otimização de Tokens
 
 1. **Segurança**: Zero *Service Role*/direct-writes no Frontend; rotas e banco 100% validados.

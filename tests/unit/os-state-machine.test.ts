@@ -31,8 +31,8 @@ describe("OSStateMachine - Regras de Transição de Estado", () => {
   });
 
   it("deve bloquear transições inválidas ou diretas sem passar pelos estágios intermediários", async () => {
-    // Não deve ir direto de AGUARDANDO_AVALIACAO para PRONTO_RETIRADA sem avaliação/manutenção
-    const invalid1 = await OSStateMachine.canTransition("AGUARDANDO_AVALIACAO", "PRONTO_RETIRADA");
+    // Não deve ir de FINALIZADO para AGUARDANDO_PECA diretamente
+    const invalid1 = await OSStateMachine.canTransition("FINALIZADO", "AGUARDANDO_PECA");
     expect(invalid1).toBe(false);
   });
 });

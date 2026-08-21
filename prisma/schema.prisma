@@ -58,6 +58,7 @@ model Client {
   blingContactId String?
   devices        Device[]
   orders         OrdemServico[]
+  whatsappChats  WhatsappChat[]
   tags           Tag[]          @relation("ClientToTag")
 
   @@map("clients")
@@ -300,6 +301,8 @@ model OrdemServico {
   profitMarginPercent  Float?
   profitValue          Float?
   messageHistories     MessageHistory[]
+  whatsappChats        WhatsappChat[]
+  whatsappMessages     WhatsappMessage[]
   client               Client?              @relation(fields: [clientId], references: [id])
   device               Device?              @relation(fields: [deviceId], references: [id])
   conciliationItems    OSConciliationItem[]
@@ -605,3 +608,67 @@ enum OSFinancialStatus {
   PAGO
   INADIMPLENTE
 }
+
+enum WhatsappMessageType {
+  TEXT
+  IMAGE
+  AUDIO
+  DOCUMENT
+  VIDEO
+  LOCATION
+  STICKER
+  OTHER
+}
+
+enum WhatsappMessageStatus {
+  PENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+model WhatsappChat {
+  id              String            @id @default(uuid())
+  remoteJid       String            @unique @map("remote_jid")
+  name            String?
+  phoneNumber     String            @map("phone_number")
+  profilePicUrl   String?           @map("profile_pic_url")
+  clientId        String?           @map("client_id")
+  client          Client?           @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  activeOrderId   String?           @map("active_order_id")
+  activeOrder     OrdemServico?     @relation(fields: [activeOrderId], references: [id], onDelete: SetNull)
+  lastMessageText String?           @map("last_message_text")
+  lastMessageAt   DateTime?         @map("last_message_at")
+  unreadCount     Int               @default(0) @map("unread_count")
+  isArchived      Boolean           @default(false) @map("is_archived")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  messages        WhatsappMessage[]
+
+  @@map("whatsapp_chats")
+}
+
+model WhatsappMessage {
+  id            String                @id @default(uuid())
+  chatId        String                @map("chat_id")
+  chat          WhatsappChat          @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  remoteJid     String                @map("remote_jid")
+  keyId         String?               @unique @map("key_id")
+  fromMe        Boolean               @default(false) @map("from_me")
+  senderName    String?               @map("sender_name")
+  messageType   WhatsappMessageType   @default(TEXT) @map("message_type")
+  text          String?               @map("text")
+  mediaUrl      String?               @map("media_url")
+  mediaMimeType String?               @map("media_mime_type")
+  fileName      String?               @map("file_name")
+  status        WhatsappMessageStatus @default(SENT)
+  errorDetail   String?               @map("error_detail")
+  timestamp     DateTime              @default(now())
+  orderId       String?               @map("order_id")
+  order         OrdemServico?         @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([chatId, timestamp])
+  @@map("whatsapp_messages")
+}
+

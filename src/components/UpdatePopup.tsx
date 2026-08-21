@@ -16,23 +16,25 @@ export function UpdatePopup() {
 
   useEffect(() => {
     const savedVersion = localStorage.getItem("mgv_last_update_version");
-    if (savedVersion !== "4.13.0") {
+    if (savedVersion !== "4.14.6") {
       setIsOpen(true);
       
-      // Notificação silenciosa no sino
+      // Notificação silenciosa no sino com gatilho para reabrir o modal
       addNotification(
-        "🚀 MGV ONE HUB Atualizado (v4.13.0)",
-        "Correção de idioma nativo e proteção contra traduções automáticas do navegador.",
-        "info"
+        "🚀 MGV ONE HUB Atualizado (v4.14.6)",
+        "Scrollbar Ultra-Minimalista: Fundo transparente e apenas a barra de navegação visível.",
+        "info",
+        undefined,
+        "open_update_popup"
       );
       
-      localStorage.setItem("mgv_last_update_version", "4.13.0");
+      localStorage.setItem("mgv_last_update_version", "4.14.6");
     }
   }, [addNotification]);
 
   const handleClose = () => {
     setIsOpen(false);
-    localStorage.setItem('mgv_update_v4_13_seen', 'true');
+    localStorage.setItem('mgv_update_v4_14_seen', 'true');
   };
 
   // Fecha o popup ao clicar fora da janela de conteúdo (backdrop)
@@ -59,14 +61,14 @@ export function UpdatePopup() {
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
             className="relative w-full max-w-lg bg-slate-900 border border-slate-700 shadow-2xl rounded-2xl overflow-hidden"
           >
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 flex flex-col items-center justify-center text-center relative overflow-hidden">
+            <div className="bg-gradient-to-r from-emerald-600 to-teal-700 p-6 flex flex-col items-center justify-center text-center relative overflow-hidden">
               <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
-              <span className="bg-indigo-500 text-indigo-50 text-[10px] font-black tracking-widest uppercase px-2 py-1 rounded mb-2 inline-block">Nova Atualização</span>
+              <span className="bg-emerald-500 text-emerald-50 text-[10px] font-black tracking-widest uppercase px-2 py-1 rounded mb-2 inline-block">Nova Atualização</span>
               <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                <span className="material-symbols-outlined text-[28px]">rocket_launch</span>
+                <span className="material-symbols-outlined text-[28px]">chat</span>
                 MGV ONE HUB
               </h2>
-              <p className="text-indigo-200 mt-1 text-sm">Versão 4.13.0 • Agosto de 2026</p>
+              <p className="text-emerald-100 mt-1 text-sm">Versão 4.14.6 • Scrollbars Minimalistas com Fundo Transparente</p>
               
               <button 
                 onClick={handleClose}
@@ -78,31 +80,44 @@ export function UpdatePopup() {
 
             <div className="p-6">
               <ul className="space-y-6">
-                {/* Alteração 1 */}
-                <div className="flex gap-4">
-                  <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center border border-blue-200">
-                    <span className="material-symbols-outlined text-blue-600 text-[20px]">translate</span>
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-slate-200 text-sm">Idioma Nativo & Blindagem Visual</h3>
-                    <p className="text-slate-400 text-xs mt-1 leading-relaxed">
-                      Correção na identificação do idioma para Português do Brasil (pt-BR) e bloqueio da tradução automática indesejada do navegador que causava trocas e distorções nos textos.
-                    </p>
-                  </div>
-                </div>
+            {/* Alteração 1: Central de WhatsApp com Fotos de Perfil */}
+            <div className="flex gap-4">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+                <span className="material-symbols-outlined text-[20px]">account_circle</span>
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-200 text-sm">Fotos de Perfil e Identificação de Contato</h3>
+                <p className="text-slate-400 text-xs mt-1 leading-relaxed">
+                  As fotos de perfil dos contatos do WhatsApp agora aparecem automaticamente na lista de conversas, no cabeçalho do chat e no painel do cliente.
+                </p>
+              </div>
+            </div>
 
-                {/* Alteração 2 */}
-                <div className="flex gap-4">
-                  <div className="flex-shrink-0 w-10 h-10 rounded-full bg-green-100 flex items-center justify-center border border-green-200">
-                    <span className="material-symbols-outlined text-green-600 text-[20px]">chat</span>
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-slate-200 text-sm">Integração Oficial com WhatsApp</h3>
-                    <p className="text-slate-400 text-xs mt-1 leading-relaxed">
-                      Envie orçamentos, avisos de retirada e mensagens manuais diretamente pelo WhatsApp do cliente, de dentro da OS.
-                    </p>
-                  </div>
-                </div>
+            {/* Alteração 2: Superpoderes da OS */}
+            <div className="flex gap-4">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
+                <span className="material-symbols-outlined text-[20px]">assignment</span>
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-200 text-sm">Contexto de Ordem de Serviço na Conversa</h3>
+                <p className="text-slate-400 text-xs mt-1 leading-relaxed">
+                  A barra lateral do chat exibe os dados da OS ativa, valor do orçamento, diagnóstico e atalhos rápidos com envio automático de laudos em PDF.
+                </p>
+              </div>
+            </div>
+
+            {/* Alteração 3: Multiatendimento */}
+            <div className="flex gap-4">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center border border-blue-500/30">
+                <span className="material-symbols-outlined text-[20px]">group</span>
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-200 text-sm">Multiatendimento em 1 Único Número</h3>
+                <p className="text-slate-400 text-xs mt-1 leading-relaxed">
+                  Toda a equipe pode atender simultaneamente pelo navegador com identificação do operador e notificações sonoras e visuais instantâneas.
+                </p>
+              </div>
+            </div>
               </ul>
 
               <div className="mt-8 pt-5 border-t border-slate-800 flex justify-end">
@@ -120,4 +135,3 @@ export function UpdatePopup() {
     </AnimatePresence>
   );
 }
-

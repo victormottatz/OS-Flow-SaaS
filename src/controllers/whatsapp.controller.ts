@@ -1,8 +1,32 @@
 import { Request, Response } from "express";
 import prisma from "../database/prisma";
 import crypto from "crypto";
+import { formatPhoneNumber, sendWhatsAppTextMessage, sendWhatsAppDocumentMessage } from "../services/whatsapp";
+import { buildDocumentPdf, PdfOsData } from "../services/pdfService";
+import { DOCUMENT_TEMPLATES, DocumentTemplateId } from "../config/documents.config";
 
 export class WhatsAppController {
+  private async getWhatsAppConfig() {
+    let apiUrl = process.env.WHATSAPP_API_URL;
+    let apiToken = process.env.WHATSAPP_API_TOKEN;
+    let instanceName = process.env.WHATSAPP_INSTANCE_NAME || "mgv_oficial";
+
+    if (!apiUrl) {
+      const dbUrl = await prisma.officeSetting.findUnique({ where: { key: 'WHATSAPP_API_URL' } });
+      apiUrl = dbUrl?.value;
+    }
+    if (!apiToken) {
+      const dbToken = await prisma.officeSetting.findUnique({ where: { key: 'WHATSAPP_API_TOKEN' } });
+      apiToken = dbToken?.value;
+    }
+    const dbInstance = await prisma.officeSetting.findUnique({ where: { key: 'WHATSAPP_INSTANCE_NAME' } });
+    if (dbInstance?.value) instanceName = dbInstance.value;
+
+    if (apiUrl) apiUrl = apiUrl.replace(/\/+$/, "");
+
+    return { apiUrl, apiToken, instanceName };
+  }
+
   async getHistory(req: Request, res: Response) {
     const { orderId } = req.params;
     try {
@@ -17,7 +41,7 @@ export class WhatsAppController {
   }
 
   async sendManual(req: Request, res: Response) {
-    const { orderId, messageText } = req.body;
+    const { orderId, messageText, templateId } = req.body;
 
     if (!orderId || !messageText) {
       res.status(400).json({ error: "Parâmetros orderId e messageText são obrigatórios." });
@@ -27,7 +51,7 @@ export class WhatsAppController {
     try {
       const os = await prisma.ordemServico.findUnique({
         where: { id: orderId },
-        include: { client: true }
+        include: { client: true, device: true }
       });
 
       if (!os || !os.client) {
@@ -44,47 +68,46 @@ export class WhatsAppController {
         }
       });
 
-      const apiUrl = process.env.WHATSAPP_API_URL;
-      const apiToken = process.env.WHATSAPP_API_TOKEN;
-
       setTimeout(async () => {
         try {
-          if (apiUrl && apiToken) {
-            const response = await fetch(apiUrl, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${apiToken}`
-              },
-              body: JSON.stringify({
-                number: os.client.phone.replace(/\D/g, ""),
-                message: messageText
-              })
-            });
+          let pdfBuffer: Buffer | null = null;
+          let fileName = `Documento-${os.osNumber}.pdf`;
 
-            if (response.ok) {
-              await prisma.messageHistory.update({
-                where: { id: history.id },
-                data: { status: "ENVIADO" }
-              });
-            } else {
-              const errText = await response.text();
-              await prisma.messageHistory.update({
-                where: { id: history.id },
-                data: { status: "FALHOU", errorDetail: `HTTP ${response.status}: ${errText}` }
-              });
+          if (templateId && DOCUMENT_TEMPLATES[templateId as DocumentTemplateId]) {
+            try {
+              const docTemplate = DOCUMENT_TEMPLATES[templateId as DocumentTemplateId];
+              pdfBuffer = await buildDocumentPdf(docTemplate, os as unknown as PdfOsData);
+              fileName = `${docTemplate.nomeArquivo}-${os.osNumber}.pdf`;
+            } catch (pdfErr: any) {
+              console.warn(`[WhatsApp Controller] Erro ao gerar PDF manual: ${pdfErr.message}`);
             }
-          } else {
-            // Modo Simulado
-            console.log(`\n======================================================`);
-            console.log(`[WhatsApp Manual Simulado] Enviando Mensagem...`);
-            console.log(`Destinatário: ${os.client.phone}`);
-            console.log(`Mensagem: ${messageText}`);
-            console.log(`======================================================\n`);
+          }
 
+          let sendResult: { success: boolean; error?: string };
+
+          if (pdfBuffer) {
+            sendResult = await sendWhatsAppDocumentMessage(
+              os.client.phone,
+              pdfBuffer,
+              fileName,
+              messageText
+            );
+          } else {
+            sendResult = await sendWhatsAppTextMessage(
+              os.client.phone,
+              messageText
+            );
+          }
+
+          if (sendResult.success) {
             await prisma.messageHistory.update({
               where: { id: history.id },
               data: { status: "ENVIADO" }
+            });
+          } else {
+            await prisma.messageHistory.update({
+              where: { id: history.id },
+              data: { status: "FALHOU", errorDetail: sendResult.error }
             });
           }
         } catch (sendErr: any) {
@@ -93,71 +116,146 @@ export class WhatsAppController {
             data: { status: "FALHOU", errorDetail: sendErr.message }
           });
         }
-      }, 1500);
+      }, 500);
 
-      res.status(201).json({ success: true, message: "Mensagem agendada para envio." });
+      res.status(201).json({ success: true, message: "Mensagem agendada para envio com sucesso." });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   }
+
   async connect(req: Request, res: Response) {
-    const apiUrl = process.env.WHATSAPP_API_URL || "https://whatsapp.mgvrp.com.br";
-    const apiToken = process.env.WHATSAPP_API_TOKEN || "K8kL3mZ9pQ2wE5";
-    const instanceName = "mgv_hub";
+    const { apiUrl, apiToken, instanceName } = await this.getWhatsAppConfig();
+
+    if (!apiUrl || !apiToken) {
+      console.log(`\n======================================================`);
+      console.log(`[WhatsApp API Simulado] Nenhuma credencial configurada.`);
+      console.log(`======================================================\n`);
+      return res.json({ instance: { state: "open" }, simulated: true, base64: "" });
+    }
 
     try {
-      // Tenta criar a instância com fetch nativo (suporta node 18+)
-      await fetch(`${apiUrl}/instance/create`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", apikey: apiToken },
-        body: JSON.stringify({
-          instanceName,
-          token: instanceName,
-          qrcode: true
-        })
-      }).catch(() => {});
+      // Ignorar erros de SSL (caso de certificado autoassinado) apenas para chamadas da API
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
-      // Pega o QR code
+      // 1. Tenta criar a instância (Evolution v1 e v2 compatível)
+      try {
+        const createRes = await fetch(`${apiUrl}/instance/create`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", apikey: apiToken },
+          body: JSON.stringify({
+            instanceName,
+            token: instanceName,
+            qrcode: true,
+            integration: "WHATSAPP-BAILEYS"
+          })
+        });
+
+        if (!createRes.ok && createRes.status !== 403 && createRes.status !== 400) {
+          const errText = await createRes.text();
+          console.warn(`[WhatsApp API] Criar instância status HTTP ${createRes.status}: ${errText}`);
+        }
+      } catch (createErr: any) {
+        console.warn(`[WhatsApp API] Aviso ao criar instância: ${createErr.message}`);
+      }
+
+      // 2. Busca o QR Code ou status da conexão
       const response = await fetch(`${apiUrl}/instance/connect/${instanceName}`, {
         headers: { apikey: apiToken }
       });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errText}`);
+      }
+
       const data = await response.json();
-      res.json(data);
+
+      // Normalização do QR Code para o frontend
+      let base64Code = data.base64 || data.qrcode?.base64 || "";
+      if (base64Code && !base64Code.startsWith("data:image")) {
+        base64Code = `data:image/png;base64,${base64Code}`;
+      }
+
+      return res.json({
+        ...data,
+        base64: base64Code,
+        instanceName,
+        pairingCode: data.pairingCode || data.code || null
+      });
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      console.error("[WhatsApp API] Erro ao conectar na Evolution API:", err.message);
+      return res.status(502).json({
+        error: `Falha na comunicação com a Evolution API (${apiUrl}): ${err.message}`,
+        details: err.message
+      });
+    } finally {
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = "1";
     }
   }
 
   async getState(req: Request, res: Response) {
-    const apiUrl = process.env.WHATSAPP_API_URL || "https://whatsapp.mgvrp.com.br";
-    const apiToken = process.env.WHATSAPP_API_TOKEN || "K8kL3mZ9pQ2wE5";
-    const instanceName = "mgv_hub";
+    const { apiUrl, apiToken, instanceName } = await this.getWhatsAppConfig();
+
+    if (!apiUrl || !apiToken) {
+      return res.json({ instance: { state: "open" }, simulated: true });
+    }
 
     try {
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
       const response = await fetch(`${apiUrl}/instance/connectionState/${instanceName}`, {
         headers: { apikey: apiToken }
       });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errText}`);
+      }
+
       const data = await response.json();
-      res.json(data);
+      return res.json(data);
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      console.warn("[WhatsApp API] Erro ao verificar estado da instância:", err.message);
+      return res.status(502).json({
+        error: `Erro ao verificar estado: ${err.message}`,
+        instance: { state: "close" }
+      });
+    } finally {
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = "1";
     }
   }
 
   async logout(req: Request, res: Response) {
-    const apiUrl = process.env.WHATSAPP_API_URL || "https://whatsapp.mgvrp.com.br";
-    const apiToken = process.env.WHATSAPP_API_TOKEN || "K8kL3mZ9pQ2wE5";
-    const instanceName = "mgv_hub";
+    const { apiUrl, apiToken, instanceName } = await this.getWhatsAppConfig();
+
+    if (!apiUrl || !apiToken) {
+      console.log(`\n======================================================`);
+      console.log(`[WhatsApp API Simulado] Desconectando...`);
+      console.log(`======================================================\n`);
+      return res.json({ success: true });
+    }
 
     try {
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
       const response = await fetch(`${apiUrl}/instance/logout/${instanceName}`, {
         method: "DELETE",
         headers: { apikey: apiToken }
       });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errText}`);
+      }
+
       const data = await response.json();
-      res.json(data);
+      return res.json(data);
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      console.error("[WhatsApp API] Erro ao fazer logout:", err.message);
+      return res.status(500).json({ error: `Erro ao tentar desconectar a instância: ${err.message}` });
+    } finally {
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = "1";
     }
   }
 }

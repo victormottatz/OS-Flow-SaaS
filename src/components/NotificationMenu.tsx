@@ -43,19 +43,47 @@ export default function NotificationMenu() {
     }
   };
 
-  const formatTime = (isoDate: string) => {
+  const safeFormatTime = (isoDate?: string) => {
+    if (!isoDate) return "Agora";
     const d = new Date(isoDate);
+    if (isNaN(d.getTime())) return "Agora";
     const now = new Date();
     const diffMs = now.getTime() - d.getTime();
+    if (diffMs < 0) return "Agora";
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMins / 60);
     const diffDays = Math.floor(diffHours / 24);
 
     if (diffMins < 1) return "Agora";
-    if (diffMins < 60) return `${diffMins} m`;
+    if (diffMins < 60) return `${diffMins} min`;
     if (diffHours < 24) return `${diffHours} h`;
     if (diffDays === 1) return "Ontem";
     return `${diffDays} d`;
+  };
+
+  const handleNotificationClick = (notif: SystemNotification) => {
+    if (!notif.read) {
+      markAsRead(notif.id);
+    }
+
+    // Verifica se a notificação é de atualização do sistema
+    const isUpdateNotif = 
+      notif.action === "open_update_popup" ||
+      notif.title.toLowerCase().includes("atualizad") ||
+      notif.title.toLowerCase().includes("atualização") ||
+      notif.title.toLowerCase().includes("manchete") ||
+      notif.title.toLowerCase().includes("mgv one hub");
+
+    if (isUpdateNotif) {
+      window.dispatchEvent(new Event("mgv_open_update_popup"));
+      setIsOpen(false);
+      return;
+    }
+
+    if (notif.link) {
+      window.open(notif.link, "_blank");
+      setIsOpen(false);
+    }
   };
 
   return (
@@ -63,7 +91,7 @@ export default function NotificationMenu() {
       {/* Trigger Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 rounded-full hover:bg-slate-100 transition-colors text-slate-500 hover:text-slate-900"
+        className="relative p-2 rounded-full hover:bg-slate-100 transition-colors text-slate-500 hover:text-slate-900 cursor-pointer"
         title="Notificações"
       >
         <Bell className="w-[18px] h-[18px]" />
@@ -80,11 +108,11 @@ export default function NotificationMenu() {
             initial={{ opacity: 0, y: 10, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.95 }}
-            transition={{ duration: 0.2 }}
-            className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-premium border border-slate-200 z-50 overflow-hidden flex flex-col"
+            transition={{ duration: 0.15 }}
+            className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 overflow-hidden flex flex-col"
           >
             {/* Header */}
-            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
               <div className="flex items-center gap-2">
                 <h3 className="font-bold text-slate-800 text-sm">Notificações</h3>
                 {unreadCount > 0 && (
@@ -98,7 +126,7 @@ export default function NotificationMenu() {
                 {unreadCount > 0 && (
                   <button 
                     onClick={markAllAsRead}
-                    className="text-slate-400 hover:text-indigo-600 p-1.5 rounded-md hover:bg-indigo-50 transition-colors"
+                    className="text-slate-400 hover:text-indigo-600 p-1.5 rounded-md hover:bg-indigo-50 transition-colors cursor-pointer"
                     title="Marcar todas como lidas"
                   >
                     <Check className="w-4 h-4" />
@@ -107,7 +135,7 @@ export default function NotificationMenu() {
                 {notifications.length > 0 && (
                   <button 
                     onClick={clearAll}
-                    className="text-slate-400 hover:text-rose-600 p-1.5 rounded-md hover:bg-rose-50 transition-colors"
+                    className="text-slate-400 hover:text-rose-600 p-1.5 rounded-md hover:bg-rose-50 transition-colors cursor-pointer"
                     title="Limpar Histórico"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -128,50 +156,62 @@ export default function NotificationMenu() {
                 </div>
               ) : (
                 <div className="flex flex-col">
-                  {notifications.map((notif: SystemNotification) => (
-                    <div 
-                      key={notif.id}
-                      onClick={() => {
-                        if (!notif.read) markAsRead(notif.id);
-                        if (notif.title === "📰 MANCHETE: MGV One Hub V3.4!") {
-                          window.dispatchEvent(new Event("mgv_open_update_popup"));
-                          setIsOpen(false);
-                        }
-                      }}
-                      className={`flex gap-3 p-4 border-b border-slate-50 last:border-0 cursor-pointer transition-colors ${getBgColor(notif.type, notif.read)}`}
-                    >
-                      <div className="pt-0.5 relative">
-                        {getIcon(notif.type)}
-                        {!notif.read && (
-                          <span className="absolute top-0 right-0 w-2 h-2 bg-rose-500 rounded-full border-2 border-white translate-x-1 -translate-y-1"></span>
-                        )}
-                      </div>
-                      
-                      <div className="flex-1 min-w-0">
-                        <div className="flex justify-between items-start mb-0.5">
-                          <h4 className={`text-sm font-semibold truncate pr-2 ${notif.read ? "text-slate-700" : "text-slate-900"}`}>
-                            {notif.title}
-                          </h4>
-                          <span className="text-[10px] font-medium text-slate-400 shrink-0 whitespace-nowrap mt-0.5">
-                            {formatTime(notif.createdAt)}
-                          </span>
+                  {notifications.map((notif: SystemNotification) => {
+                    const isUpdateNotif = 
+                      notif.action === "open_update_popup" ||
+                      notif.title.toLowerCase().includes("atualizad") ||
+                      notif.title.toLowerCase().includes("atualização") ||
+                      notif.title.toLowerCase().includes("manchete") ||
+                      notif.title.toLowerCase().includes("mgv one hub");
+
+                    return (
+                      <div 
+                        key={notif.id}
+                        onClick={() => handleNotificationClick(notif)}
+                        className={`flex gap-3 p-4 border-b border-slate-100 last:border-0 cursor-pointer transition-all hover:brightness-95 ${getBgColor(notif.type, notif.read)}`}
+                      >
+                        <div className="pt-0.5 relative shrink-0">
+                          {getIcon(notif.type)}
+                          {!notif.read && (
+                            <span className="absolute top-0 right-0 w-2 h-2 bg-rose-500 rounded-full border-2 border-white translate-x-1 -translate-y-1"></span>
+                          )}
                         </div>
-                        <p className={`text-xs line-clamp-2 leading-relaxed ${notif.read ? "text-slate-500" : "text-slate-600"}`}>
-                          {notif.message}
-                        </p>
                         
-                        {notif.link && (
-                          <a 
-                            href={notif.link}
-                            className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-700 mt-2"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            Ver detalhes <ExternalLink className="w-3 h-3" />
-                          </a>
-                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between items-start mb-0.5">
+                            <h4 className={`text-sm font-semibold truncate pr-2 ${notif.read ? "text-slate-700" : "text-slate-950 font-bold"}`}>
+                              {notif.title}
+                            </h4>
+                            <span className="text-[10px] font-medium text-slate-400 shrink-0 whitespace-nowrap mt-0.5">
+                              {safeFormatTime(notif.createdAt)}
+                            </span>
+                          </div>
+                          <p className={`text-xs line-clamp-2 leading-relaxed ${notif.read ? "text-slate-500" : "text-slate-700"}`}>
+                            {notif.message}
+                          </p>
+                          
+                          {isUpdateNotif && (
+                            <div className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-700 mt-2 bg-indigo-50/80 px-2 py-0.5 rounded">
+                              <span>Ver novidades no modal</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </div>
+                          )}
+
+                          {notif.link && !isUpdateNotif && (
+                            <a 
+                              href={notif.link}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-700 mt-2"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              Ver detalhes <ExternalLink className="w-3 h-3" />
+                            </a>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

@@ -54,6 +54,8 @@ export default function Navbar({
         return "Nova Ordem de Serviço";
       case "kanban":
         return "Ordens de Serviço (Quadro)";
+      case "whatsapp":
+        return "Central de Atendimento WhatsApp";
       case "estoque":
         return "Gestão de Estoque";
       case "bling":
@@ -61,7 +63,7 @@ export default function Navbar({
       case "fiscal":
         return "Painel Fiscal de Produtividade";
       case "workflow":
-        return "Mapa de Processos do Sistema";
+        return "Mapa de Navegação e Arquitetura";
       case "settings":
         return "Configurações do Sistema";
       case "profile":
@@ -130,10 +132,11 @@ export default function Navbar({
             { id: "clients", label: "Clientes", icon: "group" },
             ...((user.role === UserRole.OWNER || user.role === UserRole.ATTENDANT) ? [{ id: "os", label: "Listagem de OS", icon: "view_list" }] : []),
             { id: "kanban", label: "Ordens de Serviço", icon: "assignment" },
+            { id: "whatsapp", label: "Central WhatsApp", icon: "chat" },
             { id: "estoque", label: "Estoque", icon: "inventory_2" },
             ...((user.role === UserRole.OWNER || user.role === UserRole.FINANCIAL || user.role === UserRole.ADMIN) ? [{ id: "fiscal", label: "Painel Fiscal", icon: "request_quote" }] : []),
             ...((user.role === UserRole.OWNER || user.role === UserRole.FINANCIAL) ? [{ id: "bling", label: "Integração Fiscal", icon: "sync_alt" }] : []),
-            { id: "workflow", label: "Mapa de Processos", icon: "account_tree" },
+            { id: "workflow", label: "Navegação & Arquitetura", icon: "account_tree" },
             ...((user.role === UserRole.OWNER || user.role === UserRole.ADMIN) ? [{ id: "settings", label: "Configurações", icon: "settings" }] : [])
           ].map((item) => {
             const active = currentTab === item.id;
@@ -320,7 +323,7 @@ export default function Navbar({
           { id: "estoque", label: "Estoque", icon: "inventory_2" },
           ...((user.role === UserRole.OWNER || user.role === UserRole.FINANCIAL || user.role === UserRole.ADMIN) ? [{ id: "fiscal", label: "Painel Fiscal", icon: "request_quote" }] : []),
           ...((user.role === UserRole.OWNER || user.role === UserRole.FINANCIAL) ? [{ id: "bling", label: "Fiscal", icon: "sync_alt" }] : []),
-          { id: "workflow", label: "Processos", icon: "account_tree" },
+          { id: "workflow", label: "Arquitetura", icon: "account_tree" },
           ...((user.role === UserRole.OWNER || user.role === UserRole.ADMIN) ? [{ id: "settings", label: "Config", icon: "settings" }] : []),
           { id: "profile", label: "Perfil", icon: "person" }
         ].map((tab) => {

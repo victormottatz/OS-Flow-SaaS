@@ -21,6 +21,7 @@ import SettingsView from "./components/SettingsView";
 import ProfileSettings from "./components/ProfileSettings";
 import FiscalPanel from "./components/FiscalPanel";
 import WorkflowVisualizer from "./components/WorkflowVisualizer";
+import WhatsAppInboxView from "./components/WhatsAppInboxView";
 import { installUnsavedChangesGuard } from "./utils/unsavedChanges";
 import { UpdatePopup } from "./components/UpdatePopup";
 
@@ -30,10 +31,11 @@ const getInitialTab = () => {
   if (path === "/os/nova" || path === "/os-create") return "os-create";
   if (path === "/os") return "os";
   if (path === "/kanban") return "kanban";
+  if (path === "/whatsapp" || path === "/chat") return "whatsapp";
   if (path === "/estoque") return "estoque";
   if (path === "/bling") return "bling";
   if (path === "/fiscal") return "fiscal";
-  if (path === "/processos") return "workflow";
+  if (path === "/processos" || path === "/arquitetura") return "workflow";
   if (path === "/settings") return "settings";
   if (path === "/perfil") return "profile";
   return "dashboard";
@@ -237,7 +239,7 @@ export default function App() {
   return (
     <FeatureFlagProvider token={token}>
     <div className={`min-h-screen bg-slate-50 flex flex-col text-slate-800 antialiased font-sans ${
-      currentTab === "kanban" ? "h-screen overflow-hidden" : ""
+      currentTab === "kanban" || currentTab === "whatsapp" ? "h-screen overflow-hidden" : ""
     }`}>
       <Navbar
         user={user}
@@ -256,11 +258,17 @@ export default function App() {
           Se alterar a largura em Navbar.tsx linha ~66, ajuste ESTES valores aqui
           (e também Navbar.tsx linha ~205 e o rodapé na linha ~369). */}
       <main className={`flex-1 transition-all duration-300 ${
-        currentTab === "kanban" ? "h-[calc(100vh-20px)] overflow-hidden pb-4 pt-4 flex flex-col" : "pb-28 pt-6"
+        currentTab === "kanban"
+          ? "h-[calc(100vh-20px)] overflow-hidden pb-4 pt-4 flex flex-col" 
+          : currentTab === "whatsapp"
+          ? "h-full max-h-screen overflow-hidden p-0 flex flex-col"
+          : "pb-28 pt-6"
       } ${
-        isSidebarMinimized 
-          ? "md:ml-[70px] pt-6 pb-6 pr-6 pl-8 md:pl-10 lg:pl-12" 
-          : "md:ml-[260px] pt-6 pb-6 pr-6 pl-6 md:pl-8 lg:pl-10"
+        currentTab === "whatsapp"
+          ? isSidebarMinimized ? "md:ml-[70px]" : "md:ml-[260px]"
+          : isSidebarMinimized 
+            ? "md:ml-[70px] pt-6 pb-6 pr-6 pl-8 md:pl-10 lg:pl-12" 
+            : "md:ml-[260px] pt-6 pb-6 pr-6 pl-6 md:pl-8 lg:pl-10"
       }`}>
         {currentTab === "dashboard" && (
           <DashboardView
@@ -319,6 +327,15 @@ export default function App() {
             limit={osLimit}
             onLimitChange={setOsLimit}
             countsByStatus={osCountsByStatus}
+          />
+        )}
+
+        {currentTab === "whatsapp" && (
+          <WhatsAppInboxView
+            onOpenOrderModal={(orderId) => {
+              // Redireciona para visualização da OS no kanban ou modal
+              handleTabChange("kanban");
+            }}
           />
         )}
 
@@ -381,8 +398,8 @@ export default function App() {
           - Mover: ajuste "bottom-8 right-8".
           - Cor: "bg-secondary-container" (definida em index.css @theme).
           - Esconder em telas específicas: mude a condição "currentTab !== 'os-create'". */}
-      {/* Floating Action Button (FAB) for OS Creation (hidden when already on OS view) */}
-      {currentTab !== "os-create" && (
+      {/* Floating Action Button (FAB) for OS Creation (hidden when already on OS view or WhatsApp view) */}
+      {currentTab !== "os-create" && currentTab !== "whatsapp" && (
         <button 
           onClick={() => handleTabChange("os-create")} 
           className="fixed bottom-8 right-8 w-14 h-14 bg-secondary-container text-primary-container rounded-full shadow-lg flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50 cursor-pointer"
@@ -396,7 +413,7 @@ export default function App() {
           - Editar texto: linha abaixo.
           - Offset conforme sidebar: valor = largura da sidebar (70px / 260px).
           - Margem do desktop: "md:ml-[70px]" / "md:ml-[260px]". */}
-      {currentTab !== "kanban" && (
+      {currentTab !== "kanban" && currentTab !== "whatsapp" && (
         <footer className={`bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-400 font-mono select-none transition-all duration-300 ${
           isSidebarMinimized ? "md:ml-[70px]" : "md:ml-[260px]"
         }`}>

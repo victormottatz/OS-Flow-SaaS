@@ -70,7 +70,7 @@ const TECNICO_COLUMNS: { id: OSStatus; name: string; color: string; desc: string
   { id: "AGUARDANDO_AUTORIZACAO", name: "Aguardando Autorização", color: "border-t-blue-500 bg-blue-50/10", desc: "Orçamento pronto p/ aprovação" },
   { id: "AGUARDANDO_PECA", name: "Aguardando Peça", color: "border-t-amber-500 bg-amber-50/10", desc: "Fora de estoque local" },
   { id: "EM_MANUTENCAO", name: "Em Manutenção", color: "border-t-purple-500 bg-purple-50/10", desc: "Conserto ativo na bancada" },
-  { id: "FINALIZADO", name: "Entregue / Finalizado", color: "border-t-emerald-500 bg-emerald-50/10", desc: "Equipamento já entregue" },
+  { id: "FINALIZADO", name: "Finalizado Pronto p/ Retirada", color: "border-t-emerald-500 bg-emerald-50/10", desc: "Equipamento pronto para retirada" },
 ];
 
 const RECEPCAO_COLUMNS: { id: OSStatus; name: string; color: string; desc: string }[] = [
