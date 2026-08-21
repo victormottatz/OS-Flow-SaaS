@@ -99,8 +99,16 @@ export default function App() {
     const handlePopState = () => {
       setCurrentTab(getInitialTab());
     };
+    const handleOpenOsEvent = () => {
+      handleTabChange("kanban");
+    };
+
     window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
+    window.addEventListener("mgv_open_os_details", handleOpenOsEvent);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      window.removeEventListener("mgv_open_os_details", handleOpenOsEvent);
+    };
   }, []);
 
   // Load session from storage

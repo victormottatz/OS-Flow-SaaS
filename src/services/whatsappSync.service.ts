@@ -300,6 +300,17 @@ export class WhatsAppSyncService {
                 ? new Date(typeof rawTimestamp === "number" ? rawTimestamp * 1000 : rawTimestamp)
                 : new Date();
 
+              const rawStatus = msgItem.status;
+              let itemStatus: "PENDING" | "SENT" | "DELIVERED" | "READ" | "FAILED" = fromMe ? "SENT" : "READ";
+              if (fromMe && rawStatus !== undefined && rawStatus !== null) {
+                const s = String(rawStatus).toUpperCase();
+                if (s === "READ" || s === "4" || s === "PLAYED" || s === "5" || s === "VIEWED") itemStatus = "READ";
+                else if (s === "DELIVERY_ACK" || s === "3" || s === "DELIVERED" || s === "RECEIVED") itemStatus = "DELIVERED";
+                else if (s === "SERVER_ACK" || s === "2" || s === "SENT" || s === "SEND") itemStatus = "SENT";
+                else if (s === "PENDING" || s === "1") itemStatus = "PENDING";
+                else if (s === "ERROR" || s === "FAILED" || s === "0") itemStatus = "FAILED";
+              }
+
               await (prisma as any).whatsappMessage.upsert({
                 where: { keyId },
                 create: {
@@ -313,14 +324,14 @@ export class WhatsAppSyncService {
                   fileName,
                   mediaUrl,
                   mediaMimeType,
-                  status: fromMe ? "SENT" : "READ",
+                  status: itemStatus,
                   timestamp: isNaN(msgDate.getTime()) ? new Date() : msgDate,
                   orderId: matchedOrder?.id || null
                 },
                 update: {
                   chatId: chat.id,
                   text,
-                  status: fromMe ? "SENT" : "READ"
+                  status: itemStatus
                 }
               });
 

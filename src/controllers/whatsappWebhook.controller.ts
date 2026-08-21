@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import prisma from "../database/prisma";
 import { realtimeEvents } from "../services/realtimeEvents";
-import { formatPhoneNumber } from "../services/whatsapp";
+import { formatPhoneNumber, getBase64FromEvolutionMedia, saveMediaToFile } from "../services/whatsapp";
 
 export class WhatsAppWebhookController {
   async handleWebhook(req: Request, res: Response) {
@@ -61,21 +61,41 @@ export class WhatsAppWebhookController {
         mediaUrl = message.imageMessage.url || data.mediaUrl;
         mediaMimeType = message.imageMessage.mimetype || "image/jpeg";
       } else if (message.audioMessage) {
-        text = "🎵 Áudio recebido";
+        text = "🎵 Áudio";
         messageType = "AUDIO";
         mediaUrl = message.audioMessage.url || data.mediaUrl;
         mediaMimeType = message.audioMessage.mimetype || "audio/ogg";
       } else if (message.documentMessage) {
-        text = message.documentMessage.caption || message.documentMessage.fileName || "📄 Documento recebido";
+        text = message.documentMessage.caption || message.documentMessage.fileName || "📄 Documento";
         messageType = "DOCUMENT";
         mediaUrl = message.documentMessage.url || data.mediaUrl;
         mediaMimeType = message.documentMessage.mimetype || "application/pdf";
-        fileName = message.documentMessage.fileName;
+        fileName = message.documentMessage.fileName || "documento.pdf";
       } else if (message.videoMessage) {
-        text = message.videoMessage.caption || "🎥 Vídeo recebido";
+        text = message.videoMessage.caption || "🎥 Vídeo";
         messageType = "VIDEO";
         mediaUrl = message.videoMessage.url || data.mediaUrl;
         mediaMimeType = message.videoMessage.mimetype || "video/mp4";
+      }
+
+      // Se for mídia, tenta salvar em arquivo estático local (/uploads/whatsapp/) para nunca expirar
+      if (messageType !== "TEXT") {
+        try {
+          const directBase64 = data.base64 || message.base64 || (message as any)[`${messageType.toLowerCase()}Message`]?.base64;
+          if (directBase64) {
+            mediaUrl = await saveMediaToFile(directBase64, `wa_${messageType.toLowerCase()}`, mediaMimeType || "application/octet-stream");
+          } else if (mediaUrl && mediaUrl.startsWith("data:")) {
+            mediaUrl = await saveMediaToFile(mediaUrl, `wa_${messageType.toLowerCase()}`, mediaMimeType || "application/octet-stream");
+          } else if (!mediaUrl || mediaUrl.startsWith("http")) {
+            // Tenta obter base64 da Evolution API
+            const fetchedBase64 = await getBase64FromEvolutionMedia(data);
+            if (fetchedBase64) {
+              mediaUrl = await saveMediaToFile(fetchedBase64, `wa_${messageType.toLowerCase()}`, mediaMimeType || "application/octet-stream");
+            }
+          }
+        } catch (mediaSaveErr: any) {
+          console.warn("[WhatsApp Webhook] Não foi possível persistir mídia localmente:", mediaSaveErr.message);
+        }
       }
 
       // 1. Localiza ou cadastra o Chat
@@ -181,26 +201,53 @@ export class WhatsAppWebhookController {
       const updates = Array.isArray(data) ? data : [data];
       for (const item of updates) {
         const key = item.key || {};
-        const keyId = key.id;
-        const updateStatus = item.update?.status || item.status;
-        if (!keyId || !updateStatus) continue;
+        const keyId = key.id || item.id || item.messageId;
+        const updateStatus = item.update?.status ?? item.status;
+        if (!keyId || updateStatus === undefined) continue;
 
         let mappedStatus: "PENDING" | "SENT" | "DELIVERED" | "READ" | "FAILED" = "SENT";
-        if (updateStatus === "DELIVERY_ACK" || updateStatus === 3 || updateStatus === "DELIVERED") {
-          mappedStatus = "DELIVERED";
-        } else if (updateStatus === "READ" || updateStatus === 4 || updateStatus === "PLAYED") {
+        const statusStr = String(updateStatus).toUpperCase();
+
+        if (statusStr === "READ" || statusStr === "4" || statusStr === "PLAYED" || statusStr === "5" || statusStr === "VIEWED") {
           mappedStatus = "READ";
-        } else if (updateStatus === "ERROR" || updateStatus === "FAILED" || updateStatus === 0) {
+        } else if (statusStr === "DELIVERY_ACK" || statusStr === "3" || statusStr === "DELIVERED" || statusStr === "RECEIVED") {
+          mappedStatus = "DELIVERED";
+        } else if (statusStr === "SERVER_ACK" || statusStr === "2" || statusStr === "SENT" || statusStr === "SEND") {
+          mappedStatus = "SENT";
+        } else if (statusStr === "PENDING" || statusStr === "1") {
+          mappedStatus = "PENDING";
+        } else if (statusStr === "ERROR" || statusStr === "FAILED" || statusStr === "0") {
           mappedStatus = "FAILED";
         }
 
-        const updated = await (prisma as any).whatsappMessage.updateMany({
-          where: { keyId },
-          data: { status: mappedStatus }
+        const messages = await (prisma as any).whatsappMessage.findMany({
+          where: {
+            OR: [
+              { keyId },
+              { id: keyId }
+            ]
+          }
         });
 
-        if (updated.count > 0) {
-          realtimeEvents.broadcast("message_status_update", { keyId, status: mappedStatus });
+        if (messages.length > 0) {
+          await (prisma as any).whatsappMessage.updateMany({
+            where: {
+              OR: [
+                { keyId },
+                { id: keyId }
+              ]
+            },
+            data: { status: mappedStatus }
+          });
+
+          for (const msg of messages) {
+            realtimeEvents.broadcast("message_status_update", {
+              keyId: msg.keyId,
+              messageId: msg.id,
+              chatId: msg.chatId,
+              status: mappedStatus
+            });
+          }
         }
       }
     } catch (err) {

@@ -22,7 +22,7 @@ LOGOS_EM_PNG/
 *.htm
 lixeira/
 
-# Playwright & Testes
+# Playwright
 /test-results/
 /playwright-report/
 /blob-report/
@@ -30,7 +30,7 @@ lixeira/
 /playwright/.auth/
 .freebuff/
 temp_migration/
+scratch/
 *.db
 *.MDB
-*.vsix
-.vscode/
+public/uploads/whatsapp/

@@ -8,7 +8,7 @@ const WHATSAPP_TEMPLATES: Record<string, string> = {
     "🩺 *Olá, {cliente_nome}! Tudo bem?*\n\n" +
     "Confirmamos a entrada do seu equipamento *{aparelho_marca} {aparelho_modelo}* em nosso laboratório técnico sob a *OS #{os_numero}*.\n\n" +
     "📎 *Segue em anexo o seu Termo de Recebimento com o checklist de entrada.*\n\n" +
-    "Nossa equipe especializada já iniciou a triagem pericial e em breve enviaremos o laudo com o diagnóstico completo.\n\n" +
+    "Nossa equipe especializada já iniciou a triagem e em breve enviaremos o laudo com o diagnóstico completo.\n\n" +
     "💬 _Se precisar de qualquer informação, basta responder esta mensagem!_",
 
   AGUARDANDO_AUTORIZACAO: 
@@ -23,28 +23,28 @@ const WHATSAPP_TEMPLATES: Record<string, string> = {
 
   AGUARDANDO_PECA: 
     "📦 *Olá, {cliente_nome}! Atualização sobre sua OS #{os_numero}:*\n\n" +
-    "Para garantir a máxima qualidade e durabilidade no conserto do seu *{aparelho_modelo}*, solicitamos componentes novos e originais de fábrica.\n\n" +
-    "Assim que as peças chegarem em nossa bancada técnica, daremos prioridade imediata à montagem e calibração. Manteremos você informado! ⚙️",
+    "Para garantir a máxima qualidade e durabilidade no conserto do seu *{aparelho_modelo}*, solicitamos componentes novos e de procedência garantida.\n\n" +
+    "Assim que as peças chegarem em nossa bancada técnica, daremos prioridade imediata à montagem e aos testes. Manteremos você informado! ⚙️",
 
   EM_MANUTENCAO: 
     "⚙️ *Olá, {cliente_nome}!*\n\n" +
     "Informamos que a manutenção do seu equipamento *{aparelho_modelo}* (OS *#{os_numero}*) já foi iniciada na bancada técnica por nossos especialistas.\n\n" +
-    "Em breve seu aparelho passará pelos testes finais de calibração! 🔬",
+    "Em breve seu aparelho passará pelos testes finais de qualidade! 🔬",
 
   PRONTO_RETIRADA: 
-    "🎉 *Ótima notícia, {cliente_nome}!*\n\n" +
-    "O seu equipamento *{aparelho_modelo}* (OS *#{os_numero}*) concluiu com sucesso todas as etapas de reparo, revisão e calibração técnica!\n\n" +
+    "🎉 *Ótima notícia, {cliente_nome}!* \n\n" +
+    "O seu equipamento *{aparelho_modelo}* (OS *#{os_numero}*) concluiu com sucesso todas as etapas de serviços técnicos e testes de qualidade!\n\n" +
     "📍 *Seu aparelho já está disponível para retirada na MGV:*\n" +
     "🏢 *Endereço:* Rua Julio Prestes, 648 - Jardim Sumaré, Ribeirão Preto - SP\n" +
     "⏰ *Horário de Atendimento:* Segunda a Sexta, das 08h às 18h\n\n" +
-    "📎 *Segue em anexo o seu Laudo Técnico / Certificado de Calibração.*\n\n" +
+    "📎 *Segue em anexo o Laudo Técnico / Recibo do atendimento.*\n\n" +
     "💬 _Aguardamos sua visita! Caso prefira agilizar o faturamento via PIX antes da retirada, basta solicitar a chave por esta conversa._",
 
   FINALIZADO: 
     "🤝 *Equipamento Entregue com Sucesso!*\n\n" +
     "Olá, *{cliente_nome}*! A Ordem de Serviço *#{os_numero}* do seu *{aparelho_modelo}* foi concluída e o equipamento entregue.\n\n" +
     "📎 *Segue em anexo o seu Recibo Oficial de Entrega com o Termo de Garantia de 90 dias.*\n\n" +
-    "Agradecemos imensamente a confiança na MGV Assistência Técnica! Sempre que precisar de suporte ou novas calibrações, estamos à sua disposição. ✨",
+    "Agradecemos imensamente a confiança na MGV Assistência Técnica! Sempre que precisar de suporte técnico ou novas manutenções, estamos à sua disposição. ✨",
 
   ORCAMENTO_RECUSADO: 
     "Olá, *{cliente_nome}*!\n\n" +
@@ -129,7 +129,7 @@ export async function getWhatsAppConfig() {
 export async function sendWhatsAppTextMessage(
   phoneNumber: string,
   messageText: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; keyId?: string }> {
   const { apiUrl, apiToken, instanceName } = await getWhatsAppConfig();
 
   if (!apiUrl || !apiToken) {
@@ -154,7 +154,12 @@ export async function sendWhatsAppTextMessage(
     });
 
     if (response.ok) {
-      return { success: true };
+      let keyId: string | undefined;
+      try {
+        const json = await response.json();
+        keyId = json.key?.id || json.id || json.messageId;
+      } catch (_) {}
+      return { success: true, keyId };
     } else {
       const errText = await response.text();
       return { success: false, error: `HTTP ${response.status}: ${errText}` };
@@ -174,19 +179,34 @@ export async function sendWhatsAppDocumentMessage(
   pdfBuffer: Buffer,
   fileName: string,
   captionText: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; keyId?: string; error?: string }> {
+  return sendWhatsAppGenericDocumentMessage(phoneNumber, pdfBuffer, fileName, "application/pdf", captionText);
+}
+
+/**
+ * Envia documento genérico (PDF, DOCX, XLSX, TXT, etc.) pela Evolution API
+ */
+export async function sendWhatsAppGenericDocumentMessage(
+  phoneNumber: string,
+  fileData: Buffer | string,
+  fileName: string,
+  mimetype: string = "application/pdf",
+  captionText?: string
+): Promise<{ success: boolean; keyId?: string; error?: string }> {
   const { apiUrl, apiToken, instanceName } = await getWhatsAppConfig();
 
   if (!apiUrl || !apiToken) {
     console.log(`\n[WhatsApp Gateway Simulado] Documento (${fileName}) enviado para ${phoneNumber}:`);
-    console.log(captionText);
+    if (captionText) console.log(captionText);
     return { success: true };
   }
 
   try {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
-    const base64Data = pdfBuffer.toString("base64");
+    const base64Data = typeof fileData === "string" 
+      ? fileData.replace(/^data:[^;]+;base64,/, "") 
+      : fileData.toString("base64");
 
     const response = await fetch(`${apiUrl}/message/sendMedia/${instanceName}`, {
       method: "POST",
@@ -197,15 +217,20 @@ export async function sendWhatsAppDocumentMessage(
       body: JSON.stringify({
         number: formatPhoneNumber(phoneNumber),
         mediatype: "document",
-        mimetype: "application/pdf",
-        caption: captionText,
+        mimetype: mimetype,
+        caption: captionText || "",
         fileName: fileName,
         media: base64Data
       })
     });
 
     if (response.ok) {
-      return { success: true };
+      let keyId: string | undefined;
+      try {
+        const json = await response.json();
+        keyId = json.key?.id || json.id || json.messageId;
+      } catch (_) {}
+      return { success: true, keyId };
     } else {
       const errText = await response.text();
       return { success: false, error: `HTTP ${response.status}: ${errText}` };
@@ -215,6 +240,207 @@ export async function sendWhatsAppDocumentMessage(
   } finally {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = "1";
   }
+}
+
+/**
+ * Envia imagem pela Evolution API com legenda opcional
+ */
+export async function sendWhatsAppImageMessage(
+  phoneNumber: string,
+  imageData: Buffer | string,
+  fileName: string = "imagem.jpg",
+  captionText?: string,
+  mimetype: string = "image/jpeg"
+): Promise<{ success: boolean; keyId?: string; error?: string }> {
+  const { apiUrl, apiToken, instanceName } = await getWhatsAppConfig();
+
+  if (!apiUrl || !apiToken) {
+    console.log(`\n[WhatsApp Gateway Simulado] Imagem (${fileName}) enviada para ${phoneNumber}:`);
+    if (captionText) console.log(captionText);
+    return { success: true };
+  }
+
+  try {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
+    const base64Data = typeof imageData === "string" 
+      ? imageData.replace(/^data:[^;]+;base64,/, "") 
+      : imageData.toString("base64");
+
+    const response = await fetch(`${apiUrl}/message/sendMedia/${instanceName}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": apiToken
+      },
+      body: JSON.stringify({
+        number: formatPhoneNumber(phoneNumber),
+        mediatype: "image",
+        mimetype: mimetype,
+        caption: captionText || "",
+        fileName: fileName,
+        media: base64Data
+      })
+    });
+
+    if (response.ok) {
+      let keyId: string | undefined;
+      try {
+        const json = await response.json();
+        keyId = json.key?.id || json.id || json.messageId;
+      } catch (_) {}
+      return { success: true, keyId };
+    } else {
+      const errText = await response.text();
+      return { success: false, error: `HTTP ${response.status}: ${errText}` };
+    }
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  } finally {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "1";
+  }
+}
+
+/**
+ * Envia mensagem de áudio (gravação de voz / PTT) pela Evolution API
+ */
+export async function sendWhatsAppAudioMessage(
+  phoneNumber: string,
+  audioData: Buffer | string,
+  ptt: boolean = true
+): Promise<{ success: boolean; keyId?: string; error?: string }> {
+  const { apiUrl, apiToken, instanceName } = await getWhatsAppConfig();
+
+  if (!apiUrl || !apiToken) {
+    console.log(`\n[WhatsApp Gateway Simulado] Áudio enviado para ${phoneNumber}`);
+    return { success: true };
+  }
+
+  try {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
+    const base64Data = typeof audioData === "string"
+      ? audioData.replace(/^data:[^;]+;base64,/, "")
+      : audioData.toString("base64");
+
+    // Tenta primeiro o endpoint dedicado de WhatsApp Audio (PTT)
+    let response = await fetch(`${apiUrl}/message/sendWhatsAppAudio/${instanceName}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": apiToken
+      },
+      body: JSON.stringify({
+        number: formatPhoneNumber(phoneNumber),
+        audio: base64Data
+      })
+    });
+
+    // Se o endpoint específico não existir, usa o sendMedia padrão
+    if (!response.ok) {
+      response = await fetch(`${apiUrl}/message/sendMedia/${instanceName}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": apiToken
+        },
+        body: JSON.stringify({
+          number: formatPhoneNumber(phoneNumber),
+          mediatype: "audio",
+          mimetype: "audio/ogg; codecs=opus",
+          media: base64Data,
+          ptt: ptt
+        })
+      });
+    }
+
+    if (response.ok) {
+      let keyId: string | undefined;
+      try {
+        const json = await response.json();
+        keyId = json.key?.id || json.id || json.messageId;
+      } catch (_) {}
+      return { success: true, keyId };
+    } else {
+      const errText = await response.text();
+      return { success: false, error: `HTTP ${response.status}: ${errText}` };
+    }
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  } finally {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "1";
+  }
+}
+
+/**
+ * Obtém o Base64 da mídia encriptada da Evolution API caso o webhook não traga URL pública
+ */
+export async function getBase64FromEvolutionMedia(messageObj: any): Promise<string | null> {
+  const { apiUrl, apiToken, instanceName } = await getWhatsAppConfig();
+  if (!apiUrl || !apiToken) return null;
+
+  try {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
+    const response = await fetch(`${apiUrl}/chat/getBase64FromMediaMessage/${instanceName}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": apiToken
+      },
+      body: JSON.stringify({
+        message: messageObj,
+        convertToMp4: false
+      })
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      return result.base64 || result.data || null;
+    }
+  } catch (err: any) {
+    console.warn(`[WhatsApp Service] Não foi possível extrair base64 da mídia: ${err.message}`);
+  } finally {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "1";
+  }
+  return null;
+}
+
+/**
+ * Salva base64 de mídia no disco (/public/uploads/whatsapp) e retorna a URL acessível pelo frontend
+ */
+export async function saveMediaToFile(
+  base64OrBuffer: Buffer | string,
+  filePrefix: string = "whatsapp_media",
+  mimeType: string = "application/octet-stream"
+): Promise<string> {
+  const fs = await import("fs/promises");
+  const path = await import("path");
+
+  const uploadDir = path.join(process.cwd(), "public", "uploads", "whatsapp");
+  await fs.mkdir(uploadDir, { recursive: true });
+
+  let extension = ".bin";
+  if (mimeType.includes("pdf")) extension = ".pdf";
+  else if (mimeType.includes("jpeg") || mimeType.includes("jpg")) extension = ".jpg";
+  else if (mimeType.includes("png")) extension = ".png";
+  else if (mimeType.includes("webp")) extension = ".webp";
+  else if (mimeType.includes("ogg") || mimeType.includes("opus")) extension = ".ogg";
+  else if (mimeType.includes("mp3")) extension = ".mp3";
+  else if (mimeType.includes("mp4")) extension = ".mp4";
+  else if (mimeType.includes("webm")) extension = ".webm";
+  else if (mimeType.includes("document") || mimeType.includes("docx")) extension = ".docx";
+  else if (mimeType.includes("sheet") || mimeType.includes("xlsx")) extension = ".xlsx";
+
+  const fileName = `${filePrefix}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}${extension}`;
+  const filePath = path.join(uploadDir, fileName);
+
+  const buffer = typeof base64OrBuffer === "string"
+    ? Buffer.from(base64OrBuffer.replace(/^data:[^;]+;base64,/, ""), "base64")
+    : base64OrBuffer;
+
+  await fs.writeFile(filePath, buffer);
+  return `/uploads/whatsapp/${fileName}`;
 }
 
 /**
@@ -250,6 +476,15 @@ export async function triggerWhatsAppNotification(orderId: string, status: strin
       return false;
     }
 
+    // Consulta configuração do modo de disparo: 'approval' (padrão seguro), 'auto' (direto) ou 'disabled'
+    const autoSetting = await prisma.officeSetting.findUnique({ where: { key: 'WHATSAPP_AUTO_MESSAGES' } });
+    const sendMode = (autoSetting?.value || "approval").toLowerCase();
+
+    if (sendMode === "disabled" || sendMode === "false") {
+      console.log(`[WhatsApp Service] Disparos desativados nas configurações.`);
+      return false;
+    }
+
     // Governança: Não incomodar fora do horário comercial (apenas loga aviso se for fora do horário)
     if (!isWithinBusinessHours()) {
       console.log(`[WhatsApp Service] Aviso: Disparo fora do horário comercial para OS ${orderId}. Prosseguindo com registro.`);
@@ -275,14 +510,14 @@ export async function triggerWhatsAppNotification(orderId: string, status: strin
     const recentDuplicate = await prisma.messageHistory.findFirst({
       where: {
         orderId: os.id,
-        status: { in: ["ENVIADO", "PENDENTE"] },
+        status: { in: ["ENVIADO", "PENDENTE", "AGUARDANDO_APROVACAO"] },
         createdAt: { gte: tenMinutesAgo }
       },
       orderBy: { createdAt: "desc" }
     });
 
     if (recentDuplicate && recentDuplicate.messageText.includes(os.osNumber)) {
-      console.log(`[WhatsApp Service] Disparo abortado: Mensagem recente enviada nos últimos 10 minutos para a OS ${os.osNumber}.`);
+      console.log(`[WhatsApp Service] Disparo abortado: Mensagem recente pendente ou enviada nos últimos 10 minutos para a OS ${os.osNumber}.`);
       return false;
     }
 
@@ -315,16 +550,25 @@ export async function triggerWhatsAppNotification(orderId: string, status: strin
       link_portal: linkPortal
     });
 
+    const isDirectAuto = sendMode === "auto";
+
     const history = await prisma.messageHistory.create({
       data: {
         orderId: os.id,
         phoneNumber: os.client.phone,
         messageText: formattedText,
-        status: "PENDENTE"
+        status: isDirectAuto ? "PENDENTE" : "AGUARDANDO_APROVACAO",
+        errorDetail: status // Salva o status de origem para resolução do PDF na aprovação
       }
     });
 
-    // Disparo assíncrono com documento PDF em anexo (quando aplicável)
+    // Se NÃO for envio direto automático, encerra aqui (fica aguardando aprovação humana pela atendente)
+    if (!isDirectAuto) {
+      console.log(`[WhatsApp Service] Mensagem para OS ${os.osNumber} colocada na fila de AGUARDANDO_APROVACAO.`);
+      return true;
+    }
+
+    // Disparo assíncrono com documento PDF em anexo (quando em modo automático)
     setTimeout(async () => {
       try {
         const docMapping = resolveTemplateIdForStatus(status, os.closingReason);
@@ -384,3 +628,126 @@ export async function triggerWhatsAppNotification(orderId: string, status: strin
     return false;
   }
 }
+
+/**
+ * Consulta mensagens pendentes de aprovação humana.
+ */
+export async function getPendingWhatsAppApprovals(orderId?: string) {
+  return prisma.messageHistory.findMany({
+    where: {
+      status: "AGUARDANDO_APROVACAO",
+      ...(orderId ? { orderId } : {})
+    },
+    include: {
+      order: {
+        include: {
+          client: true,
+          device: true
+        }
+      }
+    },
+    orderBy: { createdAt: "desc" }
+  });
+}
+
+/**
+ * Aprova e dispara uma mensagem de WhatsApp pendente.
+ */
+export async function approveWhatsAppMessage(messageId: string, customText?: string) {
+  const history = await prisma.messageHistory.findUnique({
+    where: { id: messageId },
+    include: {
+      order: {
+        include: { client: true, device: true }
+      }
+    }
+  });
+
+  if (!history || !history.order || !history.order.client) {
+    throw new Error("Mensagem ou dados da Ordem de Serviço não encontrados.");
+  }
+
+  if (history.status !== "AGUARDANDO_APROVACAO") {
+    throw new Error(`Esta mensagem não está aguardando aprovação (Status atual: ${history.status}).`);
+  }
+
+  const os = history.order;
+  const messageToSend = customText || history.messageText;
+  const statusOrigem = history.errorDetail || os.status;
+
+  const docMapping = resolveTemplateIdForStatus(statusOrigem, os.closingReason);
+  let pdfBuffer: Buffer | null = null;
+  let fileName = `Documento-${os.osNumber}.pdf`;
+
+  if (docMapping) {
+    try {
+      const docTemplate = DOCUMENT_TEMPLATES[docMapping.templateId];
+      if (docTemplate) {
+        pdfBuffer = await buildDocumentPdf(docTemplate, os as unknown as PdfOsData);
+        fileName = `${docMapping.fileNamePrefix}-${os.osNumber}.pdf`;
+      }
+    } catch (pdfErr: any) {
+      console.warn(`[WhatsApp Service] Falha ao gerar PDF no envio aprovado: ${pdfErr.message}`);
+    }
+  }
+
+  let sendResult: { success: boolean; error?: string };
+
+  if (pdfBuffer) {
+    sendResult = await sendWhatsAppDocumentMessage(
+      os.client.phone,
+      pdfBuffer,
+      fileName,
+      messageToSend
+    );
+  } else {
+    sendResult = await sendWhatsAppTextMessage(
+      os.client.phone,
+      messageToSend
+    );
+  }
+
+  if (sendResult.success) {
+    const updated = await prisma.messageHistory.update({
+      where: { id: messageId },
+      data: {
+        messageText: messageToSend,
+        status: "ENVIADO",
+        errorDetail: null
+      }
+    });
+    return { success: true, message: updated };
+  } else {
+    await prisma.messageHistory.update({
+      where: { id: messageId },
+      data: {
+        messageText: messageToSend,
+        status: "FALHOU",
+        errorDetail: sendResult.error || "Falha no envio via Evolution API"
+      }
+    });
+    throw new Error(sendResult.error || "Falha ao enviar mensagem via WhatsApp.");
+  }
+}
+
+/**
+ * Rejeita/descarta uma mensagem de WhatsApp pendente.
+ */
+export async function rejectWhatsAppMessage(messageId: string, reason?: string) {
+  const history = await prisma.messageHistory.findUnique({
+    where: { id: messageId }
+  });
+
+  if (!history) {
+    throw new Error("Mensagem não encontrada.");
+  }
+
+  return prisma.messageHistory.update({
+    where: { id: messageId },
+    data: {
+      status: "CANCELADO",
+      errorDetail: reason || "Envio cancelado pela atendente."
+    }
+  });
+}
+

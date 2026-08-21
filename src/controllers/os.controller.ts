@@ -1234,12 +1234,13 @@ export class OSController {
       const previousStatus = currentOS.status as OSStatus;
       const targetStatus = status as OSStatus;
 
-      // Identifica se é um encerramento sem reparo
-      const isSemReparo = closingReason === 'ORCAMENTO_RECUSADO'
-        || closingReason === 'SEM_CONSERTO'
-        || closingReason === 'DESCARTE_CLIENTE_RETIRA'
-        || closingReason === 'DESCARTE_OFICINA'
-        || closingReason === 'EQUIPAMENTO_SEM_DEFEITO';
+      // Identifica se é um encerramento sem reparo (considera o body ou o motivo já gravado na OS)
+      const effectiveClosingReason = closingReason || currentOS.closingReason;
+      const isSemReparo = effectiveClosingReason === 'ORCAMENTO_RECUSADO'
+        || effectiveClosingReason === 'SEM_CONSERTO'
+        || effectiveClosingReason === 'DESCARTE_CLIENTE_RETIRA'
+        || effectiveClosingReason === 'DESCARTE_OFICINA'
+        || effectiveClosingReason === 'EQUIPAMENTO_SEM_DEFEITO';
 
       // Validação de dispositivo incompleto (Lazy Loading / Base Instalada)
       // Bypassa se for um encerramento sem conserto/sem defeito
@@ -1342,6 +1343,15 @@ export class OSController {
         }
       }
 
+      // Normaliza para o enum aceito pelo schema do Prisma
+      const normalizeClosingReason = (reason?: string | null) => {
+        if (!reason) return null;
+        if (reason === 'SEM_CONSERTO' || reason === 'EQUIPAMENTO_SEM_DEFEITO') {
+          return 'ORCAMENTO_RECUSADO';
+        }
+        return reason as any;
+      };
+
       const updated = await prisma.ordemServico.update({
         where: { id },
         data: {
@@ -1356,12 +1366,12 @@ export class OSController {
                 warrantyDate: warrantyExpires,
                 ...(targetStatus === "FINALIZADO"
                   ? { 
-                      closingReason: closingReason || 'REPARO_CONCLUIDO',
+                      closingReason: normalizeClosingReason(effectiveClosingReason) || 'REPARO_CONCLUIDO',
                       profitValue,
                       profitMarginPercent
                     }
-                  : targetStatus === "PRONTO_RETIRADA" && closingReason // Mantém a recusa se enviada
-                  ? { closingReason }
+                  : targetStatus === "PRONTO_RETIRADA" && effectiveClosingReason // Mantém a recusa se enviada ou prévia
+                  ? { closingReason: normalizeClosingReason(effectiveClosingReason) }
                   : { closingReason: null })
               }
             : {

@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import prisma from "../database/prisma";
 import crypto from "crypto";
-import { formatPhoneNumber, sendWhatsAppTextMessage, sendWhatsAppDocumentMessage } from "../services/whatsapp";
+import { formatPhoneNumber, sendWhatsAppTextMessage, sendWhatsAppDocumentMessage, getPendingWhatsAppApprovals, approveWhatsAppMessage, rejectWhatsAppMessage } from "../services/whatsapp";
 import { buildDocumentPdf, PdfOsData } from "../services/pdfService";
 import { DOCUMENT_TEMPLATES, DocumentTemplateId } from "../config/documents.config";
 
@@ -258,6 +258,39 @@ export class WhatsAppController {
       process.env.NODE_TLS_REJECT_UNAUTHORIZED = "1";
     }
   }
+
+  async getPendingApprovals(req: Request, res: Response) {
+    try {
+      const { orderId } = req.query;
+      const pendings = await getPendingWhatsAppApprovals(orderId as string | undefined);
+      res.json(pendings);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+
+  async approveMessage(req: Request, res: Response) {
+    const { id } = req.params;
+    const { customText } = req.body;
+    try {
+      const result = await approveWhatsAppMessage(id, customText);
+      res.json(result);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+
+  async rejectMessage(req: Request, res: Response) {
+    const { id } = req.params;
+    const { reason } = req.body;
+    try {
+      const result = await rejectWhatsAppMessage(id, reason);
+      res.json({ success: true, message: result });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  }
 }
 
 export const whatsAppController = new WhatsAppController();
+

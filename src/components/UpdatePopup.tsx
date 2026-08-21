@@ -16,25 +16,25 @@ export function UpdatePopup() {
 
   useEffect(() => {
     const savedVersion = localStorage.getItem("mgv_last_update_version");
-    if (savedVersion !== "4.14.6") {
+    if (savedVersion !== "4.15.0") {
       setIsOpen(true);
       
       // Notificação silenciosa no sino com gatilho para reabrir o modal
       addNotification(
-        "🚀 MGV ONE HUB Atualizado (v4.14.6)",
-        "Scrollbar Ultra-Minimalista: Fundo transparente e apenas a barra de navegação visível.",
+        "🚀 MGV ONE HUB Atualizado (v4.15.0)",
+        "Aprovação de WhatsApp no Sininho, Vistos de Leitura em tempo real, Player de Áudio e Envio de Mídias.",
         "info",
         undefined,
         "open_update_popup"
       );
       
-      localStorage.setItem("mgv_last_update_version", "4.14.6");
+      localStorage.setItem("mgv_last_update_version", "4.15.0");
     }
   }, [addNotification]);
 
   const handleClose = () => {
     setIsOpen(false);
-    localStorage.setItem('mgv_update_v4_14_seen', 'true');
+    localStorage.setItem('mgv_update_v4_15_seen', 'true');
   };
 
   // Fecha o popup ao clicar fora da janela de conteúdo (backdrop)
@@ -68,7 +68,7 @@ export function UpdatePopup() {
                 <span className="material-symbols-outlined text-[28px]">chat</span>
                 MGV ONE HUB
               </h2>
-              <p className="text-emerald-100 mt-1 text-sm">Versão 4.14.6 • Scrollbars Minimalistas com Fundo Transparente</p>
+              <p className="text-emerald-100 mt-1 text-sm">Versão 4.15.0 • Aprovação de WhatsApp, Vistos e Mídias</p>
               
               <button 
                 onClick={handleClose}
@@ -80,41 +80,41 @@ export function UpdatePopup() {
 
             <div className="p-6">
               <ul className="space-y-6">
-            {/* Alteração 1: Central de WhatsApp com Fotos de Perfil */}
+            {/* Alteração 1: Aprovação de WhatsApp no Sininho */}
             <div className="flex gap-4">
               <div className="flex-shrink-0 w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
-                <span className="material-symbols-outlined text-[20px]">account_circle</span>
+                <span className="material-symbols-outlined text-[20px]">notifications_active</span>
               </div>
               <div>
-                <h3 className="font-bold text-slate-200 text-sm">Fotos de Perfil e Identificação de Contato</h3>
+                <h3 className="font-bold text-slate-200 text-sm">Fila de Aprovação no Sininho</h3>
                 <p className="text-slate-400 text-xs mt-1 leading-relaxed">
-                  As fotos de perfil dos contatos do WhatsApp agora aparecem automaticamente na lista de conversas, no cabeçalho do chat e no painel do cliente.
+                  Nenhuma mensagem de OS é disparada sem autorização. Você pode aprovar ou recusar o envio ao cliente em 1 clique direto pelo menu de notificações.
                 </p>
               </div>
             </div>
 
-            {/* Alteração 2: Superpoderes da OS */}
+            {/* Alteração 2: Vistos de Leitura */}
+            <div className="flex gap-4">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-sky-500/20 text-sky-400 flex items-center justify-center border border-sky-500/30">
+                <span className="material-symbols-outlined text-[20px]">done_all</span>
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-200 text-sm">Vistos de Entrega e Leitura (WhatsApp)</h3>
+                <p className="text-slate-400 text-xs mt-1 leading-relaxed">
+                  Acompanhe em tempo real se a mensagem foi enviada, entregue no aparelho do cliente (2 vistos cinzas) ou lida (2 vistos azuis).
+                </p>
+              </div>
+            </div>
+
+            {/* Alteração 3: Gravação de Áudio e Mídias */}
             <div className="flex gap-4">
               <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
-                <span className="material-symbols-outlined text-[20px]">assignment</span>
+                <span className="material-symbols-outlined text-[20px]">mic</span>
               </div>
               <div>
-                <h3 className="font-bold text-slate-200 text-sm">Contexto de Ordem de Serviço na Conversa</h3>
+                <h3 className="font-bold text-slate-200 text-sm">Gravação de Voz e Envio de Mídias</h3>
                 <p className="text-slate-400 text-xs mt-1 leading-relaxed">
-                  A barra lateral do chat exibe os dados da OS ativa, valor do orçamento, diagnóstico e atalhos rápidos com envio automático de laudos em PDF.
-                </p>
-              </div>
-            </div>
-
-            {/* Alteração 3: Multiatendimento */}
-            <div className="flex gap-4">
-              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center border border-blue-500/30">
-                <span className="material-symbols-outlined text-[20px]">group</span>
-              </div>
-              <div>
-                <h3 className="font-bold text-slate-200 text-sm">Multiatendimento em 1 Único Número</h3>
-                <p className="text-slate-400 text-xs mt-1 leading-relaxed">
-                  Toda a equipe pode atender simultaneamente pelo navegador com identificação do operador e notificações sonoras e visuais instantâneas.
+                  Grave mensagens de voz pelo microfone, envie fotos, vídeos e documentos PDF com player dedicado e visualizador em tela cheia.
                 </p>
               </div>
             </div>

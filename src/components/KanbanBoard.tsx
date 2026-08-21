@@ -1151,9 +1151,25 @@ export default function KanbanBoard({
   const isWarrantyOS = (os: any) =>
     Array.isArray(os?.tags) && (os.tags as any[]).some((t: any) => t.name === "Em Garantia");
 
-  // OS aberta no modal de pagamento + flag de garantia (derivado do card atual)
+  // Identifica se a OS não possui cobrança (em garantia, sem reparo, orçamento recusado ou valor zerado)
+  const isSemReparoOS = (os: any) => {
+    if (!os) return false;
+    const reason = os.closingReason;
+    const isReasonSemReparo = reason === 'ORCAMENTO_RECUSADO' 
+      || reason === 'SEM_CONSERTO' 
+      || reason === 'DESCARTE_CLIENTE_RETIRA' 
+      || reason === 'DESCARTE_OFICINA' 
+      || reason === 'EQUIPAMENTO_SEM_DEFEITO';
+    const total = (os.totalCost !== undefined && os.totalCost !== null) ? os.totalCost : 0;
+    return isReasonSemReparo || total === 0;
+  };
+
+  const isNoChargeOS = (os: any) => isWarrantyOS(os) || isSemReparoOS(os);
+
+  // OS aberta no modal de pagamento + flag de garantia / sem cobrança (derivado do card atual)
   const getPaymentOS = (id: string) => ordensServico.find(o => o.id === id);
   const isPaymentWarranty = (id: string) => isWarrantyOS(getPaymentOS(id));
+  const isPaymentNoCharge = (id: string) => isNoChargeOS(getPaymentOS(id));
 
   // Abre a aba "Saída" em modo de edição e guarda o destino pendente (FINALIZADO).
   const openChecklistGate = (os: OrdemServico) => {
@@ -1241,9 +1257,10 @@ export default function KanbanBoard({
       }
     }
 
-    // Gate 3: Encerramento Sem Reparo (Orçamento Recusado / Sem Conserto)
+    // Gate 3: Encerramento Sem Reparo (Orçamento Recusado / Sem Conserto / Sem Custo)
     const isOrigemSemReparo = osToMove.status === "AGUARDANDO_AVALIACAO" || osToMove.status === "AGUARDANDO_AUTORIZACAO";
-    if ((newStatus === "FINALIZADO" || newStatus === "PRONTO_RETIRADA") && isOrigemSemReparo) {
+    const isZeroCostWithoutReason = ((osToMove.totalCost || 0) === 0 && (osToMove.laborCost || 0) === 0 && (!osToMove.usedParts || osToMove.usedParts.length === 0)) && !isWarranty && !osToMove.closingReason;
+    if ((newStatus === "FINALIZADO" || newStatus === "PRONTO_RETIRADA") && (isOrigemSemReparo || isZeroCostWithoutReason)) {
       setSemReparoOS(osToMove);
       setSelectedClosingReason('ORCAMENTO_RECUSADO');
       setSemReparoNotifyWhatsapp(true);
@@ -1251,9 +1268,9 @@ export default function KanbanBoard({
       return false;
     }
 
-    // Gate 4: Cálculo de Rentabilidade (Apenas OWNER)
+    // Gate 4: Cálculo de Rentabilidade (Apenas OWNER e quando houver faturamento real)
     const isProfitEnabled = isFeatureEnabled("OS_PROFITABILITY_CALC");
-    if (newStatus === "FINALIZADO" && userRole === UserRole.OWNER && isProfitEnabled) {
+    if (newStatus === "FINALIZADO" && userRole === UserRole.OWNER && isProfitEnabled && !isSemReparoOS(osToMove) && (osToMove.totalCost || 0) > 0) {
       setClosingOS(osToMove);
       return false;
     }
@@ -1264,7 +1281,10 @@ export default function KanbanBoard({
       const response = await fetch(`/api/ordens-servico/${id}/status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-        body: JSON.stringify({ status: newStatus })
+        body: JSON.stringify({ 
+          status: newStatus,
+          ...(osToMove.closingReason ? { closingReason: osToMove.closingReason } : {})
+        })
       });
       
       if (!response.ok) {
@@ -1899,10 +1919,11 @@ export default function KanbanBoard({
             });
             if (!resDados.ok) throw new Error("Erro ao gravar dados.");
             
-            // Se o destino for FINALIZADO ou PRONTO_RETIRADA e a origem for um status de orçamento/avaliação,
+            // Se o destino for FINALIZADO ou PRONTO_RETIRADA e for sem reparo ou sem custo,
             // interceptamos e abrimos o modal de Motivo de Encerramento Sem Reparo.
             const isOrigemSemReparo = selectedOS.status === "AGUARDANDO_AVALIACAO" || selectedOS.status === "AGUARDANDO_AUTORIZACAO";
-            if ((newStatus === "FINALIZADO" || newStatus === "PRONTO_RETIRADA") && isOrigemSemReparo) {
+            const isZeroCostWithoutReason = computedTotal === 0 && computedLaborCost === 0 && selectedParts.length === 0 && !isWarrantyOS(selectedOS) && !selectedOS.closingReason;
+            if ((newStatus === "FINALIZADO" || newStatus === "PRONTO_RETIRADA") && (isOrigemSemReparo || isZeroCostWithoutReason)) {
               const osUpdatedForSemReparo = {
                 ...selectedOS,
                 diagnostic,
@@ -1926,7 +1947,7 @@ export default function KanbanBoard({
             }
 
             const isProfitEnabled = isFeatureEnabled("OS_PROFITABILITY_CALC");
-            if (newStatus === "FINALIZADO" && userRole === UserRole.OWNER && isProfitEnabled) {
+            if (newStatus === "FINALIZADO" && userRole === UserRole.OWNER && isProfitEnabled && !isSemReparoOS(selectedOS) && computedTotal > 0) {
               const osUpdatedForClosing = {
                 ...selectedOS,
                 diagnostic,
@@ -1954,7 +1975,10 @@ export default function KanbanBoard({
             const resStatus = await fetch(`/api/ordens-servico/${selectedOS.id}/status`, {
               method: "PUT",
               headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-              body: JSON.stringify({ status: newStatus })
+              body: JSON.stringify({ 
+                status: newStatus,
+                ...(selectedOS.closingReason ? { closingReason: selectedOS.closingReason } : {})
+              })
             });
             if (!resStatus.ok) {
               const errData = await resStatus.json().catch(() => ({}));
@@ -3478,16 +3502,17 @@ export default function KanbanBoard({
             </div>
 
             {/* Actions */}
-            <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
+            <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-4">
               <button 
                 onClick={() => {
                   setShowSemReparoModal(false);
                   setSemReparoOS(null);
                 }}
-                className="px-4 py-2 border border-slate-300 rounded-xl text-slate-700 font-bold text-xs hover:bg-slate-100"
+                className="px-4 py-2 border border-slate-300 rounded-xl text-slate-700 font-bold text-xs hover:bg-slate-100 cursor-pointer"
               >
                 Cancelar
               </button>
+              
               <button 
                 onClick={async () => {
                   try {
@@ -3502,9 +3527,52 @@ export default function KanbanBoard({
                     });
                     if (!res.ok) {
                       const data = await res.json();
+                      alert(data.error || "Erro ao atualizar OS.");
+                    } else {
+                      if (semReparoNotifyWhatsapp) {
+                        try {
+                          await fetch(`/api/whatsapp/notify-status`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                            body: JSON.stringify({ orderId: semReparoOS.id, status: "PRONTO_RETIRADA" })
+                          });
+                        } catch (wsErr) {
+                          console.warn("Erro ao tentar disparar WhatsApp:", wsErr);
+                        }
+                      }
+                      setSuccessMsg("OS movida para Pronto para Retirada!");
+                      setTimeout(() => setSuccessMsg(""), 2000);
+                      onRefresh();
+                    }
+                  } catch(e: any) { 
+                    alert(e.message); 
+                  }
+                  setShowSemReparoModal(false);
+                  setSemReparoOS(null);
+                }}
+                className="px-4 py-2.5 bg-amber-550 hover:bg-amber-600 text-white rounded-xl font-bold text-xs shadow-sm transition active:scale-95 cursor-pointer flex items-center gap-1.5"
+              >
+                <span className="material-symbols-outlined text-[16px]">inventory_2</span>
+                <span>Aguardar Retirada</span>
+              </button>
+
+              <button 
+                onClick={async () => {
+                  try {
+                    const token = localStorage.getItem("mgv_token") || "";
+                    const res = await fetch(`/api/ordens-servico/${semReparoOS.id}/status`, {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                      body: JSON.stringify({ 
+                        status: "FINALIZADO",
+                        closingReason: selectedClosingReason,
+                        invoiceType: "nenhum"
+                      })
+                    });
+                    if (!res.ok) {
+                      const data = await res.json();
                       alert(data.error || "Erro ao encerrar OS.");
                     } else {
-                      // Disparo opcional do WhatsApp para encerramento
                       if (semReparoNotifyWhatsapp) {
                         try {
                           await fetch(`/api/whatsapp/notify-status`, {
@@ -3516,6 +3584,8 @@ export default function KanbanBoard({
                           console.warn("Erro ao tentar disparar WhatsApp de encerramento:", wsErr);
                         }
                       }
+                      setSuccessMsg("Equipamento entregue e OS finalizada sem reparo!");
+                      setTimeout(() => setSuccessMsg(""), 2000);
                       onRefresh();
                     }
                   } catch(e: any) { 
@@ -3524,9 +3594,10 @@ export default function KanbanBoard({
                   setShowSemReparoModal(false);
                   setSemReparoOS(null);
                 }}
-                className="px-5 py-2.5 bg-rose-600 text-white rounded-xl font-bold text-xs hover:bg-rose-700 shadow-md transition active:scale-95"
+                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-xs shadow-md transition active:scale-95 cursor-pointer flex items-center gap-1.5"
               >
-                Confirmar e Encerrar
+                <span className="material-symbols-outlined text-[16px]">task_alt</span>
+                <span>Entregar e Finalizar Agora</span>
               </button>
             </div>
 
@@ -3591,8 +3662,16 @@ export default function KanbanBoard({
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md p-6 space-y-5">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
-                <span className="material-symbols-outlined text-[20px] text-emerald-600">payments</span>
-                <span>{isPaymentWarranty(paymentModalOS.id) ? "Finalizar OS (Garantia)" : "Selecione a Forma de Pagamento"}</span>
+                <span className="material-symbols-outlined text-[20px] text-emerald-600">
+                  {isPaymentNoCharge(paymentModalOS.id) ? "verified" : "payments"}
+                </span>
+                <span>
+                  {isPaymentWarranty(paymentModalOS.id) 
+                    ? "Finalizar OS (Garantia)" 
+                    : isPaymentNoCharge(paymentModalOS.id)
+                    ? "Finalizar OS (Sem Reparo / Sem Cobrança)"
+                    : "Selecione a Forma de Pagamento"}
+                </span>
               </h3>
               <button onClick={() => { setPaymentModalOS(null); setPaymentMethod(""); setPaymentDetails([]); setPaymentNotes(""); setPaymentAmountInput(""); }} className="text-slate-400 hover:text-slate-650 cursor-pointer">
                 <span className="material-symbols-outlined text-[20px]">close</span>
@@ -3611,7 +3690,19 @@ export default function KanbanBoard({
               </div>
             )}
 
-            {!isPaymentWarranty(paymentModalOS.id) && (
+            {!isPaymentWarranty(paymentModalOS.id) && isPaymentNoCharge(paymentModalOS.id) && (
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[20px] text-amber-600">assignment_return</span>
+                  <p className="text-xs font-extrabold text-amber-800">Sem Cobrança / Equipamento Sem Reparo</p>
+                </div>
+                <p className="text-[11px] text-amber-700 font-medium leading-relaxed">
+                  Esta Ordem de Serviço foi encerrada sem a realização de serviços ou sem custo financeiro (R$ 0,00). O equipamento será entregue sem faturamento ou cobrança.
+                </p>
+              </div>
+            )}
+
+            {!isPaymentNoCharge(paymentModalOS.id) && (
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="block text-xs font-extrabold text-slate-700">Data do Pagamento</label>
@@ -3639,7 +3730,7 @@ export default function KanbanBoard({
             </div>
             )}
 
-            {!isPaymentWarranty(paymentModalOS.id) && (
+            {!isPaymentNoCharge(paymentModalOS.id) && (
             <div className="space-y-2">
               <label className="block text-xs font-extrabold text-slate-700">Pagamentos Fracionados</label>
               
@@ -3695,7 +3786,7 @@ export default function KanbanBoard({
                     setPaymentMethod("");
                     setPaymentAmountInput("");
                   }}
-                  className="px-3 bg-indigo-100 text-indigo-700 font-bold rounded-lg text-xs hover:bg-indigo-200 transition"
+                  className="px-3 bg-indigo-100 text-indigo-700 font-bold rounded-lg text-xs hover:bg-indigo-200 transition cursor-pointer"
                 >
                   Add
                 </button>
@@ -3703,7 +3794,7 @@ export default function KanbanBoard({
             </div>
             )}
 
-            {!isPaymentWarranty(paymentModalOS.id) && (
+            {!isPaymentNoCharge(paymentModalOS.id) && (
             <div className="space-y-1 mt-3">
               <label className="block text-xs font-extrabold text-slate-700">Observações sobre o Pagamento</label>
               <textarea
@@ -3715,7 +3806,7 @@ export default function KanbanBoard({
             </div>
             )}
 
-            {paymentModalOS.targetStatus === "FINALIZADO" && !isPaymentWarranty(paymentModalOS.id) && (
+            {paymentModalOS.targetStatus === "FINALIZADO" && !isPaymentNoCharge(paymentModalOS.id) && (
               <div className="space-y-4 border-t border-slate-100 pt-3 mt-3">
                 <label className="flex items-center space-x-2 bg-indigo-50/50 p-2 rounded-lg border border-indigo-100 cursor-pointer">
                   <input
@@ -3756,7 +3847,8 @@ export default function KanbanBoard({
                 type="button"
                 onClick={async () => {
                   const isWarrantyPayment = isPaymentWarranty(paymentModalOS.id);
-                  if (!isWarrantyPayment && paymentDetails.length === 0 && !paymentMethod) {
+                  const isNoChargePayment = isPaymentNoCharge(paymentModalOS.id);
+                  if (!isNoChargePayment && paymentDetails.length === 0 && !paymentMethod) {
                     alert("Por favor, adicione pelo menos uma forma de pagamento ou selecione na lista.");
                     return;
                   }
@@ -3764,7 +3856,7 @@ export default function KanbanBoard({
                   let finalDetails = [...paymentDetails];
                   let finalMainMethod = paymentMethod;
                   
-                  if (finalDetails.length === 0 && paymentMethod) {
+                  if (!isNoChargePayment && finalDetails.length === 0 && paymentMethod) {
                     const osTarget = ordensServico.find(o => o.id === paymentModalOS.id);
                     let osVal = 0;
                     if (osTarget) {
@@ -3782,6 +3874,8 @@ export default function KanbanBoard({
                     finalMainMethod = finalDetails[0].method;
                   }
 
+                  const targetOSObj = ordensServico.find(o => o.id === paymentModalOS.id);
+
                   setLoading(true);
                   try {
                     const token = localStorage.getItem("mgv_token") || "";
@@ -3790,7 +3884,8 @@ export default function KanbanBoard({
                       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
                       body: JSON.stringify({ 
                         status: paymentModalOS.targetStatus,
-                        ...(isWarrantyPayment
+                        ...(targetOSObj?.closingReason ? { closingReason: targetOSObj.closingReason } : {}),
+                        ...(isNoChargePayment
                           ? { invoiceType: "nenhum" }
                           : {
                               paymentMethod: finalMainMethod,
@@ -3804,9 +3899,9 @@ export default function KanbanBoard({
                     });
                     if (!res.ok) {
                       const data = await res.json();
-                      alert(data.error || "Erro.");
+                      alert(data.error || "Erro ao atualizar status da OS.");
                     } else {
-                      setSuccessMsg(isWarrantyPayment ? "OS finalizada sem cobrança (equipamento em garantia)!" : "OS encerrada e pagamento registrado com sucesso!");
+                      setSuccessMsg(isWarrantyPayment ? "OS finalizada sem cobrança (equipamento em garantia)!" : isNoChargePayment ? "OS finalizada sem cobrança (sem reparo)!" : "OS encerrada e pagamento registrado com sucesso!");
                       onRefresh();
                       setTimeout(() => setSuccessMsg(""), 1500);
                     }
@@ -3822,11 +3917,11 @@ export default function KanbanBoard({
                     setSyncClientWithErp(false);
                   }
                 }}
-                disabled={!isPaymentWarranty(paymentModalOS.id) && paymentDetails.length === 0 && !paymentMethod}
+                disabled={!isPaymentNoCharge(paymentModalOS.id) && paymentDetails.length === 0 && !paymentMethod}
                 className="flex-1 bg-emerald-650 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition cursor-pointer text-xs shadow-sm flex items-center justify-center gap-1.5 disabled:bg-slate-200 disabled:text-slate-400"
               >
-                <span className="material-symbols-outlined text-[16px]">{isPaymentWarranty(paymentModalOS.id) ? "verified" : "task_alt"}</span>
-                <span>{isPaymentWarranty(paymentModalOS.id) ? "Finalizar Sem Cobrança" : "Finalizar OS"}</span>
+                <span className="material-symbols-outlined text-[16px]">{isPaymentNoCharge(paymentModalOS.id) ? "verified" : "task_alt"}</span>
+                <span>{isPaymentWarranty(paymentModalOS.id) ? "Finalizar Sem Cobrança (Garantia)" : isPaymentNoCharge(paymentModalOS.id) ? "Finalizar Sem Cobrança" : "Finalizar OS"}</span>
               </button>
             </div>
           </div>

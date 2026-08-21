@@ -1,16 +1,13 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Bell, CheckCircle2, Info, AlertTriangle, XCircle, Trash2, Check, ExternalLink } from "lucide-react";
+import { Bell, CheckCircle2, Info, AlertTriangle, XCircle, Trash2, Check, ExternalLink, Send, X, MessageSquare } from "lucide-react";
 import { useNotifications, SystemNotification } from "../hooks/useNotifications";
 
 export default function NotificationMenu() {
-  const { notifications, unreadCount, markAsRead, markAllAsRead, clearAll } = useNotifications();
+  const { notifications, unreadCount, markAsRead, removeNotification, markAllAsRead, clearAll } = useNotifications();
   const [isOpen, setIsOpen] = useState(false);
+  const [processingId, setProcessingId] = useState<string | null>(null);
+  const [actionFeedback, setActionFeedback] = useState<{ id: string; type: "success" | "error"; message: string } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close when clicking outside
@@ -66,6 +63,17 @@ export default function NotificationMenu() {
       markAsRead(notif.id);
     }
 
+    // Se for notificação de aprovação de WhatsApp, abre a OS
+    if (notif.action === "approve_whatsapp" || notif.action === "open_os") {
+      if (notif.orderId) {
+        window.dispatchEvent(new CustomEvent("mgv_open_os_details", { 
+          detail: { orderId: notif.orderId, osNumber: notif.osNumber } 
+        }));
+      }
+      setIsOpen(false);
+      return;
+    }
+
     // Verifica se a notificação é de atualização do sistema
     const isUpdateNotif = 
       notif.action === "open_update_popup" ||
@@ -83,6 +91,73 @@ export default function NotificationMenu() {
     if (notif.link) {
       window.open(notif.link, "_blank");
       setIsOpen(false);
+    }
+  };
+
+  const handleApproveWhatsApp = async (e: React.MouseEvent, notif: SystemNotification) => {
+    e.stopPropagation();
+    if (!notif.whatsappMessageId) return;
+
+    setProcessingId(notif.id);
+    try {
+      const activeToken = localStorage.getItem("mgv_token") || "";
+      const res = await fetch(`/api/whatsapp/messages/${notif.whatsappMessageId}/approve`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${activeToken}`
+        }
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Erro ao aprovar envio.");
+      }
+
+      setActionFeedback({ id: notif.id, type: "success", message: "Mensagem enviada com sucesso ao cliente!" });
+      setTimeout(() => {
+        removeNotification(notif.id);
+        setActionFeedback(null);
+      }, 2000);
+    } catch (err: any) {
+      setActionFeedback({ id: notif.id, type: "error", message: err.message || "Falha ao enviar." });
+      setTimeout(() => setActionFeedback(null), 3000);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleRejectWhatsApp = async (e: React.MouseEvent, notif: SystemNotification) => {
+    e.stopPropagation();
+    if (!notif.whatsappMessageId) return;
+
+    setProcessingId(notif.id);
+    try {
+      const activeToken = localStorage.getItem("mgv_token") || "";
+      const res = await fetch(`/api/whatsapp/messages/${notif.whatsappMessageId}/reject`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${activeToken}`
+        },
+        body: JSON.stringify({ reason: "Disparo recusado pela atendente no menu de notificações." })
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Erro ao recusar envio.");
+      }
+
+      setActionFeedback({ id: notif.id, type: "success", message: "Disparo cancelado com sucesso." });
+      setTimeout(() => {
+        removeNotification(notif.id);
+        setActionFeedback(null);
+      }, 1500);
+    } catch (err: any) {
+      setActionFeedback({ id: notif.id, type: "error", message: err.message || "Falha ao recusar." });
+      setTimeout(() => setActionFeedback(null), 3000);
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -116,7 +191,7 @@ export default function NotificationMenu() {
               <div className="flex items-center gap-2">
                 <h3 className="font-bold text-slate-800 text-sm">Notificações</h3>
                 {unreadCount > 0 && (
-                  <span className="bg-secondary-container text-primary-container text-[10px] font-bold px-2 py-0.5 rounded-full">
+                  <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
                     {unreadCount} novas
                   </span>
                 )}
@@ -145,7 +220,7 @@ export default function NotificationMenu() {
             </div>
 
             {/* List */}
-            <div className="max-h-[400px] overflow-y-auto overflow-x-hidden custom-scrollbar">
+            <div className="max-h-[420px] overflow-y-auto overflow-x-hidden custom-scrollbar">
               {notifications.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
                   <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-3">
@@ -157,12 +232,16 @@ export default function NotificationMenu() {
               ) : (
                 <div className="flex flex-col">
                   {notifications.map((notif: SystemNotification) => {
+                    const isWhatsAppApproval = notif.action === "approve_whatsapp" || Boolean(notif.whatsappMessageId);
                     const isUpdateNotif = 
                       notif.action === "open_update_popup" ||
                       notif.title.toLowerCase().includes("atualizad") ||
                       notif.title.toLowerCase().includes("atualização") ||
                       notif.title.toLowerCase().includes("manchete") ||
                       notif.title.toLowerCase().includes("mgv one hub");
+
+                    const isCurrentProcessing = processingId === notif.id;
+                    const feedback = actionFeedback?.id === notif.id ? actionFeedback : null;
 
                     return (
                       <div 
@@ -171,7 +250,13 @@ export default function NotificationMenu() {
                         className={`flex gap-3 p-4 border-b border-slate-100 last:border-0 cursor-pointer transition-all hover:brightness-95 ${getBgColor(notif.type, notif.read)}`}
                       >
                         <div className="pt-0.5 relative shrink-0">
-                          {getIcon(notif.type)}
+                          {isWhatsAppApproval ? (
+                            <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold">
+                              <MessageSquare className="w-4 h-4" />
+                            </div>
+                          ) : (
+                            getIcon(notif.type)
+                          )}
                           {!notif.read && (
                             <span className="absolute top-0 right-0 w-2 h-2 bg-rose-500 rounded-full border-2 border-white translate-x-1 -translate-y-1"></span>
                           )}
@@ -186,9 +271,58 @@ export default function NotificationMenu() {
                               {safeFormatTime(notif.createdAt)}
                             </span>
                           </div>
-                          <p className={`text-xs line-clamp-2 leading-relaxed ${notif.read ? "text-slate-500" : "text-slate-700"}`}>
+                          <p className={`text-xs leading-relaxed ${notif.read ? "text-slate-500" : "text-slate-700"}`}>
                             {notif.message}
                           </p>
+
+                          {/* Se for notificação de aprovação de WhatsApp, renderiza o painel de aprovação rápida */}
+                          {isWhatsAppApproval && notif.whatsappMessageId && (
+                            <div className="mt-2.5 pt-2 border-t border-amber-200/60 flex flex-col gap-2 bg-amber-50/60 p-2 rounded-xl border">
+                              {notif.previewText && (
+                                <p className="text-[11px] text-slate-600 italic line-clamp-2 bg-white/80 p-1.5 rounded-lg border border-slate-200/60">
+                                  "{notif.previewText}"
+                                </p>
+                              )}
+
+                              {feedback ? (
+                                <div className={`text-xs font-semibold p-1.5 rounded text-center ${feedback.type === "success" ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"}`}>
+                                  {feedback.message}
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-between gap-2 mt-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <button
+                                      disabled={isCurrentProcessing}
+                                      onClick={(e) => handleApproveWhatsApp(e, notif)}
+                                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-lg text-xs font-semibold flex items-center gap-1 transition shadow-sm cursor-pointer disabled:opacity-50"
+                                      title="Enviar WhatsApp ao cliente agora"
+                                    >
+                                      {isCurrentProcessing ? (
+                                        <div className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin"></div>
+                                      ) : (
+                                        <Send className="w-3 h-3" />
+                                      )}
+                                      Aprovar e Enviar
+                                    </button>
+
+                                    <button
+                                      disabled={isCurrentProcessing}
+                                      onClick={(e) => handleRejectWhatsApp(e, notif)}
+                                      className="px-2 py-1 bg-rose-100 hover:bg-rose-200 active:scale-95 text-rose-700 rounded-lg text-xs font-medium flex items-center gap-1 transition cursor-pointer disabled:opacity-50"
+                                      title="Recusar e cancelar disparo"
+                                    >
+                                      <X className="w-3 h-3" />
+                                      Recusar
+                                    </button>
+                                  </div>
+
+                                  <span className="text-[10px] font-bold text-indigo-600 hover:underline flex items-center gap-0.5">
+                                    Ver na OS <ExternalLink className="w-2.5 h-2.5" />
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          )}
                           
                           {isUpdateNotif && (
                             <div className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-700 mt-2 bg-indigo-50/80 px-2 py-0.5 rounded">
@@ -197,7 +331,7 @@ export default function NotificationMenu() {
                             </div>
                           )}
 
-                          {notif.link && !isUpdateNotif && (
+                          {notif.link && !isUpdateNotif && !isWhatsAppApproval && (
                             <a 
                               href={notif.link}
                               target="_blank"
@@ -219,7 +353,7 @@ export default function NotificationMenu() {
             {/* Footer */}
             {notifications.length > 0 && (
               <div className="p-2 border-t border-slate-100 bg-slate-50 text-center">
-                <p className="text-[10px] text-slate-400 font-medium">As notificações são salvas apenas neste dispositivo.</p>
+                <p className="text-[10px] text-slate-400 font-medium">As notificações são salvas neste dispositivo.</p>
               </div>
             )}
           </motion.div>
@@ -228,3 +362,4 @@ export default function NotificationMenu() {
     </div>
   );
 }
+

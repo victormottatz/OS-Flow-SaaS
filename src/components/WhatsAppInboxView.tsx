@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { DOCUMENT_TEMPLATES, DocumentTemplateId } from "../config/documents.config";
+import WhatsAppAudioPlayer from "./whatsapp/WhatsAppAudioPlayer";
+import WhatsAppMediaModal from "./whatsapp/WhatsAppMediaModal";
+import WhatsAppAudioRecorder from "./whatsapp/WhatsAppAudioRecorder";
 
 interface ClientData {
   id: string;
@@ -55,6 +58,13 @@ function formatDisplayPhone(phone?: string) {
   return "";
 }
 
+function resolveMessageMediaUrl(msg: MessageItem): string {
+  if (msg.mediaUrl && (msg.mediaUrl.startsWith("/uploads/") || msg.mediaUrl.startsWith("data:") || msg.mediaUrl.startsWith("blob:"))) {
+    return msg.mediaUrl;
+  }
+  return `/api/whatsapp/messages/${msg.id}/media`;
+}
+
 function ContactAvatar({
   name,
   phone,
@@ -105,6 +115,7 @@ interface MessageItem {
   id: string;
   chatId: string;
   remoteJid: string;
+  keyId?: string;
   fromMe: boolean;
   senderName: string | null;
   messageType: "TEXT" | "IMAGE" | "AUDIO" | "DOCUMENT" | "VIDEO" | "OTHER";
@@ -138,11 +149,24 @@ export default function WhatsAppInboxView({ onOpenOrderModal }: WhatsAppInboxVie
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<{ id: string; name: string; text: string; docId?: string; withPdf: boolean } | null>(null);
 
+  // Estados de Mídias, Gravação e Modal
+  const [isRecordingAudio, setIsRecordingAudio] = useState(false);
+  const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
+  const [mediaModalData, setMediaModalData] = useState<{
+    isOpen: boolean;
+    type: "IMAGE" | "DOCUMENT" | "VIDEO";
+    src: string;
+    fileName?: string;
+    title?: string;
+  } | null>(null);
+
   const [copiedPhone, setCopiedPhone] = useState<string | null>(null);
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
 
   const activeChat = chats.find(c => c.id === selectedChatId) || null;
 
@@ -333,8 +357,17 @@ export default function WhatsAppInboxView({ onOpenOrderModal }: WhatsAppInboxVie
 
     eventSource.addEventListener("message_status_update", (e: any) => {
       try {
-        const { keyId, status } = JSON.parse(e.data);
-        setMessages(prev => prev.map(m => m.id === keyId ? { ...m, status } : m));
+        const payload = JSON.parse(e.data);
+        const { keyId, messageId, status } = payload;
+        setMessages(prev => prev.map(m => {
+          const match = (messageId && m.id === messageId) ||
+                        (keyId && m.keyId === keyId) ||
+                        (keyId && m.id === keyId);
+          if (match) {
+            return { ...m, status };
+          }
+          return m;
+        }));
       } catch (err) {}
     });
 
@@ -408,6 +441,85 @@ export default function WhatsAppInboxView({ onOpenOrderModal }: WhatsAppInboxVie
     } finally {
       setIsSending(false);
       chatInputRef.current?.focus();
+    }
+  };
+
+  // Enviar áudio gravado no microfone
+  const handleSendAudio = async (audioBase64: string) => {
+    if (!selectedChatId) return;
+    setIsSending(true);
+
+    try {
+      const token = localStorage.getItem("mgv_token");
+      const res = await fetch(`/api/whatsapp/chats/${selectedChatId}/send-audio`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ audioBase64 })
+      });
+
+      if (res.ok) {
+        const saved = await res.json();
+        setMessages(prev => {
+          const alreadyExists = prev.some(m => (m.id && saved.id && m.id === saved.id) || (m.keyId && saved.keyId && m.keyId === saved.keyId));
+          if (alreadyExists) return prev;
+          return [...prev, saved];
+        });
+        scrollToBottom();
+      }
+    } catch (err) {
+      console.error("Erro ao enviar áudio:", err);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  // Enviar foto ou documento selecionado pelo menu de anexo
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: "IMAGE" | "DOCUMENT") => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedChatId) return;
+
+    setIsSending(true);
+    setAttachmentMenuOpen(false);
+
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onloadend = async () => {
+        const fileBase64 = reader.result as string;
+        const token = localStorage.getItem("mgv_token");
+        const res = await fetch(`/api/whatsapp/chats/${selectedChatId}/send-media`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            fileBase64,
+            fileName: file.name,
+            mimeType: file.type,
+            messageType: type,
+            caption: ""
+          })
+        });
+
+        if (res.ok) {
+          const saved = await res.json();
+          setMessages(prev => {
+            const alreadyExists = prev.some(m => (m.id && saved.id && m.id === saved.id) || (m.keyId && saved.keyId && m.keyId === saved.keyId));
+            if (alreadyExists) return prev;
+            return [...prev, saved];
+          });
+          scrollToBottom();
+        }
+      };
+    } catch (err) {
+      console.error("Erro ao enviar anexo:", err);
+    } finally {
+      setIsSending(false);
+      e.target.value = "";
     }
   };
 
@@ -492,16 +604,16 @@ export default function WhatsAppInboxView({ onOpenOrderModal }: WhatsAppInboxVie
       {
         id: "pronto_retirada",
         name: "Equipamento Pronto para Retirada",
-        docId: "laudo_calibracao",
+        docId: "recibo",
         withPdf: true,
-        text: `🎉 *Ótima notícia, ${firstName}!*\n\nO seu equipamento *${model}* (OS *#${osNum}*) concluiu com sucesso todas as etapas de reparo, revisão e calibração técnica!\n\n📍 *Já está pronto para retirada em nossa sede:*\n🏢 *Endereço:* Rua Julio Prestes, 648 - Jardim Sumaré, Ribeirão Preto - SP\n⏰ *Horário:* Segunda a Sexta, das 08h às 18h\n\n📎 *Em anexo segue o Certificado de Calibração e Laudo Conclusivo.*\n\n💳 _Se preferir agilizar o pagamento via PIX, basta solicitar por aqui!_`
+        text: `🎉 *Ótima notícia, ${firstName}!* \n\nO seu equipamento *${model}* (OS *#${osNum}*) concluiu com sucesso todas as etapas de serviços técnicos e testes de qualidade!\n\n📍 *Já está pronto para retirada em nossa sede:*\n🏢 *Endereço:* Rua Julio Prestes, 648 - Jardim Sumaré, Ribeirão Preto - SP\n⏰ *Horário:* Segunda a Sexta, das 08h às 18h\n\n📎 *Em anexo segue o Laudo Técnico / Recibo do serviço.*\n\n💳 _Se preferir agilizar o pagamento via PIX, basta solicitar por aqui!_`
       },
       {
         id: "recibo_entrega",
         name: "Recibo de Entrega & Termo de Garantia",
         docId: "recibo_entrega",
         withPdf: true,
-        text: `🤝 *Equipamento Entregue com Sucesso!*\n\nOlá, *${firstName}*! A Ordem de Serviço *#${osNum}* foi finalizada e o seu *${model}* foi entregue.\n\n📎 *Segue em anexo o seu Recibo Oficial com o Termo de Garantia de 90 dias.*\n\nFoi um prazer atendê-lo(a)! Se precisar de qualquer suporte, estamos sempre à sua disposição. 🌟`
+        text: `🤝 *Equipamento Entregue com Sucesso!*\n\nOlá, *${firstName}*! A Ordem de Serviço *#${osNum}* foi finalizada e o seu *${model}* foi entregue.\n\n📎 *Segue em anexo o seu Recibo Oficial com o Termo de Garantia de 90 dias.*\n\nFoi um prazer atendê-lo(a)! Se precisar de qualquer suporte técnico ou novas manutenções, estamos sempre à sua disposição. 🌟`
       }
     ];
   };
@@ -946,45 +1058,167 @@ export default function WhatsAppInboxView({ onOpenOrderModal }: WhatsAppInboxVie
                         }`}
                       >
                         {/* Remetente em atendimento multi-usuário */}
-                        <div className="text-[10px] font-bold opacity-75 mb-1 flex items-center justify-between gap-4">
-                          <span className={isMine ? "text-emerald-300" : "text-amber-400"}>
-                            {msg.senderName || (isMine ? "MGV Atendimento" : "Cliente")}
-                          </span>
-                          <span className="text-[10px] opacity-60">{formatTime(msg.timestamp)}</span>
-                        </div>
+                        {msg.senderName && (
+                          <div className="text-[10px] font-bold opacity-75 mb-1">
+                            <span className={isMine ? "text-emerald-300" : "text-amber-400"}>
+                              {msg.senderName}
+                            </span>
+                          </div>
+                        )}
 
-                        {/* Conteúdo de Mídia / Documento PDF */}
+                        {/* Conteúdo de Mídia - ÁUDIO */}
+                        {msg.messageType === "AUDIO" && (
+                          <div className="mb-2">
+                            <WhatsAppAudioPlayer src={resolveMessageMediaUrl(msg)} isMine={isMine} />
+                          </div>
+                        )}
+
+                        {/* Conteúdo de Mídia - IMAGEM */}
+                        {msg.messageType === "IMAGE" && (
+                          <div
+                            className="mb-2 rounded-xl overflow-hidden cursor-pointer group relative max-w-[280px] bg-slate-950 border border-slate-800"
+                            onClick={() => setMediaModalData({
+                              isOpen: true,
+                              type: "IMAGE",
+                              src: resolveMessageMediaUrl(msg),
+                              fileName: msg.fileName || "foto.jpg",
+                              title: msg.text || "Foto do WhatsApp"
+                            })}
+                          >
+                            <img
+                              src={resolveMessageMediaUrl(msg)}
+                              alt={msg.fileName || "Foto"}
+                              className="w-full max-h-60 object-cover rounded-xl transition-transform duration-200 group-hover:scale-105"
+                              loading="lazy"
+                            />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white gap-2">
+                              <span className="material-symbols-outlined text-2xl">zoom_in</span>
+                              <span className="text-xs font-bold">Ampliar</span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Conteúdo de Mídia - VÍDEO */}
+                        {msg.messageType === "VIDEO" && (
+                          <div className="mb-2 rounded-xl overflow-hidden max-w-[280px] bg-slate-950 border border-slate-800">
+                            <video
+                              src={resolveMessageMediaUrl(msg)}
+                              controls
+                              className="w-full max-h-60 object-cover rounded-xl"
+                            />
+                          </div>
+                        )}
+
+                        {/* Conteúdo de Mídia - DOCUMENTO PDF */}
                         {msg.messageType === "DOCUMENT" && (
-                          <div className="mb-2 p-2.5 bg-slate-950/60 rounded-xl border border-slate-800 flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-lg bg-red-500/20 text-red-400 flex items-center justify-center flex-shrink-0">
-                              <span className="material-symbols-outlined text-xl">picture_as_pdf</span>
+                          <div className="mb-2 p-2.5 bg-slate-950/80 rounded-xl border border-slate-800 flex items-center justify-between gap-3 shadow-inner">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-9 h-9 rounded-lg bg-red-500/20 text-red-400 flex items-center justify-center flex-shrink-0 shadow-md">
+                                <span className="material-symbols-outlined text-xl">picture_as_pdf</span>
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-xs font-bold text-white truncate max-w-[160px] md:max-w-[200px]">
+                                  {msg.fileName || "Documento-Oficial.pdf"}
+                                </p>
+                                <span className="text-[10px] text-slate-400">Documento Oficial</span>
+                              </div>
                             </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="text-xs font-bold text-white truncate">{msg.fileName || "Documento-Oficial.pdf"}</p>
-                              <span className="text-[10px] text-slate-400">Documento Oficial MGV</span>
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => setMediaModalData({
+                                  isOpen: true,
+                                  type: "DOCUMENT",
+                                  src: resolveMessageMediaUrl(msg),
+                                  fileName: msg.fileName || "Documento.pdf",
+                                  title: msg.fileName || "Documento Oficial"
+                                })}
+                                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-secondary-container transition-all cursor-pointer"
+                                title="Visualizar PDF"
+                              >
+                                <span className="material-symbols-outlined text-base">visibility</span>
+                              </button>
+                              <a
+                                href={resolveMessageMediaUrl(msg)}
+                                download={msg.fileName || "documento.pdf"}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer"
+                                title="Baixar arquivo"
+                              >
+                                <span className="material-symbols-outlined text-base">download</span>
+                              </a>
                             </div>
                           </div>
                         )}
 
-                        {/* Texto da Mensagem */}
-                        <p className="text-xs whitespace-pre-wrap leading-relaxed font-sans select-text">
-                          {msg.text}
-                        </p>
-
-                        {/* Tique de Status */}
-                        {isMine && (
-                          <div className="mt-1 flex items-center justify-end gap-1 text-[10px] text-emerald-300/80">
-                            {msg.status === "PENDING" && <span className="material-symbols-outlined text-[13px] animate-spin">sync</span>}
-                            {msg.status === "SENT" && <span className="material-symbols-outlined text-[13px]">check</span>}
-                            {msg.status === "DELIVERED" && <span className="material-symbols-outlined text-[13px]">done_all</span>}
-                            {msg.status === "READ" && <span className="material-symbols-outlined text-[13px] text-blue-400 font-bold">done_all</span>}
-                            {msg.status === "FAILED" && (
-                              <span className="material-symbols-outlined text-[13px] text-red-400" title={msg.errorDetail || "Erro ao enviar"}>
-                                error
-                              </span>
-                            )}
-                          </div>
+                        {/* Texto da Mensagem (Oculta se for apenas placeholder de áudio/mídia) */}
+                        {msg.text && (msg.messageType === "TEXT" || (msg.messageType !== "AUDIO" && !msg.text.startsWith("🎵") && !msg.text.startsWith("📷") && !msg.text.startsWith("🎥") && !msg.text.startsWith("📄"))) && (
+                          <p className="text-xs whitespace-pre-wrap leading-relaxed font-sans select-text">
+                            {msg.text}
+                          </p>
                         )}
+
+                        {/* Rodapé do Balão: Horário + Vistos do WhatsApp no canto inferior direito */}
+                        <div className={`mt-1 flex items-center justify-end gap-1 text-[10px] select-none ${isMine ? "text-emerald-300/80" : "text-slate-400"}`}>
+                          <span className="opacity-75 font-mono text-[10px] leading-none">
+                            {formatTime(msg.timestamp)}
+                          </span>
+
+                          {isMine && (
+                            <span className="inline-flex items-center ml-0.5">
+                              {/* 🕒 Pendente / Enviando */}
+                              {msg.status === "PENDING" && (
+                                <span
+                                  className="material-symbols-outlined text-[13px] text-emerald-200/70 animate-pulse"
+                                  title="Enviando mensagem..."
+                                >
+                                  schedule
+                                </span>
+                              )}
+
+                              {/* ✓ 1 Visto: Enviado ao servidor WhatsApp */}
+                              {msg.status === "SENT" && (
+                                <span
+                                  className="material-symbols-outlined text-[14px] text-emerald-200/80"
+                                  title="Enviada ao WhatsApp"
+                                >
+                                  done
+                                </span>
+                              )}
+
+                              {/* ✓✓ 2 Vistos Cinzas: Entregue no aparelho do cliente */}
+                              {msg.status === "DELIVERED" && (
+                                <span
+                                  className="material-symbols-outlined text-[14px] text-emerald-200/90"
+                                  title="Entregue no aparelho do cliente"
+                                >
+                                  done_all
+                                </span>
+                              )}
+
+                              {/* ✓✓ 2 Vistos Azuis: Lido / Visualizado pelo cliente */}
+                              {msg.status === "READ" && (
+                                <span
+                                  className="material-symbols-outlined text-[14px] text-[#53bdeb] font-bold"
+                                  title="Lida pelo cliente"
+                                >
+                                  done_all
+                                </span>
+                              )}
+
+                              {/* ⚠️ Erro no envio */}
+                              {msg.status === "FAILED" && (
+                                <span
+                                  className="material-symbols-outlined text-[14px] text-rose-400"
+                                  title={msg.errorDetail || "Erro ao entregar mensagem"}
+                                >
+                                  error
+                                </span>
+                              )}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -993,51 +1227,149 @@ export default function WhatsAppInboxView({ onOpenOrderModal }: WhatsAppInboxVie
             </div>
 
             {/* Rodapé de Envio / Composição */}
-            <div className="p-3.5 bg-slate-900 border-t border-slate-800 flex-shrink-0">
-              <form onSubmit={handleSendMessage} className="flex items-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowTemplateModal(true)}
-                  className="p-2.5 rounded-xl bg-slate-800 text-slate-300 hover:text-secondary-container hover:bg-slate-700 transition-all cursor-pointer flex-shrink-0"
-                  title="Templates Rápidos"
-                >
-                  <span className="material-symbols-outlined text-xl">bolt</span>
-                </button>
+            <div className="p-3 bg-slate-900 border-t border-slate-800 flex-shrink-0 relative">
+              {/* Inputs Ocultos de Upload */}
+              <input
+                type="file"
+                ref={imageInputRef}
+                accept="image/*,video/*"
+                onChange={e => handleFileUpload(e, "IMAGE")}
+                className="hidden"
+              />
+              <input
+                type="file"
+                ref={docInputRef}
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.txt"
+                onChange={e => handleFileUpload(e, "DOCUMENT")}
+                className="hidden"
+              />
 
-                <div className="flex-1 bg-slate-950 border border-slate-800 rounded-2xl px-3.5 py-2 focus-within:border-secondary-container transition-all flex items-center">
-                  <textarea
-                    ref={chatInputRef}
-                    rows={1}
-                    value={messageText}
-                    onChange={handleTextareaChange}
-                    onKeyDown={e => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSendMessage();
-                      }
+              {/* Menu Flutuante de Anexos */}
+              {attachmentMenuOpen && (
+                <div className="absolute bottom-16 left-4 z-40 bg-slate-900 border border-slate-800 rounded-2xl p-2 shadow-2xl space-y-1 animate-fadein min-w-[180px]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAttachmentMenuOpen(false);
+                      imageInputRef.current?.click();
                     }}
-                    placeholder="Digite uma mensagem... (Enter para enviar, Shift+Enter para quebra de linha)"
-                    className="w-full bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none resize-none leading-relaxed transition-[height] duration-75 overflow-y-auto scrollbar-minimal"
-                    style={{ minHeight: "22px", maxHeight: "200px" }}
-                  />
-                </div>
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-slate-200 hover:text-white hover:bg-slate-800 rounded-xl transition-all text-left cursor-pointer"
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                      <span className="material-symbols-outlined text-base">image</span>
+                    </div>
+                    <span>Foto ou Vídeo</span>
+                  </button>
 
-                <button
-                  type="submit"
-                  disabled={!messageText.trim() || isSending}
-                  className={`p-3 rounded-2xl flex items-center justify-center font-bold transition-all shadow-md flex-shrink-0 cursor-pointer ${
-                    messageText.trim() && !isSending
-                      ? "bg-secondary-container text-primary-container hover:bg-secondary-container-hover hover:scale-105 active:scale-95"
-                      : "bg-slate-800 text-slate-600 cursor-not-allowed"
-                  }`}
-                >
-                  {isSending ? (
-                    <span className="material-symbols-outlined text-xl animate-spin">progress_activity</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAttachmentMenuOpen(false);
+                      docInputRef.current?.click();
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-slate-200 hover:text-white hover:bg-slate-800 rounded-xl transition-all text-left cursor-pointer"
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center">
+                      <span className="material-symbols-outlined text-base">description</span>
+                    </div>
+                    <span>Documento / PDF</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAttachmentMenuOpen(false);
+                      setShowTemplateModal(true);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-slate-200 hover:text-white hover:bg-slate-800 rounded-xl transition-all text-left cursor-pointer"
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center">
+                      <span className="material-symbols-outlined text-base">bolt</span>
+                    </div>
+                    <span>Documento da OS</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Modo de Gravação de Áudio Ativo */}
+              {isRecordingAudio ? (
+                <WhatsAppAudioRecorder
+                  onSendAudio={handleSendAudio}
+                  onCancel={() => setIsRecordingAudio(false)}
+                />
+              ) : (
+                <form onSubmit={handleSendMessage} className="flex items-end gap-2">
+                  {/* Botão de Anexo (+) */}
+                  <button
+                    type="button"
+                    onClick={() => setAttachmentMenuOpen(prev => !prev)}
+                    className={`p-2.5 rounded-xl transition-all cursor-pointer flex-shrink-0 ${
+                      attachmentMenuOpen
+                        ? "bg-secondary-container text-primary-container"
+                        : "bg-slate-800 text-slate-300 hover:text-secondary-container hover:bg-slate-700"
+                    }`}
+                    title="Anexar arquivo, foto ou documento"
+                  >
+                    <span className="material-symbols-outlined text-xl">
+                      {attachmentMenuOpen ? "close" : "attach_file"}
+                    </span>
+                  </button>
+
+                  {/* Botão de Templates Rápidos */}
+                  <button
+                    type="button"
+                    onClick={() => setShowTemplateModal(true)}
+                    className="p-2.5 rounded-xl bg-slate-800 text-slate-300 hover:text-amber-400 hover:bg-slate-700 transition-all cursor-pointer flex-shrink-0"
+                    title="Templates Rápidos de OS"
+                  >
+                    <span className="material-symbols-outlined text-xl">bolt</span>
+                  </button>
+
+                  {/* Campo de Texto Digitável */}
+                  <div className="flex-1 bg-slate-950 border border-slate-800 rounded-2xl px-3.5 py-2 focus-within:border-secondary-container transition-all flex items-center">
+                    <textarea
+                      ref={chatInputRef}
+                      rows={1}
+                      value={messageText}
+                      onChange={handleTextareaChange}
+                      onKeyDown={e => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSendMessage();
+                        }
+                      }}
+                      placeholder="Digite uma mensagem... (Enter para enviar, Shift+Enter para quebra de linha)"
+                      className="w-full bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none resize-none leading-relaxed transition-[height] duration-75 overflow-y-auto scrollbar-minimal"
+                      style={{ minHeight: "22px", maxHeight: "200px" }}
+                    />
+                  </div>
+
+                  {/* Botão de Gravar Áudio (Microfone) ou Botão de Enviar Texto */}
+                  {messageText.trim() ? (
+                    <button
+                      type="submit"
+                      disabled={!messageText.trim() || isSending}
+                      className="p-3 rounded-2xl flex items-center justify-center font-bold transition-all shadow-md flex-shrink-0 cursor-pointer bg-secondary-container text-primary-container hover:bg-secondary-container-hover hover:scale-105 active:scale-95"
+                      title="Enviar Mensagem"
+                    >
+                      {isSending ? (
+                        <span className="material-symbols-outlined text-xl animate-spin">progress_activity</span>
+                      ) : (
+                        <span className="material-symbols-outlined text-xl">send</span>
+                      )}
+                    </button>
                   ) : (
-                    <span className="material-symbols-outlined text-xl">send</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsRecordingAudio(true)}
+                      className="p-3 rounded-2xl flex items-center justify-center font-bold transition-all shadow-md flex-shrink-0 cursor-pointer bg-slate-800 text-slate-200 hover:text-emerald-400 hover:bg-slate-700 active:scale-95"
+                      title="Gravar mensagem de voz"
+                    >
+                      <span className="material-symbols-outlined text-xl">mic</span>
+                    </button>
                   )}
-                </button>
-              </form>
+                </form>
+              )}
             </div>
           </>
         ) : (
@@ -1294,6 +1626,21 @@ export default function WhatsAppInboxView({ onOpenOrderModal }: WhatsAppInboxVie
           </div>
         </div>
       )}
+
+      {/* ========================================================================= */}
+      {/* 🖼️ MODAL LIGHTBOX / VISUALIZADOR DE MÍDIAS (IMAGENS, PDFS, VÍDEOS)          */}
+      {/* ========================================================================= */}
+      {mediaModalData && (
+        <WhatsAppMediaModal
+          isOpen={mediaModalData.isOpen}
+          onClose={() => setMediaModalData(null)}
+          type={mediaModalData.type}
+          src={mediaModalData.src}
+          fileName={mediaModalData.fileName}
+          title={mediaModalData.title}
+        />
+      )}
     </div>
   );
 }
+

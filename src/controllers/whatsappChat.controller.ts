@@ -1,7 +1,16 @@
 import { Request, Response } from "express";
 import prisma from "../database/prisma";
 import { realtimeEvents } from "../services/realtimeEvents";
-import { sendWhatsAppTextMessage, sendWhatsAppDocumentMessage, formatPhoneNumber } from "../services/whatsapp";
+import {
+  sendWhatsAppTextMessage,
+  sendWhatsAppDocumentMessage,
+  sendWhatsAppAudioMessage,
+  sendWhatsAppImageMessage,
+  sendWhatsAppGenericDocumentMessage,
+  saveMediaToFile,
+  getWhatsAppConfig,
+  formatPhoneNumber
+} from "../services/whatsapp";
 import { buildDocumentPdf, PdfOsData } from "../services/pdfService";
 import { DOCUMENT_TEMPLATES, DocumentTemplateId } from "../config/documents.config";
 
@@ -83,6 +92,115 @@ export class WhatsAppChatController {
     }
   }
 
+  // Proxy e Descriptografia de Mídia (Áudio, Imagem, Documento, Vídeo)
+  async getMessageMedia(req: Request, res: Response) {
+    try {
+      const { messageId } = req.params;
+
+      const message = await (prisma as any).whatsappMessage.findUnique({
+        where: { id: messageId }
+      });
+
+      if (!message) {
+        res.status(404).send("Mensagem não encontrada.");
+        return;
+      }
+
+      const path = await import("path");
+      const fs = await import("fs/promises");
+
+      // 1. Se já for um arquivo local salvo em /uploads/whatsapp/...
+      if (message.mediaUrl && message.mediaUrl.startsWith("/uploads/")) {
+        const localFilePath = path.join(process.cwd(), "public", message.mediaUrl);
+        try {
+          await fs.access(localFilePath);
+          return res.sendFile(localFilePath);
+        } catch (err) {
+          // Arquivo local não encontrado, tenta descriptografar novamente
+        }
+      }
+
+      // 2. Se for data URL em base64
+      if (message.mediaUrl && message.mediaUrl.startsWith("data:")) {
+        const parts = message.mediaUrl.split(",");
+        const mimeMatch = parts[0].match(/:(.*?);/);
+        const mime = mimeMatch ? mimeMatch[1] : (message.mediaMimeType || "application/octet-stream");
+        const buffer = Buffer.from(parts[1], "base64");
+        res.setHeader("Content-Type", mime);
+        res.setHeader("Content-Length", buffer.length);
+        return res.send(buffer);
+      }
+
+      // 3. Descriptografa via Evolution API
+      const { apiUrl, apiToken, instanceName } = await getWhatsAppConfig();
+      if (!apiUrl || !apiToken || !message.keyId) {
+        res.status(404).send("Configurações do WhatsApp ou keyId ausentes.");
+        return;
+      }
+
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
+      const evoRes = await fetch(`${apiUrl}/chat/getBase64FromMediaMessage/${instanceName}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": apiToken
+        },
+        body: JSON.stringify({
+          message: {
+            key: {
+              id: message.keyId,
+              remoteJid: message.remoteJid,
+              fromMe: message.fromMe
+            }
+          },
+          convertToMp4: false
+        })
+      });
+
+      if (!evoRes.ok) {
+        const errText = await evoRes.text();
+        console.warn(`[WhatsApp Chat] Falha ao descriptografar mídia na Evolution API: HTTP ${evoRes.status} - ${errText}`);
+        res.status(502).send("Mídia indisponível ou expirada no WhatsApp.");
+        return;
+      }
+
+      const evoData = await evoRes.json();
+      const base64Str = evoData.base64 || evoData.data;
+
+      if (!base64Str) {
+        res.status(404).send("Nenhum dado de mídia retornado pela Evolution API.");
+        return;
+      }
+
+      const mime = evoData.mimetype || message.mediaMimeType || (message.messageType === "AUDIO" ? "audio/ogg" : message.messageType === "IMAGE" ? "image/jpeg" : "application/pdf");
+
+      // Salva localmente em cache para as próximas chamadas
+      let localUrl = "";
+      try {
+        localUrl = await saveMediaToFile(base64Str, `wa_${message.messageType.toLowerCase()}`, mime);
+        await (prisma as any).whatsappMessage.update({
+          where: { id: message.id },
+          data: {
+            mediaUrl: localUrl,
+            mediaMimeType: mime
+          }
+        });
+      } catch (saveErr: any) {
+        console.warn("[WhatsApp Chat] Falha ao salvar mídia em cache:", saveErr.message);
+      }
+
+      const buffer = Buffer.from(base64Str.replace(/^data:[^;]+;base64,/, ""), "base64");
+      res.setHeader("Content-Type", mime);
+      res.setHeader("Content-Length", buffer.length);
+      res.setHeader("Cache-Control", "public, max-age=86400");
+      return res.send(buffer);
+    } catch (err: any) {
+      console.error("[WhatsApp Chat] Erro ao servir mídia:", err);
+      res.status(500).send("Erro interno ao servir mídia.");
+    }
+  }
+
   // Enviar mensagem de texto manual
   async sendText(req: Request, res: Response) {
     try {
@@ -141,15 +259,19 @@ export class WhatsAppChatController {
       setTimeout(async () => {
         try {
           const result = await sendWhatsAppTextMessage(chat.phoneNumber, text);
+          const newKeyId = result.keyId || savedMessage.keyId;
           await (prisma as any).whatsappMessage.update({
             where: { id: savedMessage.id },
             data: {
+              keyId: newKeyId,
               status: result.success ? "SENT" : "FAILED",
               errorDetail: result.error || null
             }
           });
           realtimeEvents.broadcast("message_status_update", {
-            keyId: savedMessage.id,
+            keyId: newKeyId,
+            messageId: savedMessage.id,
+            chatId: chat.id,
             status: result.success ? "SENT" : "FAILED"
           });
         } catch (dispatchErr: any) {
@@ -164,12 +286,17 @@ export class WhatsAppChatController {
     }
   }
 
-  // Envia documento oficial de OS (Orçamento, Laudo, etc) gerando PDF automaticamente
-  async sendTemplateOs(req: Request, res: Response) {
+  // Envia gravação de áudio (PTT) gravada no navegador
+  async sendAudio(req: Request, res: Response) {
     try {
       const { chatId } = req.params;
-      const { orderId, templateId, messageText, includePdf = true } = req.body;
+      const { audioBase64 } = req.body;
       const user = (req as any).user;
+
+      if (!audioBase64) {
+        res.status(400).json({ error: "Áudio em Base64 é obrigatório." });
+        return;
+      }
 
       const chat = await (prisma as any).whatsappChat.findUnique({
         where: { id: chatId }
@@ -180,33 +307,250 @@ export class WhatsAppChatController {
         return;
       }
 
-      const os = await prisma.ordemServico.findUnique({
-        where: { id: orderId || chat.activeOrderId },
-        include: { client: true, device: true }
+      const senderName = user?.name || "MGV Atendimento";
+
+      // Salva arquivo local para reprodução imediata e duradoura no frontend
+      let mediaUrl = "";
+      try {
+        mediaUrl = await saveMediaToFile(audioBase64, "wa_voice", "audio/ogg");
+      } catch (saveErr: any) {
+        console.warn("[WhatsApp Chat] Falha ao salvar áudio localmente:", saveErr.message);
+      }
+
+      const savedMessage = await (prisma as any).whatsappMessage.create({
+        data: {
+          chatId: chat.id,
+          remoteJid: chat.remoteJid,
+          fromMe: true,
+          senderName,
+          messageType: "AUDIO",
+          text: "🎵 Mensagem de voz",
+          mediaUrl: mediaUrl || audioBase64,
+          mediaMimeType: "audio/ogg",
+          status: "PENDING",
+          orderId: chat.activeOrderId || null,
+          timestamp: new Date()
+        }
       });
 
-      if (!os) {
-        res.status(404).json({ error: "Ordem de Serviço não encontrada." });
+      await (prisma as any).whatsappChat.update({
+        where: { id: chat.id },
+        data: {
+          lastMessageText: "🎵 Mensagem de voz",
+          lastMessageAt: new Date()
+        }
+      });
+
+      realtimeEvents.broadcast("new_message", {
+        chatId: chat.id,
+        message: savedMessage
+      });
+
+      setTimeout(async () => {
+        try {
+          const result = await sendWhatsAppAudioMessage(chat.phoneNumber, audioBase64, true);
+          const newKeyId = result.keyId || savedMessage.keyId;
+          await (prisma as any).whatsappMessage.update({
+            where: { id: savedMessage.id },
+            data: {
+              keyId: newKeyId,
+              status: result.success ? "SENT" : "FAILED",
+              errorDetail: result.error || null
+            }
+          });
+          realtimeEvents.broadcast("message_status_update", {
+            keyId: newKeyId,
+            messageId: savedMessage.id,
+            chatId: chat.id,
+            status: result.success ? "SENT" : "FAILED"
+          });
+        } catch (dispatchErr: any) {
+          console.error("[WhatsApp Chat] Erro ao despachar áudio:", dispatchErr);
+        }
+      }, 50);
+
+      res.status(201).json(savedMessage);
+    } catch (err: any) {
+      console.error("[WhatsApp Chat] Erro ao enviar áudio:", err);
+      res.status(500).json({ error: err.message });
+    }
+  }
+
+  // Envia mídia genérica (imagem ou documento/PDF com legenda)
+  async sendMedia(req: Request, res: Response) {
+    try {
+      const { chatId } = req.params;
+      const { fileBase64, fileName, mimeType, caption = "", messageType = "DOCUMENT" } = req.body;
+      const user = (req as any).user;
+
+      if (!fileBase64) {
+        res.status(400).json({ error: "Conteúdo do arquivo em Base64 é obrigatório." });
+        return;
+      }
+
+      const chat = await (prisma as any).whatsappChat.findUnique({
+        where: { id: chatId }
+      });
+
+      if (!chat) {
+        res.status(404).json({ error: "Conversa não encontrada." });
         return;
       }
 
       const senderName = user?.name || "MGV Atendimento";
 
-      // 1. Gera PDF se solicitado
-      let pdfBuffer: Buffer | null = null;
-      let fileName = `OS-${os.osNumber}.pdf`;
+      // Salva localmente
+      let mediaUrl = "";
+      try {
+        mediaUrl = await saveMediaToFile(fileBase64, `wa_${messageType.toLowerCase()}`, mimeType || "application/octet-stream");
+      } catch (saveErr: any) {
+        console.warn("[WhatsApp Chat] Falha ao salvar mídia localmente:", saveErr.message);
+      }
 
-      if (includePdf && templateId && DOCUMENT_TEMPLATES[templateId as DocumentTemplateId]) {
+      const isImage = messageType === "IMAGE" || mimeType?.startsWith("image/");
+      const actualType = isImage ? "IMAGE" : "DOCUMENT";
+
+      const savedMessage = await (prisma as any).whatsappMessage.create({
+        data: {
+          chatId: chat.id,
+          remoteJid: chat.remoteJid,
+          fromMe: true,
+          senderName,
+          messageType: actualType,
+          text: caption || (actualType === "IMAGE" ? "📷 Foto" : `📄 ${fileName || "Documento"}`),
+          mediaUrl: mediaUrl || fileBase64,
+          mediaMimeType: mimeType || (isImage ? "image/jpeg" : "application/pdf"),
+          fileName: fileName || (isImage ? "foto.jpg" : "documento.pdf"),
+          status: "PENDING",
+          orderId: chat.activeOrderId || null,
+          timestamp: new Date()
+        }
+      });
+
+      await (prisma as any).whatsappChat.update({
+        where: { id: chat.id },
+        data: {
+          lastMessageText: caption || (actualType === "IMAGE" ? "📷 Foto" : `📄 ${fileName || "Documento"}`),
+          lastMessageAt: new Date()
+        }
+      });
+
+      realtimeEvents.broadcast("new_message", {
+        chatId: chat.id,
+        message: savedMessage
+      });
+
+      setTimeout(async () => {
         try {
-          const docTemplate = DOCUMENT_TEMPLATES[templateId as DocumentTemplateId];
-          pdfBuffer = await buildDocumentPdf(docTemplate, os as unknown as PdfOsData);
-          fileName = `${docTemplate.nomeArquivo}-${os.osNumber}.pdf`;
-        } catch (pdfErr: any) {
-          console.warn(`[WhatsApp Chat] Erro ao gerar PDF de template: ${pdfErr.message}`);
+          let result: { success: boolean; keyId?: string; error?: string };
+          if (actualType === "IMAGE") {
+            result = await sendWhatsAppImageMessage(chat.phoneNumber, fileBase64, fileName || "imagem.jpg", caption, mimeType);
+          } else {
+            result = await sendWhatsAppGenericDocumentMessage(chat.phoneNumber, fileBase64, fileName || "documento.pdf", mimeType, caption);
+          }
+
+          const newKeyId = result.keyId || savedMessage.keyId;
+          await (prisma as any).whatsappMessage.update({
+            where: { id: savedMessage.id },
+            data: {
+              keyId: newKeyId,
+              status: result.success ? "SENT" : "FAILED",
+              errorDetail: result.error || null
+            }
+          });
+          realtimeEvents.broadcast("message_status_update", {
+            keyId: newKeyId,
+            messageId: savedMessage.id,
+            chatId: chat.id,
+            status: result.success ? "SENT" : "FAILED"
+          });
+        } catch (dispatchErr: any) {
+          console.error("[WhatsApp Chat] Erro ao despachar mídia:", dispatchErr);
+        }
+      }, 50);
+
+      res.status(201).json(savedMessage);
+    } catch (err: any) {
+      console.error("[WhatsApp Chat] Erro ao enviar mídia:", err);
+      res.status(500).json({ error: err.message });
+    }
+  }
+
+  // Envia documento oficial de OS (Orçamento, Laudo, etc) gerando PDF automaticamente
+  async sendTemplateOs(req: Request, res: Response) {
+    try {
+      const { chatId } = req.params;
+      const { templateId, customMessage } = req.body;
+      const user = (req as any).user;
+
+      if (!templateId) {
+        res.status(400).json({ error: "templateId é obrigatório." });
+        return;
+      }
+
+      const chat = await (prisma as any).whatsappChat.findUnique({
+        where: { id: chatId },
+        include: {
+          activeOrder: {
+            include: {
+              client: true,
+              device: true
+            }
+          }
+        }
+      });
+
+      if (!chat) {
+        res.status(404).json({ error: "Conversa não encontrada." });
+        return;
+      }
+
+      if (!chat.activeOrder) {
+        res.status(400).json({ error: "Este chat não possui uma Ordem de Serviço vinculada." });
+        return;
+      }
+
+      const order = chat.activeOrder;
+      const templateConfig = DOCUMENT_TEMPLATES[templateId as DocumentTemplateId];
+      if (!templateConfig) {
+        res.status(400).json({ error: "Template não configurado." });
+        return;
+      }
+
+      const firstName = (order.client?.name || chat.name || "Cliente").split(" ")[0];
+      const deviceModel = order.device?.model || order.deviceModel || "Equipamento";
+      const osNumber = order.osNumber || order.id.slice(0, 8);
+      const totalCost = Number(order.totalCost || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 });
+      const portalLink = `https://sistema.mgvrp.com.br/acompanhar?numero=${osNumber}`;
+
+      let messageText = customMessage || `Olá, ${firstName}! Segue seu documento da OS #${osNumber}.`;
+      messageText = messageText
+        .replace(/\{cliente_nome\}/g, firstName)
+        .replace(/\{aparelho_modelo\}/g, deviceModel)
+        .replace(/\{os_numero\}/g, String(osNumber))
+        .replace(/\{valor_total\}/g, totalCost)
+        .replace(/\{link_portal\}/g, portalLink);
+
+      let pdfBuffer: Buffer | null = null;
+      let fileName = `${(templateConfig.nomeArquivo || templateConfig.titulo || "Documento").replace(/\s+/g, "_")}_OS_${osNumber}.pdf`;
+
+      try {
+        pdfBuffer = await buildDocumentPdf(templateConfig, order as unknown as PdfOsData);
+      } catch (pdfErr: any) {
+        console.warn("[WhatsApp Chat] Erro ao gerar PDF do template:", pdfErr.message);
+      }
+
+      let mediaUrl = "";
+      if (pdfBuffer) {
+        try {
+          mediaUrl = await saveMediaToFile(pdfBuffer, `doc_${templateId}`, "application/pdf");
+        } catch (saveErr: any) {
+          console.warn("[WhatsApp Chat] Erro ao salvar PDF localmente:", saveErr.message);
         }
       }
 
-      // 2. Salva a mensagem no banco
+      const senderName = user?.name || "MGV Atendimento";
+
       const savedMessage = await (prisma as any).whatsappMessage.create({
         data: {
           chatId: chat.id,
@@ -215,9 +559,11 @@ export class WhatsAppChatController {
           senderName,
           messageType: pdfBuffer ? "DOCUMENT" : "TEXT",
           text: messageText,
+          mediaUrl: mediaUrl || (pdfBuffer ? `data:application/pdf;base64,${pdfBuffer.toString("base64")}` : null),
+          mediaMimeType: pdfBuffer ? "application/pdf" : null,
           fileName: pdfBuffer ? fileName : null,
           status: "PENDING",
-          orderId: os.id,
+          orderId: order.id,
           timestamp: new Date()
         }
       });
@@ -225,10 +571,8 @@ export class WhatsAppChatController {
       await (prisma as any).whatsappChat.update({
         where: { id: chat.id },
         data: {
-          lastMessageText: messageText || `📄 ${fileName}`,
-          lastMessageAt: new Date(),
-          activeOrderId: os.id,
-          clientId: chat.clientId || os.clientId
+          lastMessageText: messageText,
+          lastMessageAt: new Date()
         }
       });
 
@@ -240,27 +584,30 @@ export class WhatsAppChatController {
       // 3. Despacha no WhatsApp
       setTimeout(async () => {
         try {
-          let result: { success: boolean; error?: string };
+          let result: { success: boolean; keyId?: string; error?: string };
           if (pdfBuffer) {
             result = await sendWhatsAppDocumentMessage(chat.phoneNumber, pdfBuffer, fileName, messageText);
           } else {
             result = await sendWhatsAppTextMessage(chat.phoneNumber, messageText);
           }
 
+          const newKeyId = result.keyId || savedMessage.keyId;
           await (prisma as any).whatsappMessage.update({
             where: { id: savedMessage.id },
             data: {
+              keyId: newKeyId,
               status: result.success ? "SENT" : "FAILED",
               errorDetail: result.error || null
             }
           });
-
           realtimeEvents.broadcast("message_status_update", {
-            keyId: savedMessage.id,
+            keyId: newKeyId,
+            messageId: savedMessage.id,
+            chatId: chat.id,
             status: result.success ? "SENT" : "FAILED"
           });
         } catch (dispatchErr: any) {
-          console.error("[WhatsApp Chat] Erro ao despachar template de OS:", dispatchErr);
+          console.error("[WhatsApp Chat] Erro ao despachar template:", dispatchErr);
         }
       }, 50);
 

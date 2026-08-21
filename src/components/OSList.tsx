@@ -135,12 +135,16 @@ export default function OSList({ isOffline, onRefresh, userRole }: OSListProps) 
   const handleStatusChange = async (osId: string, newStatus: OSStatus) => {
     if (!confirm(`Tem certeza que deseja mover esta Ordem de Serviço para a fase "${newStatus.replace(/_/g, ' ')}"?`)) return;
     
+    const targetOS = ordensServico.find(o => o.id === osId);
     try {
       const token = localStorage.getItem("mgv_token") || "";
       const resStatus = await fetch(`/api/ordens-servico/${osId}/status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-        body: JSON.stringify({ status: newStatus })
+        body: JSON.stringify({ 
+          status: newStatus,
+          ...(targetOS?.closingReason ? { closingReason: targetOS.closingReason } : {})
+        })
       });
       
       if (!resStatus.ok) {

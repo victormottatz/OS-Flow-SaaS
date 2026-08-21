@@ -15,7 +15,10 @@ router.get("/events", whatsAppChatController.subscribeEvents.bind(whatsAppChatCo
 // 3. Central de Atendimento (Chats e Mensagens)
 router.get("/chats", checkPermission("whatsapp.send"), whatsAppChatController.getChats.bind(whatsAppChatController));
 router.get("/chats/:chatId/messages", checkPermission("whatsapp.send"), whatsAppChatController.getMessages.bind(whatsAppChatController));
+router.get("/messages/:messageId/media", whatsAppChatController.getMessageMedia.bind(whatsAppChatController));
 router.post("/chats/:chatId/send-text", checkPermission("whatsapp.send"), whatsAppChatController.sendText.bind(whatsAppChatController));
+router.post("/chats/:chatId/send-audio", checkPermission("whatsapp.send"), whatsAppChatController.sendAudio.bind(whatsAppChatController));
+router.post("/chats/:chatId/send-media", checkPermission("whatsapp.send"), whatsAppChatController.sendMedia.bind(whatsAppChatController));
 router.post("/chats/:chatId/send-template-os", checkPermission("whatsapp.send"), whatsAppChatController.sendTemplateOs.bind(whatsAppChatController));
 router.post("/chats/:chatId/mark-read", checkPermission("whatsapp.send"), whatsAppChatController.markRead.bind(whatsAppChatController));
 router.post("/chats/:chatId/link-order", checkPermission("whatsapp.send"), whatsAppChatController.linkOrder.bind(whatsAppChatController));
@@ -28,7 +31,12 @@ router.post("/sync-internal", checkPermission("whatsapp.send"), whatsAppChatCont
 router.get("/history/:orderId", checkPermission("os.view"), whatsAppController.getHistory.bind(whatsAppController));
 router.post("/send-manual", checkPermission("whatsapp.send"), whatsAppController.sendManual.bind(whatsAppController));
 
-// 5. Gerenciamento da Instância Evolution API
+// 5. Fila de Aprovação de Mensagens (Human-in-the-loop)
+router.get("/pending-messages", checkPermission("os.view"), whatsAppController.getPendingApprovals.bind(whatsAppController));
+router.post("/messages/:id/approve", checkPermission("whatsapp.send"), whatsAppController.approveMessage.bind(whatsAppController));
+router.post("/messages/:id/reject", checkPermission("whatsapp.send"), whatsAppController.rejectMessage.bind(whatsAppController));
+
+// 6. Gerenciamento da Instância Evolution API
 router.post("/instance/connect", checkPermission("admin"), whatsAppController.connect.bind(whatsAppController));
 router.get("/instance/state", checkPermission("admin"), whatsAppController.getState.bind(whatsAppController));
 router.delete("/instance/logout", checkPermission("admin"), whatsAppController.logout.bind(whatsAppController));

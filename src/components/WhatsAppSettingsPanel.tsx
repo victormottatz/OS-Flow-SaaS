@@ -331,20 +331,70 @@ export default function WhatsAppSettingsPanel() {
               />
             </div>
 
-            <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between">
+            <div className="pt-4 mt-4 border-t border-slate-100 space-y-3">
               <div>
-                <p className="font-medium text-slate-800">Mensagens Automticas</p>
-                <p className="text-sm text-slate-500">Disparar ao mudar status da OS</p>
+                <p className="font-semibold text-slate-800 text-sm">Modo de Disparo das Mensagens</p>
+                <p className="text-xs text-slate-500">Defina como o sistema deve reagir às mudanças de status das Ordens de Serviço.</p>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  className="sr-only peer" 
-                  checked={values.WHATSAPP_AUTO_MESSAGES === 'true'}
-                  onChange={(e) => setValues({...values, WHATSAPP_AUTO_MESSAGES: e.target.checked ? 'true' : 'false'})}
-                />
-                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-emerald-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-              </label>
+
+              <div className="space-y-2">
+                <label className={`flex items-start gap-3 p-3 rounded-xl border transition cursor-pointer ${values.WHATSAPP_AUTO_MESSAGES === 'approval' || values.WHATSAPP_AUTO_MESSAGES === 'true' ? 'bg-amber-50/70 border-amber-300 ring-1 ring-amber-300' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'}`}>
+                  <input
+                    type="radio"
+                    name="whatsapp_mode"
+                    value="approval"
+                    checked={values.WHATSAPP_AUTO_MESSAGES === 'approval' || values.WHATSAPP_AUTO_MESSAGES === 'true'}
+                    onChange={() => setValues({...values, WHATSAPP_AUTO_MESSAGES: 'approval'})}
+                    className="mt-1 text-amber-600 focus:ring-amber-500"
+                  />
+                  <div>
+                    <span className="font-bold text-slate-800 text-xs flex items-center gap-1">
+                      🛡️ Aprovação Prévia da Atendente <span className="bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.2 rounded font-extrabold">Recomendado</span>
+                    </span>
+                    <p className="text-[11px] text-slate-600 mt-0.5">
+                      Gera uma notificação no Sininho e na OS com botões para a atendente autorizar o envio em 1 clique antes do disparo.
+                    </p>
+                  </div>
+                </label>
+
+                <label className={`flex items-start gap-3 p-3 rounded-xl border transition cursor-pointer ${values.WHATSAPP_AUTO_MESSAGES === 'auto' ? 'bg-emerald-50/70 border-emerald-300 ring-1 ring-emerald-300' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'}`}>
+                  <input
+                    type="radio"
+                    name="whatsapp_mode"
+                    value="auto"
+                    checked={values.WHATSAPP_AUTO_MESSAGES === 'auto'}
+                    onChange={() => setValues({...values, WHATSAPP_AUTO_MESSAGES: 'auto'})}
+                    className="mt-1 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  <div>
+                    <span className="font-bold text-slate-800 text-xs flex items-center gap-1">
+                      ⚡ Disparo Automático Imediato
+                    </span>
+                    <p className="text-[11px] text-slate-600 mt-0.5">
+                      Envia diretamente para o WhatsApp do cliente assim que o status da OS for alterado.
+                    </p>
+                  </div>
+                </label>
+
+                <label className={`flex items-start gap-3 p-3 rounded-xl border transition cursor-pointer ${values.WHATSAPP_AUTO_MESSAGES === 'disabled' || values.WHATSAPP_AUTO_MESSAGES === 'false' ? 'bg-slate-100 border-slate-300' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'}`}>
+                  <input
+                    type="radio"
+                    name="whatsapp_mode"
+                    value="disabled"
+                    checked={values.WHATSAPP_AUTO_MESSAGES === 'disabled' || values.WHATSAPP_AUTO_MESSAGES === 'false'}
+                    onChange={() => setValues({...values, WHATSAPP_AUTO_MESSAGES: 'disabled'})}
+                    className="mt-1 text-slate-600 focus:ring-slate-500"
+                  />
+                  <div>
+                    <span className="font-bold text-slate-800 text-xs flex items-center gap-1">
+                      ⛔ Desativado
+                    </span>
+                    <p className="text-[11px] text-slate-600 mt-0.5">
+                      Nenhuma mensagem automática é gerada ou enviada pelo sistema.
+                    </p>
+                  </div>
+                </label>
+              </div>
             </div>
 
           </div>

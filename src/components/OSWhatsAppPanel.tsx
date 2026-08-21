@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
-import { downloadDocumentPdf } from "../utils/downloadDocument";
 
 interface MessageRecord {
   id: string;
   phoneNumber: string;
   messageText: string;
-  status: string; // PENDENTE, ENVIADO, ENTREGUE, LIDO, FALHOU
+  status: string; // AGUARDANDO_APROVACAO, PENDENTE, ENVIADO, CANCELADO, FALHOU
   errorDetail: string | null;
   createdAt: string;
 }
@@ -37,12 +36,12 @@ export default function OSWhatsAppPanel({
   const [selectedTemplateDoc, setSelectedTemplateDoc] = useState<string>("orcamento");
   const [includePdf, setIncludePdf] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
-
-  // Guarda de alterações não salvas (composição de mensagem WhatsApp)
-  useUnsavedChangesGuard(messageText.trim() !== "");
   const [isSending, setIsSending] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+
+  // Guarda de alterações não salvas
+  useUnsavedChangesGuard(messageText.trim() !== "");
 
   const fetchHistory = async () => {
     setIsLoading(true);
@@ -96,7 +95,7 @@ export default function OSWhatsAppPanel({
         setMessageText("");
         setSuccessMsg(includePdf ? "Mensagem com documento PDF agendada com sucesso!" : "Mensagem agendada para envio com sucesso!");
         setTimeout(() => setSuccessMsg(""), 3500);
-        setTimeout(fetchHistory, 2000);
+        setTimeout(fetchHistory, 1500);
       } else {
         const data = await res.json();
         setErrorMsg(data.error || "Falha ao enviar mensagem manual.");
@@ -104,6 +103,63 @@ export default function OSWhatsAppPanel({
     } catch (err) {
       console.error(err);
       setErrorMsg("Erro de comunicação ao enviar WhatsApp.");
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleApproveMessage = async (msgId: string) => {
+    setIsSending(true);
+    setErrorMsg("");
+    setSuccessMsg("");
+    try {
+      const token = localStorage.getItem("mgv_token");
+      const res = await fetch(`/api/whatsapp/messages/${msgId}/approve`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        setSuccessMsg("Mensagem aprovada e enviada via WhatsApp com sucesso!");
+        setTimeout(() => setSuccessMsg(""), 3500);
+        await fetchHistory();
+      } else {
+        const data = await res.json();
+        setErrorMsg(data.error || "Falha ao aprovar mensagem.");
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || "Erro de comunicação ao aprovar mensagem.");
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleRejectMessage = async (msgId: string) => {
+    setIsSending(true);
+    setErrorMsg("");
+    setSuccessMsg("");
+    try {
+      const token = localStorage.getItem("mgv_token");
+      const res = await fetch(`/api/whatsapp/messages/${msgId}/reject`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ reason: "Cancelado pela atendente no painel da OS." })
+      });
+      if (res.ok) {
+        setSuccessMsg("Disparo de mensagem cancelado com sucesso.");
+        setTimeout(() => setSuccessMsg(""), 3500);
+        await fetchHistory();
+      } else {
+        const data = await res.json();
+        setErrorMsg(data.error || "Falha ao recusar mensagem.");
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || "Erro de comunicação ao recusar mensagem.");
     } finally {
       setIsSending(false);
     }
@@ -127,17 +183,17 @@ export default function OSWhatsAppPanel({
         withPdf: true
       },
       aguardando_peca: {
-        text: `📦 *Olá, ${firstName}! Atualização sobre sua OS #${osNumber}:*\n\nPara garantir a máxima qualidade no conserto do seu *${deviceModel}*, solicitamos componentes novos e originais de fábrica.\n\nAssim que as peças chegarem em nossa bancada técnica, daremos prioridade imediata à montagem e calibração. Manteremos você informado! ⚙️`,
+        text: `📦 *Olá, ${firstName}! Atualização sobre sua OS #${osNumber}:*\n\nPara garantir a máxima qualidade no conserto do seu *${deviceModel}*, solicitamos componentes novos e de procedência garantida.\n\nAssim que as peças chegarem em nossa bancada técnica, daremos prioridade imediata à montagem e aos testes. Manteremos você informado! ⚙️`,
         docId: "orcamento",
         withPdf: false
       },
       em_manutencao: {
-        text: `⚙️ *Olá, ${firstName}!*\n\nInformamos que a manutenção do seu equipamento *${deviceModel}* (OS *#${osNumber}*) está em execução na bancada técnica por nossa equipe especializada.\n\nEm breve seu aparelho passará pelos testes finais de calibração! 🔬`,
+        text: `⚙️ *Olá, ${firstName}!*\n\nInformamos que a manutenção do seu equipamento *${deviceModel}* (OS *#${osNumber}*) está em execução na bancada técnica por nossa equipe especializada.\n\nEm breve seu aparelho passará pelos testes finais de qualidade! 🔬`,
         docId: "orcamento",
         withPdf: false
       },
       retirada: {
-        text: `🎉 *Ótima notícia, ${firstName}!*\n\nO seu equipamento *${deviceModel}* (OS *#${osNumber}*) concluiu com sucesso todas as etapas de reparo, revisão e calibração técnica!\n\n📍 *Seu aparelho já está pronto para retirada:*\n🏢 *MGV Assistência Técnica:* Rua Julio Prestes, 648 - Jardim Sumaré, Ribeirão Preto - SP\n⏰ *Horário:* Segunda a Sexta, das 08h às 18h\n\n📎 *Segue em anexo o Certificado de Calibração / Laudo de Conclusão.*\n\n💬 _Aguardamos sua visita!_`,
+        text: `🎉 *Ótima notícia, ${firstName}!* \n\nO seu equipamento *${deviceModel}* (OS *#${osNumber}*) concluiu com sucesso todas as etapas de serviços técnicos e testes de qualidade!\n\n📍 *Seu aparelho já está pronto para retirada:*\n🏢 *MGV Assistência Técnica:* Rua Julio Prestes, 648 - Jardim Sumaré, Ribeirão Preto - SP\n⏰ *Horário:* Segunda a Sexta, das 08h às 18h\n\n📎 *Segue em anexo o Laudo Técnico / Recibo do atendimento.*\n\n💬 _Aguardamos sua visita!_`,
         docId: "recibo",
         withPdf: true
       },
@@ -157,16 +213,22 @@ export default function OSWhatsAppPanel({
 
   const getStatusBadge = (status: string) => {
     switch (status) {
+      case "AGUARDANDO_APROVACAO":
+        return "bg-amber-100 text-amber-800 border-amber-300 font-bold animate-pulse";
       case "PENDENTE":
-        return "bg-amber-100 text-amber-800 border-amber-200";
+        return "bg-amber-50 text-amber-700 border-amber-200";
       case "ENVIADO":
         return "bg-emerald-100 text-emerald-800 border-emerald-200";
+      case "CANCELADO":
+        return "bg-slate-100 text-slate-600 border-slate-200";
       case "FALHOU":
         return "bg-rose-100 text-rose-800 border-rose-200";
       default:
         return "bg-slate-150 text-slate-700 border-slate-200";
     }
   };
+
+  const pendingApprovalMessages = history.filter(h => h.status === "AGUARDANDO_APROVACAO");
 
   return (
     <div className="space-y-5 anim-fadein text-xs">
@@ -187,6 +249,68 @@ export default function OSWhatsAppPanel({
           </div>
         )}
 
+        {/* ALERTA DE MENSAGENS AGUARDANDO APROVAÇÃO HUMANA */}
+        {pendingApprovalMessages.length > 0 && (
+          <div className="bg-amber-50/90 border border-amber-300 rounded-2xl p-4 space-y-3 shadow-sm animate-fade-in">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-amber-600 text-xl">pending_actions</span>
+                <div>
+                  <h5 className="font-bold text-amber-950 text-sm">Disparo de WhatsApp Aguardando Sua Autorização</h5>
+                  <p className="text-[11px] text-amber-800">Esta mensagem foi gerada pela mudança de status e aguarda aprovação para ser enviada ao cliente.</p>
+                </div>
+              </div>
+              <span className="px-2 py-0.5 bg-amber-200 text-amber-900 rounded-full font-bold text-[10px]">
+                {pendingApprovalMessages.length} pendente(s)
+              </span>
+            </div>
+
+            {pendingApprovalMessages.map((pMsg) => (
+              <div key={pMsg.id} className="bg-white rounded-xl p-3 border border-amber-200 space-y-2.5">
+                <p className="text-slate-800 whitespace-pre-wrap leading-relaxed text-xs font-sans bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                  {pMsg.messageText}
+                </p>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={isSending}
+                      onClick={() => handleApproveMessage(pMsg.id)}
+                      className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer disabled:opacity-50"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">send</span>
+                      Autorizar Envio Agora
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isSending}
+                      onClick={() => handleRejectMessage(pMsg.id)}
+                      className="px-3 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-lg font-medium text-xs flex items-center gap-1 transition cursor-pointer disabled:opacity-50"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">close</span>
+                      Descartar / Recusar
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMessageText(pMsg.messageText);
+                      handleRejectMessage(pMsg.id);
+                    }}
+                    className="text-xs text-indigo-650 hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">edit_note</span>
+                    Editar texto antes de enviar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Templates rápidos */}
         <div>
           <span className="block text-[10px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider">Carregar Modelo Humanizado:</span>
@@ -194,7 +318,7 @@ export default function OSWhatsAppPanel({
             <button
               type="button"
               onClick={() => loadTemplate("termo_entrada")}
-              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg font-bold border border-slate-200 transition active:scale-95 flex items-center gap-1"
+              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg font-bold border border-slate-200 transition active:scale-95 flex items-center gap-1 cursor-pointer"
             >
               <span className="material-symbols-outlined text-[14px] text-indigo-600">login</span>
               Entrada / Termo
@@ -202,7 +326,7 @@ export default function OSWhatsAppPanel({
             <button
               type="button"
               onClick={() => loadTemplate("orcamento")}
-              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg font-bold border border-slate-200 transition active:scale-95 flex items-center gap-1"
+              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg font-bold border border-slate-200 transition active:scale-95 flex items-center gap-1 cursor-pointer"
             >
               <span className="material-symbols-outlined text-[14px] text-blue-600">request_quote</span>
               Orçamento Pronto
@@ -210,7 +334,7 @@ export default function OSWhatsAppPanel({
             <button
               type="button"
               onClick={() => loadTemplate("aguardando_peca")}
-              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg font-bold border border-slate-200 transition active:scale-95 flex items-center gap-1"
+              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg font-bold border border-slate-200 transition active:scale-95 flex items-center gap-1 cursor-pointer"
             >
               <span className="material-symbols-outlined text-[14px] text-amber-600">inventory_2</span>
               Aguardando Peça
@@ -218,7 +342,7 @@ export default function OSWhatsAppPanel({
             <button
               type="button"
               onClick={() => loadTemplate("em_manutencao")}
-              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg font-bold border border-slate-200 transition active:scale-95 flex items-center gap-1"
+              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg font-bold border border-slate-200 transition active:scale-95 flex items-center gap-1 cursor-pointer"
             >
               <span className="material-symbols-outlined text-[14px] text-purple-600">build</span>
               Em Reparo
@@ -226,15 +350,15 @@ export default function OSWhatsAppPanel({
             <button
               type="button"
               onClick={() => loadTemplate("retirada")}
-              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg font-bold border border-slate-200 transition active:scale-95 flex items-center gap-1"
+              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg font-bold border border-slate-200 transition active:scale-95 flex items-center gap-1 cursor-pointer"
             >
               <span className="material-symbols-outlined text-[14px] text-teal-600">verified</span>
-              Pronto / Calibrado
+              Pronto / Retirada
             </button>
             <button
               type="button"
               onClick={() => loadTemplate("finalizado")}
-              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg font-bold border border-slate-200 transition active:scale-95 flex items-center gap-1"
+              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg font-bold border border-slate-200 transition active:scale-95 flex items-center gap-1 cursor-pointer"
             >
               <span className="material-symbols-outlined text-[14px] text-emerald-600">check_circle</span>
               Entrega / Garantia
@@ -251,7 +375,7 @@ export default function OSWhatsAppPanel({
                 id="includePdfCheckbox"
                 checked={includePdf}
                 onChange={(e) => setIncludePdf(e.target.checked)}
-                className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
+                className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
               />
               <label htmlFor="includePdfCheckbox" className="font-bold text-slate-700 text-xs cursor-pointer flex items-center gap-1">
                 <span className="material-symbols-outlined text-[16px] text-red-500">picture_as_pdf</span>
@@ -296,7 +420,7 @@ export default function OSWhatsAppPanel({
               type="button"
               disabled={isSending || !messageText.trim()}
               onClick={handleSend}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs uppercase tracking-wider px-5 py-3 rounded-lg transition shrink-0 flex items-center justify-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none self-stretch sm:self-auto shadow-sm"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs uppercase tracking-wider px-5 py-3 rounded-lg transition shrink-0 flex items-center justify-center gap-1.5 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none self-stretch sm:self-auto shadow-sm cursor-pointer"
             >
               {isSending ? (
                 <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin"></div>
@@ -315,7 +439,7 @@ export default function OSWhatsAppPanel({
             <button
               type="button"
               onClick={fetchHistory}
-              className="text-[10px] text-indigo-650 hover:underline flex items-center gap-0.5 font-bold"
+              className="text-[10px] text-indigo-650 hover:underline flex items-center gap-0.5 font-bold cursor-pointer"
             >
               <span className="material-symbols-outlined text-[12px]">refresh</span> Atualizar
             </button>
@@ -340,7 +464,7 @@ export default function OSWhatsAppPanel({
                   </p>
                   {record.errorDetail && (
                     <p className="text-[10px] text-rose-600 bg-rose-50 border border-rose-100 p-2 rounded-lg font-mono">
-                      <strong>Erro:</strong> {record.errorDetail}
+                      <strong>Erro/Detalhe:</strong> {record.errorDetail}
                     </p>
                   )}
                 </div>

@@ -6,7 +6,7 @@
 import { useState, useEffect } from "react";
 
 export type NotificationType = "info" | "success" | "warning" | "error";
-export type NotificationAction = "open_update_popup" | "navigate_tab" | "open_url";
+export type NotificationAction = "open_update_popup" | "navigate_tab" | "open_url" | "approve_whatsapp" | "open_os";
 
 export interface SystemNotification {
   id: string;
@@ -18,6 +18,10 @@ export interface SystemNotification {
   link?: string;
   action?: NotificationAction;
   actionPayload?: string;
+  whatsappMessageId?: string;
+  orderId?: string;
+  osNumber?: string;
+  previewText?: string;
 }
 
 const STORAGE_KEY = "mgv_notifications";
@@ -36,7 +40,13 @@ export const addNotification = (
   type: NotificationType = "info",
   link?: string,
   action?: NotificationAction,
-  actionPayload?: string
+  actionPayload?: string,
+  extra?: {
+    whatsappMessageId?: string;
+    orderId?: string;
+    osNumber?: string;
+    previewText?: string;
+  }
 ) => {
   let current: SystemNotification[] = [];
   try {
@@ -48,6 +58,11 @@ export const addNotification = (
     current = [];
   }
 
+  // Se já existir uma notificação idêntica para o mesmo whatsappMessageId que ainda não foi lida/removida, evita duplicar
+  if (extra?.whatsappMessageId && current.some(n => n.whatsappMessageId === extra.whatsappMessageId)) {
+    return;
+  }
+
   const newNotif: SystemNotification = {
     id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
     title: title || "Notificação",
@@ -57,7 +72,11 @@ export const addNotification = (
     createdAt: new Date().toISOString(),
     link,
     action,
-    actionPayload
+    actionPayload,
+    whatsappMessageId: extra?.whatsappMessageId,
+    orderId: extra?.orderId,
+    osNumber: extra?.osNumber,
+    previewText: extra?.previewText
   };
   
   const updated = [newNotif, ...current].slice(0, 50); // Mantém as últimas 50
@@ -88,7 +107,11 @@ export function useNotifications() {
           read: Boolean(item.read),
           link: item.link ? String(item.link) : undefined,
           action: item.action ? (item.action as NotificationAction) : undefined,
-          actionPayload: item.actionPayload ? String(item.actionPayload) : undefined
+          actionPayload: item.actionPayload ? String(item.actionPayload) : undefined,
+          whatsappMessageId: item.whatsappMessageId ? String(item.whatsappMessageId) : undefined,
+          orderId: item.orderId ? String(item.orderId) : undefined,
+          osNumber: item.osNumber ? String(item.osNumber) : undefined,
+          previewText: item.previewText ? String(item.previewText) : undefined
         }));
 
       setNotifications(sanitized);
@@ -97,14 +120,57 @@ export function useNotifications() {
     }
   };
 
+  // Sincroniza mensagens de WhatsApp pendentes de aprovação direto do backend
+  const syncPendingApprovals = async () => {
+    try {
+      const activeToken = localStorage.getItem("mgv_token");
+      if (!activeToken) return;
+
+      const res = await fetch("/api/whatsapp/pending-messages", {
+        headers: { Authorization: `Bearer ${activeToken}` }
+      });
+      if (!res.ok) return;
+
+      const pendings = await res.json();
+      if (Array.isArray(pendings) && pendings.length > 0) {
+        pendings.forEach((p: any) => {
+          const osNum = p.order?.osNumber || "N/A";
+          const clientName = p.order?.client?.name || "Cliente";
+          addNotification(
+            `📲 Aprovar Envio WhatsApp (OS #${osNum})`,
+            `Mensagem para ${clientName} aguardando sua autorização.`,
+            "warning",
+            undefined,
+            "approve_whatsapp",
+            p.orderId,
+            {
+              whatsappMessageId: p.id,
+              orderId: p.orderId,
+              osNumber: osNum,
+              previewText: p.messageText
+            }
+          );
+        });
+      }
+    } catch {
+      // Ignora falhas pontuais de conexão
+    }
+  };
+
   useEffect(() => {
     loadNotifications();
+    syncPendingApprovals();
+
+    // Polling a cada 30 segundos para novas pendências
+    const interval = setInterval(syncPendingApprovals, 30000);
+
     window.addEventListener(EVENT_KEY, loadNotifications);
     window.addEventListener("storage", (e) => {
       if (e.key === STORAGE_KEY) loadNotifications();
     });
 
     return () => {
+      clearInterval(interval);
       window.removeEventListener(EVENT_KEY, loadNotifications);
       window.removeEventListener("storage", loadNotifications);
     };
@@ -112,6 +178,12 @@ export function useNotifications() {
 
   const markAsRead = (id: string) => {
     const updated = notifications.map(n => n.id === id ? { ...n, read: true } : n);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    notifyChange();
+  };
+
+  const removeNotification = (id: string) => {
+    const updated = notifications.filter(n => n.id !== id);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
     notifyChange();
   };
@@ -133,7 +205,10 @@ export function useNotifications() {
     notifications,
     unreadCount,
     markAsRead,
+    removeNotification,
     markAllAsRead,
-    clearAll
+    clearAll,
+    syncPendingApprovals
   };
 }
+
