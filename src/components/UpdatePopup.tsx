@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, X, CheckCircle2 } from 'lucide-react';
+import { X } from 'lucide-react';
 import { addNotification } from '../hooks/useNotifications';
 
 export function UpdatePopup() {
@@ -80,44 +80,44 @@ export function UpdatePopup() {
 
             <div className="p-6">
               <ul className="space-y-6">
-            {/* Alteração 1: Aprovação de WhatsApp no Sininho */}
-            <div className="flex gap-4">
-              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
-                <span className="material-symbols-outlined text-[20px]">notifications_active</span>
-              </div>
-              <div>
-                <h3 className="font-bold text-slate-200 text-sm">Fila de Aprovação no Sininho</h3>
-                <p className="text-slate-400 text-xs mt-1 leading-relaxed">
-                  Nenhuma mensagem de OS é disparada sem autorização. Você pode aprovar ou recusar o envio ao cliente em 1 clique direto pelo menu de notificações.
-                </p>
-              </div>
-            </div>
+                {/* Alteração 1: Aprovação de WhatsApp no Sininho */}
+                <div className="flex gap-4">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+                    <span className="material-symbols-outlined text-[20px]">notifications_active</span>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-200 text-sm">Fila de Aprovação no Sininho</h3>
+                    <p className="text-slate-400 text-xs mt-1 leading-relaxed">
+                      Nenhuma mensagem de OS é disparada sem autorização. Você pode aprovar ou recusar o envio ao cliente em 1 clique direto pelo menu de notificações.
+                    </p>
+                  </div>
+                </div>
 
-            {/* Alteração 2: Vistos de Leitura */}
-            <div className="flex gap-4">
-              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-sky-500/20 text-sky-400 flex items-center justify-center border border-sky-500/30">
-                <span className="material-symbols-outlined text-[20px]">done_all</span>
-              </div>
-              <div>
-                <h3 className="font-bold text-slate-200 text-sm">Vistos de Entrega e Leitura (WhatsApp)</h3>
-                <p className="text-slate-400 text-xs mt-1 leading-relaxed">
-                  Acompanhe em tempo real se a mensagem foi enviada, entregue no aparelho do cliente (2 vistos cinzas) ou lida (2 vistos azuis).
-                </p>
-              </div>
-            </div>
+                {/* Alteração 2: Vistos de Leitura */}
+                <div className="flex gap-4">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-full bg-sky-500/20 text-sky-400 flex items-center justify-center border border-sky-500/30">
+                    <span className="material-symbols-outlined text-[20px]">done_all</span>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-200 text-sm">Vistos de Entrega e Leitura (WhatsApp)</h3>
+                    <p className="text-slate-400 text-xs mt-1 leading-relaxed">
+                      Acompanhe em tempo real se a mensagem foi enviada, entregue no aparelho do cliente (2 vistos cinzas) ou lida (2 vistos azuis).
+                    </p>
+                  </div>
+                </div>
 
-            {/* Alteração 3: Gravação de Áudio e Mídias */}
-            <div className="flex gap-4">
-              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
-                <span className="material-symbols-outlined text-[20px]">mic</span>
-              </div>
-              <div>
-                <h3 className="font-bold text-slate-200 text-sm">Gravação de Voz e Envio de Mídias</h3>
-                <p className="text-slate-400 text-xs mt-1 leading-relaxed">
-                  Grave mensagens de voz pelo microfone, envie fotos, vídeos e documentos PDF com player dedicado e visualizador em tela cheia.
-                </p>
-              </div>
-            </div>
+                {/* Alteração 3: Gravação de Áudio e Mídias */}
+                <div className="flex gap-4">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
+                    <span className="material-symbols-outlined text-[20px]">mic</span>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-200 text-sm">Gravação de Voz e Envio de Mídias</h3>
+                    <p className="text-slate-400 text-xs mt-1 leading-relaxed">
+                      Grave mensagens de voz pelo microfone, envie fotos, vídeos e documentos PDF com player dedicado e visualizador em tela cheia.
+                    </p>
+                  </div>
+                </div>
               </ul>
 
               <div className="mt-8 pt-5 border-t border-slate-800 flex justify-end">

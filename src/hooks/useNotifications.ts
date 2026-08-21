@@ -161,8 +161,45 @@ export function useNotifications() {
     loadNotifications();
     syncPendingApprovals();
 
-    // Polling a cada 30 segundos para novas pendências
-    const interval = setInterval(syncPendingApprovals, 30000);
+    // 1. Polling de redundância a cada 15 segundos
+    const interval = setInterval(syncPendingApprovals, 15000);
+
+    // 2. Conexão SSE em Tempo Real para Notificação Instantânea no Sininho
+    let eventSource: EventSource | null = null;
+    try {
+      eventSource = new EventSource("/api/whatsapp/events");
+      
+      eventSource.addEventListener("whatsapp_approval_required", (e: MessageEvent) => {
+        try {
+          const data = JSON.parse(e.data);
+          const osNum = data.osNumber || "N/A";
+          const clientName = data.clientName || "Cliente";
+
+          addNotification(
+            `📲 Aprovar Envio WhatsApp (OS #${osNum})`,
+            `Mensagem para ${clientName} aguardando sua autorização.`,
+            "warning",
+            undefined,
+            "approve_whatsapp",
+            data.orderId,
+            {
+              whatsappMessageId: data.messageId,
+              orderId: data.orderId,
+              osNumber: osNum,
+              previewText: data.previewText
+            }
+          );
+        } catch (err) {
+          console.warn("[useNotifications] Erro ao processar evento SSE:", err);
+        }
+      });
+
+      eventSource.addEventListener("whatsapp_approval_resolved", () => {
+        syncPendingApprovals();
+      });
+    } catch (sseErr) {
+      console.warn("[useNotifications] Falha ao iniciar SSE:", sseErr);
+    }
 
     window.addEventListener(EVENT_KEY, loadNotifications);
     window.addEventListener("storage", (e) => {
@@ -171,6 +208,7 @@ export function useNotifications() {
 
     return () => {
       clearInterval(interval);
+      if (eventSource) eventSource.close();
       window.removeEventListener(EVENT_KEY, loadNotifications);
       window.removeEventListener("storage", loadNotifications);
     };

@@ -2,6 +2,7 @@ import prisma from "../database/prisma";
 import { featureFlags } from "./FeatureFlagService";
 import { buildDocumentPdf, PdfOsData } from "./pdfService";
 import { DOCUMENT_TEMPLATES, DocumentTemplateId } from "../config/documents.config";
+import { realtimeEvents } from "./realtimeEvents";
 
 const WHATSAPP_TEMPLATES: Record<string, string> = {
   AGUARDANDO_AVALIACAO: 
@@ -133,9 +134,9 @@ export async function sendWhatsAppTextMessage(
   const { apiUrl, apiToken, instanceName } = await getWhatsAppConfig();
 
   if (!apiUrl || !apiToken) {
-    console.log(`\n[WhatsApp Gateway Simulado] Mensagem enviada para ${phoneNumber}:`);
-    console.log(messageText);
-    return { success: true };
+    const errMsg = "Evolution API não configurada no servidor (WHATSAPP_API_URL ou WHATSAPP_API_TOKEN vazios).";
+    console.error(`[WhatsApp Service] Erro: ${errMsg}`);
+    return { success: false, error: errMsg };
   }
 
   try {
@@ -196,9 +197,9 @@ export async function sendWhatsAppGenericDocumentMessage(
   const { apiUrl, apiToken, instanceName } = await getWhatsAppConfig();
 
   if (!apiUrl || !apiToken) {
-    console.log(`\n[WhatsApp Gateway Simulado] Documento (${fileName}) enviado para ${phoneNumber}:`);
-    if (captionText) console.log(captionText);
-    return { success: true };
+    const errMsg = "Evolution API não configurada no servidor (WHATSAPP_API_URL ou WHATSAPP_API_TOKEN vazios).";
+    console.error(`[WhatsApp Service] Erro: ${errMsg}`);
+    return { success: false, error: errMsg };
   }
 
   try {
@@ -255,9 +256,9 @@ export async function sendWhatsAppImageMessage(
   const { apiUrl, apiToken, instanceName } = await getWhatsAppConfig();
 
   if (!apiUrl || !apiToken) {
-    console.log(`\n[WhatsApp Gateway Simulado] Imagem (${fileName}) enviada para ${phoneNumber}:`);
-    if (captionText) console.log(captionText);
-    return { success: true };
+    const errMsg = "Evolution API não configurada no servidor (WHATSAPP_API_URL ou WHATSAPP_API_TOKEN vazios).";
+    console.error(`[WhatsApp Service] Erro: ${errMsg}`);
+    return { success: false, error: errMsg };
   }
 
   try {
@@ -312,8 +313,9 @@ export async function sendWhatsAppAudioMessage(
   const { apiUrl, apiToken, instanceName } = await getWhatsAppConfig();
 
   if (!apiUrl || !apiToken) {
-    console.log(`\n[WhatsApp Gateway Simulado] Áudio enviado para ${phoneNumber}`);
-    return { success: true };
+    const errMsg = "Evolution API não configurada no servidor (WHATSAPP_API_URL ou WHATSAPP_API_TOKEN vazios).";
+    console.error(`[WhatsApp Service] Erro: ${errMsg}`);
+    return { success: false, error: errMsg };
   }
 
   try {
@@ -565,6 +567,17 @@ export async function triggerWhatsAppNotification(orderId: string, status: strin
     // Se NÃO for envio direto automático, encerra aqui (fica aguardando aprovação humana pela atendente)
     if (!isDirectAuto) {
       console.log(`[WhatsApp Service] Mensagem para OS ${os.osNumber} colocada na fila de AGUARDANDO_APROVACAO.`);
+      
+      // Notifica todos os operadores conectados em tempo real via SSE instantâneo
+      realtimeEvents.broadcast("whatsapp_approval_required", {
+        messageId: history.id,
+        orderId: os.id,
+        osNumber: os.osNumber,
+        clientName: os.client.name,
+        clientPhone: os.client.phone,
+        previewText: formattedText
+      });
+      
       return true;
     }
 
@@ -716,6 +729,7 @@ export async function approveWhatsAppMessage(messageId: string, customText?: str
         errorDetail: null
       }
     });
+    realtimeEvents.broadcast("whatsapp_approval_resolved", { messageId, status: "ENVIADO" });
     return { success: true, message: updated };
   } else {
     await prisma.messageHistory.update({
@@ -742,12 +756,16 @@ export async function rejectWhatsAppMessage(messageId: string, reason?: string) 
     throw new Error("Mensagem não encontrada.");
   }
 
-  return prisma.messageHistory.update({
+  const updated = await prisma.messageHistory.update({
     where: { id: messageId },
     data: {
       status: "CANCELADO",
-      errorDetail: reason || "Envio cancelado pela atendente."
+      errorDetail: reason ? `Recusada pelo operador: ${reason}` : "Recusada pelo operador"
     }
   });
+
+  realtimeEvents.broadcast("whatsapp_approval_resolved", { messageId, status: "CANCELADO" });
+
+  return updated;
 }
 
