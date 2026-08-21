@@ -16,23 +16,23 @@ export function UpdatePopup() {
 
   useEffect(() => {
     const savedVersion = localStorage.getItem("mgv_last_update_version");
-    if (savedVersion !== "4.12.1") {
+    if (savedVersion !== "4.13.0") {
       setIsOpen(true);
       
       // Notificação silenciosa no sino
-      addNotification({
-        title: "🚀 MGV ONE HUB Atualizado (v4.12.1)",
-        message: "Conexão Oficial com a Evolution API corrigida! O QR Code agora funciona perfeitamente.",
-        type: "system",
-        read: false
-      });
+      addNotification(
+        "🚀 MGV ONE HUB Atualizado (v4.13.0)",
+        "Correção de idioma nativo e proteção contra traduções automáticas do navegador.",
+        "info"
+      );
       
-      localStorage.setItem("mgv_last_update_version", "4.12.1");
+      localStorage.setItem("mgv_last_update_version", "4.13.0");
     }
   }, [addNotification]);
 
   const handleClose = () => {
     setIsOpen(false);
+    localStorage.setItem('mgv_update_v4_13_seen', 'true');
   };
 
   // Fecha o popup ao clicar fora da janela de conteúdo (backdrop)
@@ -66,7 +66,7 @@ export function UpdatePopup() {
                 <span className="material-symbols-outlined text-[28px]">rocket_launch</span>
                 MGV ONE HUB
               </h2>
-              <p className="text-indigo-200 mt-1 text-sm">Versão 4.12.1 • Agosto de 2026</p>
+              <p className="text-indigo-200 mt-1 text-sm">Versão 4.13.0 • Agosto de 2026</p>
               
               <button 
                 onClick={handleClose}
@@ -81,12 +81,25 @@ export function UpdatePopup() {
                 {/* Alteração 1 */}
                 <div className="flex gap-4">
                   <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center border border-blue-200">
-                    <span className="material-symbols-outlined text-blue-600 text-[20px]">qr_code_scanner</span>
+                    <span className="material-symbols-outlined text-blue-600 text-[20px]">translate</span>
                   </div>
                   <div>
-                    <h3 className="font-bold text-slate-200 text-sm">Integração WhatsApp Finalizada</h3>
+                    <h3 className="font-bold text-slate-200 text-sm">Idioma Nativo & Blindagem Visual</h3>
                     <p className="text-slate-400 text-xs mt-1 leading-relaxed">
-                      O painel de Configurações do WhatsApp agora se conecta diretamente à Evolution API para gerar o QR Code correto. A simulação foi desativada e a integração está em produção.
+                      Correção na identificação do idioma para Português do Brasil (pt-BR) e bloqueio da tradução automática indesejada do navegador que causava trocas e distorções nos textos.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Alteração 2 */}
+                <div className="flex gap-4">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-full bg-green-100 flex items-center justify-center border border-green-200">
+                    <span className="material-symbols-outlined text-green-600 text-[20px]">chat</span>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-200 text-sm">Integração Oficial com WhatsApp</h3>
+                    <p className="text-slate-400 text-xs mt-1 leading-relaxed">
+                      Envie orçamentos, avisos de retirada e mensagens manuais diretamente pelo WhatsApp do cliente, de dentro da OS.
                     </p>
                   </div>
                 </div>
@@ -107,3 +120,4 @@ export function UpdatePopup() {
     </AnimatePresence>
   );
 }
+
