@@ -7,6 +7,7 @@ import "dotenv/config";
 import express from "express";
 import path from "path";
 import fs from "fs/promises";
+import fsSync from "fs";
 import bcrypt from "bcryptjs";
 import { createServer as createViteServer } from "vite";
 import { UserRole } from "./src/types";
@@ -279,6 +280,20 @@ async function startServer() {
   });
 
   app.use("/api", apiRoutes);
+
+  // Rota pública para servir a Apresentação Web / Diagnóstico Institucional
+  app.get(["/apresentacao", "/apresentacao.html", "/apresentacao_web.html", "/diagnostico"], (req, res) => {
+    const fileInDist = path.join(process.cwd(), "dist", "apresentacao_web.html");
+    const fileInPublic = path.join(process.cwd(), "public", "apresentacao_web.html");
+    
+    if (fsSync.existsSync(fileInDist)) {
+      return res.sendFile(fileInDist);
+    }
+    if (fsSync.existsSync(fileInPublic)) {
+      return res.sendFile(fileInPublic);
+    }
+    res.status(404).send("Apresentação não encontrada.");
+  });
 
   if (process.env.NODE_ENV !== "production") {
     const hmrPort = PORT ? 24678 + (PORT - 3000) : 24678;
