@@ -6,9 +6,9 @@
      - --font-sans: corpo do texto
      - --font-display: títulos (h1-h6)
      - --font-mono: textos técnicos/códigos/rodapé */
-  --font-sans: "Lato", system-ui, -apple-system, sans-serif;
+  --font-sans: "Lato", system-ui, -apple-system, "Segoe UI Emoji", "Noto Color Emoji", "Apple Color Emoji", sans-serif;
   --font-mono: "JetBrains Mono", monospace;
-  --font-display: "Poppins", sans-serif;
+  --font-display: "Poppins", system-ui, "Segoe UI Emoji", "Noto Color Emoji", "Apple Color Emoji", sans-serif;
   
   /* GUIA: CORES DA MARCA. Trocar o hex aqui muda o sistema INTEIRO.
      - primary-container (#111111): fundos escuros / texto em botões amarelos

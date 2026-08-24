@@ -30,8 +30,8 @@ function renderFormattedLine(line: string): React.ReactNode {
   if (!line) return null;
 
   // Regex para capturar links, blocos de código ```...```, negrito *...*, itálico _..._, tachado ~...~
-  // Padrão estruturado de substituição de tokens
-  const tokenRegex = /(https?:\/\/[^\s]+|```[\s\S]*?```|\*[^*\n\r]+\*|_[^_\n\r]+_|~[^~\n\r]+~)/g;
+  // Padrão estruturado de substituição de tokens compatível com Unicode
+  const tokenRegex = /(https?:\/\/[^\s]+|```[\s\S]*?```|\*[^*\n\r]+\*|_[^_\n\r]+_|~[^~\n\r]+~)/gu;
 
   const parts = line.split(tokenRegex);
 
@@ -67,11 +67,11 @@ function renderFormattedLine(line: string): React.ReactNode {
       );
     }
 
-    // Negrito *...*
+    // Negrito *...* (Sem text-white fixo para funcionar tanto em tema claro quanto escuro)
     if (part.startsWith("*") && part.endsWith("*") && part.length >= 2) {
       const boldContent = part.slice(1, -1);
       return (
-        <strong key={`bold-${index}`} className="font-bold text-white tracking-wide">
+        <strong key={`bold-${index}`} className="font-bold tracking-wide">
           {boldContent}
         </strong>
       );
@@ -81,7 +81,7 @@ function renderFormattedLine(line: string): React.ReactNode {
     if (part.startsWith("_") && part.endsWith("_") && part.length >= 2) {
       const italicContent = part.slice(1, -1);
       return (
-        <em key={`italic-${index}`} className="italic opacity-90">
+        <em key={`italic-${index}`} className="italic opacity-95">
           {italicContent}
         </em>
       );
@@ -91,7 +91,7 @@ function renderFormattedLine(line: string): React.ReactNode {
     if (part.startsWith("~") && part.endsWith("~") && part.length >= 2) {
       const strikeContent = part.slice(1, -1);
       return (
-        <del key={`strike-${index}`} className="line-through opacity-70">
+        <del key={`strike-${index}`} className="line-through opacity-75">
           {strikeContent}
         </del>
       );

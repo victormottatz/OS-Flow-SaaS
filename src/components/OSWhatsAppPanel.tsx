@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
 import { formatWhatsAppMessageReact } from "../utils/whatsappTextFormatter";
+import { EmojiPickerPopover } from "./EmojiPickerPopover";
 
 interface MessageRecord {
   id: string;
@@ -42,6 +43,7 @@ export default function OSWhatsAppPanel({
   const [isSending, setIsSending] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
   // Sincroniza mensagem inicial caso venha externamente (ex: notificação do sininho)
@@ -57,6 +59,25 @@ export default function OSWhatsAppPanel({
       }, 150);
     }
   }, [initialMessageText, orderId]);
+
+  // Inserir emoji selecionado na posição atual do cursor
+  const handleSelectEmoji = (emoji: string) => {
+    if (!textareaRef.current) {
+      setMessageText(prev => prev + emoji);
+      return;
+    }
+    const textarea = textareaRef.current;
+    const start = textarea.selectionStart ?? messageText.length;
+    const end = textarea.selectionEnd ?? messageText.length;
+    const newText = messageText.substring(0, start) + emoji + messageText.substring(end);
+    setMessageText(newText);
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + emoji.length, start + emoji.length);
+      textarea.style.height = "auto";
+      textarea.style.height = `${Math.min(Math.max(textarea.scrollHeight, 60), 250)}px`;
+    }, 10);
+  };
 
   // Guarda de alterações não salvas
   useUnsavedChangesGuard(messageText.trim() !== "");
@@ -428,21 +449,46 @@ export default function OSWhatsAppPanel({
               </span>
             )}
           </div>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <textarea
-              ref={textareaRef}
-              rows={2}
-              value={messageText}
-              onChange={(e) => {
-                setMessageText(e.target.value);
-                const target = e.target;
-                target.style.height = "auto";
-                target.style.height = `${Math.min(Math.max(target.scrollHeight, 60), 250)}px`;
-              }}
-              placeholder="Digite a mensagem personalizada para o cliente..."
-              className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 focus:outline-none transition-[height] duration-75 resize-none overflow-y-auto"
-              style={{ minHeight: "56px", maxHeight: "250px" }}
-            />
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2">
+            <div className="relative flex-1 flex items-start gap-1 bg-white border border-slate-200 rounded-lg p-1 focus-within:ring-2 focus-within:ring-emerald-500/10 focus-within:border-emerald-500">
+              <textarea
+                ref={textareaRef}
+                rows={2}
+                value={messageText}
+                onChange={(e) => {
+                  setMessageText(e.target.value);
+                  const target = e.target;
+                  target.style.height = "auto";
+                  target.style.height = `${Math.min(Math.max(target.scrollHeight, 60), 250)}px`;
+                }}
+                placeholder="Digite a mensagem personalizada para o cliente..."
+                className="flex-1 px-2.5 py-1.5 bg-transparent text-xs text-slate-800 placeholder-slate-400 focus:outline-none transition-[height] duration-75 resize-none overflow-y-auto"
+                style={{ minHeight: "56px", maxHeight: "250px" }}
+              />
+
+              {/* Botão de Emojis */}
+              <div className="relative shrink-0 self-end m-1">
+                <button
+                  type="button"
+                  onClick={() => setEmojiPickerOpen(prev => !prev)}
+                  className={`p-1.5 rounded-lg border transition-all cursor-pointer flex items-center justify-center ${
+                    emojiPickerOpen
+                      ? "bg-amber-400 border-amber-500 text-slate-900 shadow-sm"
+                      : "bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-600 hover:text-slate-900"
+                  }`}
+                  title="Inserir Emoji"
+                >
+                  <span className="text-base leading-none select-none">😊</span>
+                </button>
+
+                <EmojiPickerPopover
+                  isOpen={emojiPickerOpen}
+                  onClose={() => setEmojiPickerOpen(false)}
+                  onSelectEmoji={handleSelectEmoji}
+                />
+              </div>
+            </div>
+
             <button
               type="button"
               disabled={isSending || !messageText.trim()}

@@ -259,7 +259,7 @@ export class WhatsAppSyncService {
               const fromMe = Boolean(key.fromMe);
               const message = msgItem.message || {};
               let text = "";
-              let messageType: "TEXT" | "IMAGE" | "AUDIO" | "DOCUMENT" | "VIDEO" | "OTHER" = "TEXT";
+              let messageType: "TEXT" | "IMAGE" | "AUDIO" | "DOCUMENT" | "VIDEO" | "STICKER" | "OTHER" = "TEXT";
               let fileName: string | null = null;
               let mediaUrl: string | null = null;
               let mediaMimeType: string | null = null;
@@ -275,6 +275,11 @@ export class WhatsAppSyncService {
                 messageType = "IMAGE";
                 mediaUrl = message.imageMessage.url;
                 mediaMimeType = message.imageMessage.mimetype || "image/jpeg";
+              } else if (message.stickerMessage) {
+                text = "🏷️ Figurinha";
+                messageType = "STICKER";
+                mediaUrl = message.stickerMessage.url;
+                mediaMimeType = message.stickerMessage.mimetype || "image/webp";
               } else if (message.audioMessage) {
                 text = "🎵 Mensagem de Áudio";
                 messageType = "AUDIO";
@@ -583,7 +588,7 @@ export class WhatsAppSyncService {
             const fromMe = Boolean(key.fromMe);
             const message = msgItem.message || {};
             let text = "";
-            let messageType: "TEXT" | "IMAGE" | "AUDIO" | "DOCUMENT" | "VIDEO" | "OTHER" = "TEXT";
+            let messageType: "TEXT" | "IMAGE" | "AUDIO" | "DOCUMENT" | "VIDEO" | "STICKER" | "OTHER" = "TEXT";
             let fileName: string | null = null;
             let mediaUrl: string | null = null;
             let mediaMimeType: string | null = null;
@@ -599,6 +604,11 @@ export class WhatsAppSyncService {
               messageType = "IMAGE";
               mediaUrl = message.imageMessage.url;
               mediaMimeType = message.imageMessage.mimetype || "image/jpeg";
+            } else if (message.stickerMessage) {
+              text = "🏷️ Figurinha";
+              messageType = "STICKER";
+              mediaUrl = message.stickerMessage.url;
+              mediaMimeType = message.stickerMessage.mimetype || "image/webp";
             } else if (message.audioMessage) {
               text = "🎵 Áudio";
               messageType = "AUDIO";

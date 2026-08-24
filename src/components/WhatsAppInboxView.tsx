@@ -4,6 +4,7 @@ import WhatsAppAudioPlayer from "./whatsapp/WhatsAppAudioPlayer";
 import WhatsAppMediaModal from "./whatsapp/WhatsAppMediaModal";
 import WhatsAppAudioRecorder from "./whatsapp/WhatsAppAudioRecorder";
 import { formatWhatsAppMessageReact } from "../utils/whatsappTextFormatter";
+import { EmojiPickerPopover } from "./EmojiPickerPopover";
 
 interface ClientData {
   id: string;
@@ -141,7 +142,7 @@ interface MessageItem {
   keyId?: string;
   fromMe: boolean;
   senderName: string | null;
-  messageType: "TEXT" | "IMAGE" | "AUDIO" | "DOCUMENT" | "VIDEO" | "OTHER";
+  messageType: "TEXT" | "IMAGE" | "AUDIO" | "DOCUMENT" | "VIDEO" | "STICKER" | "OTHER";
   text: string | null;
   mediaUrl: string | null;
   mediaMimeType: string | null;
@@ -175,6 +176,7 @@ export default function WhatsAppInboxView({ onOpenOrderModal }: WhatsAppInboxVie
   // Estados de Mídias, Gravação e Modal
   const [isRecordingAudio, setIsRecordingAudio] = useState(false);
   const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [mediaModalData, setMediaModalData] = useState<{
     isOpen: boolean;
     type: "IMAGE" | "DOCUMENT" | "VIDEO";
@@ -575,6 +577,26 @@ export default function WhatsAppInboxView({ onOpenOrderModal }: WhatsAppInboxVie
     textarea.style.height = "auto";
     const nextHeight = Math.min(Math.max(textarea.scrollHeight, 24), 200);
     textarea.style.height = `${nextHeight}px`;
+  };
+
+  // Inserir emoji selecionado na posição atual do cursor
+  const handleSelectEmoji = (emoji: string) => {
+    if (!chatInputRef.current) {
+      setMessageText(prev => prev + emoji);
+      return;
+    }
+    const textarea = chatInputRef.current;
+    const start = textarea.selectionStart ?? messageText.length;
+    const end = textarea.selectionEnd ?? messageText.length;
+    const newText = messageText.substring(0, start) + emoji + messageText.substring(end);
+    setMessageText(newText);
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + emoji.length, start + emoji.length);
+      textarea.style.height = "auto";
+      const nextHeight = Math.min(Math.max(textarea.scrollHeight, 24), 200);
+      textarea.style.height = `${nextHeight}px`;
+    }, 10);
   };
 
   // Enviar mensagem de texto digitada (com deduplicação)
@@ -1090,6 +1112,11 @@ export default function WhatsAppInboxView({ onOpenOrderModal }: WhatsAppInboxVie
                 </div>
               ) : (
                 messages.map(msg => {
+                  // Ignora mensagens fantasmas vazias que não possuem texto nem mídia
+                  if (!msg.text?.trim() && !msg.mediaUrl && (msg.messageType === "TEXT" || msg.messageType === "OTHER")) {
+                    return null;
+                  }
+
                   const isMine = msg.fromMe;
 
                   return (
@@ -1199,8 +1226,38 @@ export default function WhatsAppInboxView({ onOpenOrderModal }: WhatsAppInboxVie
                           </div>
                         )}
 
-                        {/* Texto da Mensagem (Oculta se for apenas placeholder de áudio/mídia) */}
-                        {msg.text && (msg.messageType === "TEXT" || (msg.messageType !== "AUDIO" && !msg.text.startsWith("🎵") && !msg.text.startsWith("📷") && !msg.text.startsWith("🎥") && !msg.text.startsWith("📄"))) && (
+                        {/* Conteúdo de Mídia - FIGURINHA / STICKER */}
+                        {msg.messageType === "STICKER" && (
+                          <div className="mb-2 flex items-center justify-start">
+                            <img
+                              src={resolveMessageMediaUrl(msg)}
+                              alt="Figurinha"
+                              className="w-28 h-28 sm:w-36 sm:h-36 object-contain hover:scale-105 transition-transform cursor-pointer drop-shadow-md"
+                              loading="lazy"
+                              onClick={() => setMediaModalData({
+                                isOpen: true,
+                                type: "IMAGE",
+                                src: resolveMessageMediaUrl(msg),
+                                fileName: "figurinha.webp",
+                                title: "Figurinha do WhatsApp"
+                              })}
+                            />
+                          </div>
+                        )}
+
+                        {/* Texto da Mensagem (Oculta apenas se for placeholder automático de mídia sem texto real) */}
+                        {msg.text && (
+                          msg.messageType === "TEXT" ||
+                          (msg.text !== "🎵 Mensagem de Áudio" &&
+                           msg.text !== "🎵 Áudio" &&
+                           msg.text !== "📷 Imagem recebida" &&
+                           msg.text !== "📷 Imagem" &&
+                           msg.text !== "🎥 Vídeo recebido" &&
+                           msg.text !== "🎥 Vídeo" &&
+                           msg.text !== "📄 Documento PDF" &&
+                           msg.text !== "📄 Documento" &&
+                           msg.text !== "🏷️ Figurinha")
+                        ) && (
                           <div className="text-xs whitespace-pre-wrap leading-relaxed font-sans select-text">
                             {formatWhatsAppMessageReact(msg.text)}
                           </div>
@@ -1349,7 +1406,10 @@ export default function WhatsAppInboxView({ onOpenOrderModal }: WhatsAppInboxVie
                   {/* Botão de Anexo (+) */}
                   <button
                     type="button"
-                    onClick={() => setAttachmentMenuOpen(prev => !prev)}
+                    onClick={() => {
+                      setAttachmentMenuOpen(prev => !prev);
+                      setEmojiPickerOpen(false);
+                    }}
                     className={`p-2.5 rounded-xl transition-all cursor-pointer flex-shrink-0 ${
                       attachmentMenuOpen
                         ? "bg-secondary-container text-primary-container"
@@ -1361,6 +1421,31 @@ export default function WhatsAppInboxView({ onOpenOrderModal }: WhatsAppInboxVie
                       {attachmentMenuOpen ? "close" : "attach_file"}
                     </span>
                   </button>
+
+                  {/* Botão de Emojis */}
+                  <div className="relative flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEmojiPickerOpen(prev => !prev);
+                        setAttachmentMenuOpen(false);
+                      }}
+                      className={`p-2.5 rounded-xl transition-all cursor-pointer flex-shrink-0 flex items-center justify-center ${
+                        emojiPickerOpen
+                          ? "bg-secondary-container text-primary-container font-bold"
+                          : "bg-slate-800 text-slate-300 hover:text-amber-400 hover:bg-slate-700"
+                      }`}
+                      title="Inserir Emoji"
+                    >
+                      <span className="text-lg leading-none select-none">😊</span>
+                    </button>
+
+                    <EmojiPickerPopover
+                      isOpen={emojiPickerOpen}
+                      onClose={() => setEmojiPickerOpen(false)}
+                      onSelectEmoji={handleSelectEmoji}
+                    />
+                  </div>
 
                   {/* Botão de Templates Rápidos */}
                   <button

@@ -71,13 +71,23 @@ export class WhatsAppWebhookController {
         return;
       }
 
+      // Ignora mensagens internas do protocolo do WhatsApp (reações criptografadas, chaves e sincronizações de dispositivos)
+      let message = data.message || {};
+      if (
+        message.protocolMessage ||
+        message.senderKeyDistributionMessage ||
+        message.encReactionMessage ||
+        message.reactionMessage
+      ) {
+        return;
+      }
+
       const fromMe = Boolean(key.fromMe || data.fromMe);
       const keyId = key.id || data.keyId || data.id || `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
       const pushName = data.pushName || data.name || (fromMe ? "MGV Suporte" : "Cliente");
       const cleanPhone = remoteJid.replace(/@.*$/, "").replace(/\D/g, "");
 
       // Extrai o conteúdo da mensagem desempacotando se for efêmera, de visualização única ou editada
-      let message = data.message || {};
       if (message.ephemeralMessage) message = message.ephemeralMessage.message || message;
       if (message.viewOnceMessage) message = message.viewOnceMessage.message || message;
       if (message.viewOnceMessageV2) message = message.viewOnceMessageV2.message || message;
@@ -85,7 +95,7 @@ export class WhatsAppWebhookController {
       if (message.editedMessage) message = message.editedMessage.message?.protocolMessage?.editedMessage || message;
 
       let text = "";
-      let messageType: "TEXT" | "IMAGE" | "AUDIO" | "DOCUMENT" | "VIDEO" | "LOCATION" | "OTHER" = "TEXT";
+      let messageType: "TEXT" | "IMAGE" | "AUDIO" | "DOCUMENT" | "VIDEO" | "LOCATION" | "STICKER" | "OTHER" = "TEXT";
       let mediaUrl: string | undefined;
       let mediaMimeType: string | undefined;
       let fileName: string | undefined;
@@ -101,6 +111,11 @@ export class WhatsAppWebhookController {
         messageType = "IMAGE";
         mediaUrl = message.imageMessage.url || data.mediaUrl;
         mediaMimeType = message.imageMessage.mimetype || "image/jpeg";
+      } else if (message.stickerMessage) {
+        text = "🏷️ Figurinha";
+        messageType = "STICKER";
+        mediaUrl = message.stickerMessage.url || data.mediaUrl;
+        mediaMimeType = message.stickerMessage.mimetype || "image/webp";
       } else if (message.audioMessage) {
         text = "🎵 Áudio";
         messageType = "AUDIO";
@@ -120,6 +135,11 @@ export class WhatsAppWebhookController {
       } else if (data.text || data.body) {
         text = data.text || data.body;
         messageType = "TEXT";
+      }
+
+      // Se não há texto, nem mídia e nem tipo especial de arquivo, ignora mensagem vazia
+      if (!text.trim() && !mediaUrl && messageType === "TEXT") {
+        return;
       }
 
       // Se for mídia, tenta salvar em arquivo estático local (/uploads/whatsapp/) para nunca expirar
