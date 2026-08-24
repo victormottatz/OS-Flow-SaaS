@@ -32,16 +32,24 @@ export function authenticateJWT(req: Request, res: Response, next: NextFunction)
   }
 
   const authHeader = req.headers["authorization"];
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  let token: string | undefined;
+
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    token = authHeader.split(" ")[1];
+  } else if (req.query?.token && typeof req.query.token === "string") {
+    token = req.query.token;
+  }
+
+  if (!token) {
     return next();
   }
 
-  const token = authHeader.split(" ")[1];
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as { id: string; email: string; role: string };
     req.headers["x-user-role"] = decoded.role;
     req.headers["x-user-id"] = decoded.id;
     req.headers["x-user-email"] = decoded.email;
+    (req as any).user = decoded;
   } catch (err) {
     // Token inválido: headers foram previamente removidos
   }

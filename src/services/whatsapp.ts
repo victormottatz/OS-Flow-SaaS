@@ -37,7 +37,7 @@ const WHATSAPP_TEMPLATES: Record<string, string> = {
     "O seu equipamento *{aparelho_modelo}* (OS *#{os_numero}*) concluiu com sucesso todas as etapas de serviços técnicos e testes de qualidade!\n\n" +
     "📍 *Seu aparelho já está disponível para retirada na MGV:*\n" +
     "🏢 *Endereço:* Rua Julio Prestes, 648 - Jardim Sumaré, Ribeirão Preto - SP\n" +
-    "⏰ *Horário de Atendimento:* Segunda a Sexta, das 08h às 18h\n\n" +
+    "⏰ *Horário de Atendimento:* Segunda a Quinta das 08h às 18h | Sexta das 08h às 17h (Sábado e Domingo: Fechado)\n\n" +
     "📎 *Segue em anexo o Laudo Técnico / Recibo do atendimento.*\n\n" +
     "💬 _Aguardamos sua visita! Caso prefira agilizar o faturamento via PIX antes da retirada, basta solicitar a chave por esta conversa._",
 
@@ -90,17 +90,20 @@ export function formatPhoneNumber(phone: string): string {
 
 /**
  * Verifica se o momento atual está dentro do horário comercial permitido para disparos.
- * Segunda a Sexta: 08h às 19h | Sábados: 08h às 13h | Domingos: Bloqueado
+ * Segunda a Quinta: 08h às 18h | Sexta: 08h às 17h | Sábados e Domingos: Fechado
  */
 export function isWithinBusinessHours(): boolean {
   const now = new Date();
   const spTime = new Date(now.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
-  const day = spTime.getDay(); // 0 = Domingo, 6 = Sábado
+  const day = spTime.getDay(); // 0 = Domingo, 1 a 4 = Seg a Qui, 5 = Sex, 6 = Sábado
   const hour = spTime.getHours();
 
-  if (day === 0) return false;
-  if (day === 6) return hour >= 8 && hour < 13;
-  return hour >= 8 && hour < 19;
+  // Sábado e Domingo: Fechado
+  if (day === 0 || day === 6) return false;
+  // Sexta-feira: 08:00 às 17:00
+  if (day === 5) return hour >= 8 && hour < 17;
+  // Segunda a Quinta: 08:00 às 18:00
+  return hour >= 8 && hour < 18;
 }
 
 export async function getWhatsAppConfig() {

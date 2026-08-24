@@ -3,6 +3,7 @@ import { DOCUMENT_TEMPLATES, DocumentTemplateId } from "../config/documents.conf
 import WhatsAppAudioPlayer from "./whatsapp/WhatsAppAudioPlayer";
 import WhatsAppMediaModal from "./whatsapp/WhatsAppMediaModal";
 import WhatsAppAudioRecorder from "./whatsapp/WhatsAppAudioRecorder";
+import { formatWhatsAppMessageReact } from "../utils/whatsappTextFormatter";
 
 interface ClientData {
   id: string;
@@ -26,28 +27,27 @@ interface OrderData {
 interface ChatItem {
   id: string;
   remoteJid: string;
-  name: string;
-  phoneNumber: string;
-  profilePicUrl?: string | null;
+  name: string | null;
+  phoneNumber: string | null;
+  profilePicUrl: string | null;
   lastMessageText: string | null;
   lastMessageAt: string | null;
   unreadCount: number;
   isArchived: boolean;
   clientId: string | null;
-  client: ClientData | null;
+  client?: ClientData | null;
   activeOrderId: string | null;
-  activeOrder: OrderData | null;
+  activeOrder?: OrderData | null;
 }
 
-function formatDisplayPhone(phone?: string) {
+function formatDisplayPhone(phone?: string | null): string {
   if (!phone) return "";
   const clean = phone.replace(/\D/g, "");
-  if (clean.length > 13) return ""; // Ignora LIDs de 14+ dígitos
   if (clean.length === 13 && clean.startsWith("55")) {
-    return `(${clean.slice(2, 4)}) ${clean.slice(4, 9)}-${clean.slice(9)}`;
+    return `+55 (${clean.slice(2, 4)}) ${clean.slice(4, 9)}-${clean.slice(9)}`;
   }
   if (clean.length === 12 && clean.startsWith("55")) {
-    return `(${clean.slice(2, 4)}) ${clean.slice(4, 8)}-${clean.slice(8)}`;
+    return `+55 (${clean.slice(2, 4)}) ${clean.slice(4, 8)}-${clean.slice(8)}`;
   }
   if (clean.length === 11) {
     return `(${clean.slice(0, 2)}) ${clean.slice(2, 7)}-${clean.slice(7)}`;
@@ -58,11 +58,34 @@ function formatDisplayPhone(phone?: string) {
   return "";
 }
 
+function playWhatsAppTone() {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+    osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.08); // A5
+    gain.gain.setValueAtTime(0.12, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.22);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.23);
+  } catch (_) {}
+}
+
 function resolveMessageMediaUrl(msg: MessageItem): string {
-  if (msg.mediaUrl && (msg.mediaUrl.startsWith("/uploads/") || msg.mediaUrl.startsWith("data:") || msg.mediaUrl.startsWith("blob:"))) {
+  if (msg.mediaUrl && (msg.mediaUrl.startsWith("data:") || msg.mediaUrl.startsWith("blob:"))) {
     return msg.mediaUrl;
   }
-  return `/api/whatsapp/messages/${msg.id}/media`;
+  // Rota resiliente protegida por controller: se o arquivo não estiver em disco, baixa da Evolution API sob demanda
+  if (msg.id) {
+    return `/api/whatsapp/messages/${msg.id}/media`;
+  }
+  return msg.mediaUrl || "";
 }
 
 function ContactAvatar({
@@ -313,92 +336,225 @@ export default function WhatsAppInboxView({ onOpenOrderModal }: WhatsAppInboxVie
     }
   }, [selectedChatId]);
 
-  // Conexão SSE para atualizações instantâneas em tempo real com DEDUPLICAÇÃO
+  const selectedChatIdRef = useRef<string | null>(selectedChatId);
   useEffect(() => {
-    const token = localStorage.getItem("mgv_token");
-    const eventSource = new EventSource(`/api/whatsapp/events?token=${token}`);
+    selectedChatIdRef.current = selectedChatId;
+  }, [selectedChatId]);
 
-    eventSource.addEventListener("new_message", (e: any) => {
-      try {
-        const payload = JSON.parse(e.data);
-        const { chatId, message, chat } = payload;
+  // Conexão SSE para atualizações instantâneas em tempo real com DEDUPLICAÇÃO e RECONEXÃO RESILIENTE
+  useEffect(() => {
+    let eventSource: EventSource | null = null;
+    let reconnectTimer: NodeJS.Timeout | null = null;
 
-        // Se a mensagem for do chat atualmente aberto, adiciona na lista evitando duplicatas
-        if (selectedChatId === chatId) {
-          setMessages(prev => {
-            const alreadyExists = prev.some(m => 
-              (m.id && message.id && m.id === message.id) ||
-              (m.keyId && message.keyId && m.keyId === message.keyId) ||
-              (m.fromMe && message.fromMe && m.text === message.text && Math.abs(new Date(m.timestamp).getTime() - new Date(message.timestamp).getTime()) < 4000)
-            );
-            if (alreadyExists) {
-              return prev.map(m => (m.id === message.id || m.keyId === message.keyId) ? { ...m, ...message } : m);
-            }
-            return [...prev, message];
-          });
-          scrollToBottom();
+    const setupSSE = () => {
+      const token = localStorage.getItem("mgv_token");
+      eventSource = new EventSource(`/api/whatsapp/events?token=${token}`);
+
+      eventSource.onopen = () => {
+        // Conexão estabelecida com sucesso
+      };
+
+      eventSource.onerror = () => {
+        if (eventSource) {
+          eventSource.close();
+          eventSource = null;
         }
+        // Tenta reconectar após 3 segundos
+        if (!reconnectTimer) {
+          reconnectTimer = setTimeout(() => {
+            reconnectTimer = null;
+            setupSSE();
+          }, 3000);
+        }
+      };
 
-        // Atualiza a lista lateral de chats e move a conversa mais recente para o topo imediatamente
-        setChats(prev => {
-          const index = prev.findIndex(c => c.id === chatId);
-          let updated: ChatItem[];
-          if (index !== -1) {
-            updated = [...prev];
-            updated[index] = {
-              ...updated[index],
-              lastMessageText: message.text || `[${message.messageType}]`,
-              lastMessageAt: message.timestamp || new Date().toISOString(),
-              unreadCount: selectedChatId === chatId ? 0 : updated[index].unreadCount + 1
-            };
-          } else if (chat) {
-            updated = [{
-              ...chat,
-              lastMessageText: message.text || `[${message.messageType}]`,
-              lastMessageAt: message.timestamp || new Date().toISOString(),
-              unreadCount: selectedChatId === chatId ? 0 : (chat.unreadCount || 1)
-            }, ...prev];
-          } else {
-            return prev;
+      eventSource.addEventListener("new_message", (e: any) => {
+        try {
+          const payload = JSON.parse(e.data);
+          const { chatId, message, chat } = payload;
+          const currentOpenChatId = selectedChatIdRef.current;
+
+          // Se a mensagem for do chat atualmente aberto na tela, adiciona na lista imediatamente
+          if (currentOpenChatId && (currentOpenChatId === chatId || (chat && currentOpenChatId === chat.id))) {
+            setMessages(prev => {
+              const alreadyExists = prev.some(m => 
+                (m.id && message.id && m.id === message.id) ||
+                (m.keyId && message.keyId && m.keyId === message.keyId) ||
+                (m.fromMe === message.fromMe && m.text === message.text && Math.abs(new Date(m.timestamp).getTime() - new Date(message.timestamp).getTime()) < 5000)
+              );
+              if (alreadyExists) {
+                return prev.map(m => (m.id === message.id || m.keyId === message.keyId) ? { ...m, ...message } : m);
+              }
+              return [...prev, message];
+            });
+            scrollToBottom();
+
+            // Se a conversa aberta recebeu nova mensagem de cliente, marca como lida
+            if (!message.fromMe) {
+              const token = localStorage.getItem("mgv_token");
+              fetch(`/api/whatsapp/chats/${chatId}/mark-read`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}` }
+              }).catch(() => {});
+            }
           }
-          return updated.sort((a, b) => {
+
+          // Toca som de notificação se a mensagem veio de um cliente
+          if (message && !message.fromMe) {
+            playWhatsAppTone();
+            window.dispatchEvent(new Event("mgv_whatsapp_unread_changed"));
+          }
+
+          // Atualiza a lista lateral de chats e move a conversa mais recente para o topo imediatamente
+          setChats(prev => {
+            const index = prev.findIndex(c => c.id === chatId);
+            let updated: ChatItem[];
+            const isCurrentlyOpen = currentOpenChatId === chatId;
+
+            if (index !== -1) {
+              updated = [...prev];
+              updated[index] = {
+                ...updated[index],
+                lastMessageText: message.text || `[${message.messageType}]`,
+                lastMessageAt: message.timestamp || new Date().toISOString(),
+                unreadCount: isCurrentlyOpen ? 0 : (message.fromMe ? updated[index].unreadCount : updated[index].unreadCount + 1),
+                profilePicUrl: chat?.profilePicUrl || updated[index].profilePicUrl,
+                name: chat?.name || updated[index].name
+              };
+            } else if (chat) {
+              updated = [{
+                ...chat,
+                lastMessageText: message.text || `[${message.messageType}]`,
+                lastMessageAt: message.timestamp || new Date().toISOString(),
+                unreadCount: isCurrentlyOpen ? 0 : (message.fromMe ? 0 : (chat.unreadCount || 1))
+              }, ...prev];
+            } else {
+              return prev;
+            }
+            return updated.sort((a, b) => {
+              const timeA = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+              const timeB = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+              return timeB - timeA;
+            });
+          });
+        } catch (err) {
+          console.error("Erro ao processar SSE new_message:", err);
+        }
+      });
+
+      eventSource.addEventListener("message_status_update", (e: any) => {
+        try {
+          const payload = JSON.parse(e.data);
+          const { keyId, messageId, status } = payload;
+          setMessages(prev => prev.map(m => {
+            const match = (messageId && m.id === messageId) ||
+                          (keyId && m.keyId === keyId) ||
+                          (keyId && m.id === keyId);
+            if (match) {
+              return { ...m, status };
+            }
+            return m;
+          }));
+        } catch (err) {}
+      });
+
+      eventSource.addEventListener("chat_read", (e: any) => {
+        try {
+          const { chatId } = JSON.parse(e.data);
+          setChats(prev => prev.map(c => c.id === chatId ? { ...c, unreadCount: 0 } : c));
+        } catch (err) {}
+      });
+
+      eventSource.addEventListener("chat_updated", (e: any) => {
+        try {
+          const { chat } = JSON.parse(e.data);
+          if (chat?.id) {
+            setChats(prev => {
+              const index = prev.findIndex(c => c.id === chat.id);
+              if (index !== -1) {
+                const updated = [...prev];
+                updated[index] = { ...updated[index], ...chat };
+                return updated;
+              }
+              return [chat, ...prev];
+            });
+          }
+        } catch (err) {}
+      });
+
+      eventSource.addEventListener("chats_synced", () => {
+        fetchChats();
+        const activeId = selectedChatIdRef.current;
+        if (activeId) fetchMessages(activeId);
+      });
+    };
+
+    setupSSE();
+
+    // Sincronização ao focar novamente a janela do navegador
+    const handleWindowFocus = () => {
+      fetchChats();
+      const activeId = selectedChatIdRef.current;
+      if (activeId) fetchMessages(activeId);
+    };
+    window.addEventListener("focus", handleWindowFocus);
+
+    return () => {
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (eventSource) eventSource.close();
+      window.removeEventListener("focus", handleWindowFocus);
+    };
+  }, []);
+
+  // Polling silencioso de redundância (a cada 3 segundos) para sincronização instantânea
+  useEffect(() => {
+    const silentSyncInterval = setInterval(async () => {
+      const token = localStorage.getItem("mgv_token");
+      if (!token) return;
+
+      // 1. Atualiza lista de chats silenciosamente
+      try {
+        let url = `/api/whatsapp/chats?`;
+        if (filterType !== "all") url += `filter=${filterType}&`;
+        if (searchQuery.trim()) url += `search=${encodeURIComponent(searchQuery)}&`;
+
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok) {
+          const freshChats: ChatItem[] = await res.json();
+          const sorted = [...freshChats].sort((a, b) => {
             const timeA = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
             const timeB = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
             return timeB - timeA;
           });
-        });
-      } catch (err) {
-        console.error("Erro ao processar SSE new_message:", err);
-      }
-    });
+          setChats(sorted);
+        }
+      } catch (err) {}
 
-    eventSource.addEventListener("message_status_update", (e: any) => {
-      try {
-        const payload = JSON.parse(e.data);
-        const { keyId, messageId, status } = payload;
-        setMessages(prev => prev.map(m => {
-          const match = (messageId && m.id === messageId) ||
-                        (keyId && m.keyId === keyId) ||
-                        (keyId && m.id === keyId);
-          if (match) {
-            return { ...m, status };
+      // 2. Se a conversa estiver aberta na tela, atualiza as mensagens silenciosamente
+      const activeId = selectedChatIdRef.current;
+      if (activeId) {
+        try {
+          const res = await fetch(`/api/whatsapp/chats/${activeId}/messages`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const freshMessages: MessageItem[] = await res.json();
+            setMessages(prev => {
+              const hasNew = freshMessages.length !== prev.length || 
+                (freshMessages.length > 0 && freshMessages[freshMessages.length - 1]?.id !== prev[prev.length - 1]?.id);
+              if (hasNew) {
+                scrollToBottom();
+                return freshMessages;
+              }
+              return prev;
+            });
           }
-          return m;
-        }));
-      } catch (err) {}
-    });
+        } catch (err) {}
+      }
+    }, 2000);
 
-    eventSource.addEventListener("chat_read", (e: any) => {
-      try {
-        const { chatId } = JSON.parse(e.data);
-        setChats(prev => prev.map(c => c.id === chatId ? { ...c, unreadCount: 0 } : c));
-      } catch (err) {}
-    });
-
-    return () => {
-      eventSource.close();
-    };
-  }, [selectedChatId]);
+    return () => clearInterval(silentSyncInterval);
+  }, [filterType, searchQuery]);
 
   // Scroll isolado que NÃO movimenta o scroll geral da janela principal
   const scrollToBottom = (instant = false) => {
@@ -623,7 +779,7 @@ export default function WhatsAppInboxView({ onOpenOrderModal }: WhatsAppInboxVie
         name: "Equipamento Pronto para Retirada",
         docId: "recibo",
         withPdf: true,
-        text: `🎉 *Ótima notícia, ${firstName}!* \n\nO seu equipamento *${model}* (OS *#${osNum}*) concluiu com sucesso todas as etapas de serviços técnicos e testes de qualidade!\n\n📍 *Já está pronto para retirada em nossa sede:*\n🏢 *Endereço:* Rua Julio Prestes, 648 - Jardim Sumaré, Ribeirão Preto - SP\n⏰ *Horário:* Segunda a Sexta, das 08h às 18h\n\n📎 *Em anexo segue o Laudo Técnico / Recibo do serviço.*\n\n💳 _Se preferir agilizar o pagamento via PIX, basta solicitar por aqui!_`
+        text: `🎉 *Ótima notícia, ${firstName}!* \n\nO seu equipamento *${model}* (OS *#${osNum}*) concluiu com sucesso todas as etapas de serviços técnicos e testes de qualidade!\n\n📍 *Já está pronto para retirada em nossa sede:*\n🏢 *Endereço:* Rua Julio Prestes, 648 - Jardim Sumaré, Ribeirão Preto - SP\n⏰ *Horário:* Segunda a Quinta das 08h às 18h | Sexta das 08h às 17h (Sábado e Domingo: Fechado)\n\n📎 *Em anexo segue o Laudo Técnico / Recibo do serviço.*\n\n💳 _Se preferir agilizar o pagamento via PIX, basta solicitar por aqui!_`
       },
       {
         id: "recibo_entrega",
@@ -791,29 +947,34 @@ export default function WhatsAppInboxView({ onOpenOrderModal }: WhatsAppInboxVie
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-1 mb-0.5">
-                        <h4 className={`font-bold text-xs truncate ${isSelected ? "text-white" : "text-slate-200"}`}>
-                          {displayName}
-                        </h4>
-                        <span className="text-[10px] text-slate-500 font-medium flex-shrink-0">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <h4 className={`font-bold text-xs truncate ${isSelected ? "text-white" : chat.unreadCount > 0 ? "text-emerald-300 font-extrabold" : "text-slate-200"}`}>
+                            {displayName}
+                          </h4>
+                          {chat.unreadCount > 0 && (
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping flex-shrink-0" title="Novas mensagens recebidas"></span>
+                          )}
+                        </div>
+                        <span className={`text-[10px] font-medium flex-shrink-0 ${chat.unreadCount > 0 ? "text-emerald-400 font-bold" : "text-slate-500"}`}>
                           {formatTime(chat.lastMessageAt) || formatDateLabel(chat.lastMessageAt)}
                         </span>
                       </div>
 
                       {/* Telefone Visível */}
                       {chat.phoneNumber && (
-                        <div className="text-[10px] text-emerald-400 font-mono mb-1 flex items-center gap-1">
+                        <div className="text-[10px] text-emerald-400/80 font-mono mb-1 flex items-center gap-1">
                           <span className="material-symbols-outlined text-[11px]">call</span>
                           <span>{formatDisplayPhone(chat.phoneNumber) || chat.phoneNumber}</span>
                         </div>
                       )}
 
                       <div className="flex items-center justify-between gap-2">
-                        <p className={`text-[11px] truncate flex-1 ${chat.unreadCount > 0 ? "font-semibold text-slate-200" : "text-slate-400"}`}>
+                        <p className={`text-[11px] truncate flex-1 ${chat.unreadCount > 0 ? "font-bold text-white" : "text-slate-400"}`}>
                           {chat.lastMessageText || "Nova conversa iniciada..."}
                         </p>
                         {chat.unreadCount > 0 && (
-                          <span className="bg-emerald-500 text-slate-950 font-black text-[10px] px-2 py-0.5 rounded-full flex-shrink-0 animate-pulse shadow-sm">
-                            {chat.unreadCount}
+                          <span className="bg-emerald-500 text-slate-950 font-black text-xs min-w-[22px] h-[22px] px-1.5 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg shadow-emerald-500/30 border border-emerald-300/50 animate-bounce">
+                            {chat.unreadCount > 99 ? "+99" : chat.unreadCount}
                           </span>
                         )}
                       </div>
@@ -1040,9 +1201,9 @@ export default function WhatsAppInboxView({ onOpenOrderModal }: WhatsAppInboxVie
 
                         {/* Texto da Mensagem (Oculta se for apenas placeholder de áudio/mídia) */}
                         {msg.text && (msg.messageType === "TEXT" || (msg.messageType !== "AUDIO" && !msg.text.startsWith("🎵") && !msg.text.startsWith("📷") && !msg.text.startsWith("🎥") && !msg.text.startsWith("📄"))) && (
-                          <p className="text-xs whitespace-pre-wrap leading-relaxed font-sans select-text">
-                            {msg.text}
-                          </p>
+                          <div className="text-xs whitespace-pre-wrap leading-relaxed font-sans select-text">
+                            {formatWhatsAppMessageReact(msg.text)}
+                          </div>
                         )}
 
                         {/* Rodapé do Balão: Horário + Vistos do WhatsApp no canto inferior direito */}

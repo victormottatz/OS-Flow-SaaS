@@ -74,18 +74,38 @@ export default function WhatsAppAudioPlayer({ src, isMine = false }: WhatsAppAud
 
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
+  const handleRetry = () => {
+    setHasError(false);
+    if (audioRef.current) {
+      audioRef.current.load();
+    }
+  };
+
   if (hasError) {
     return (
-      <div className="flex items-center gap-2 p-2 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-400 text-xs">
+      <div className="flex items-center gap-2 p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-300 text-xs shadow-inner">
         <span className="material-symbols-outlined text-amber-400 text-base">warning</span>
-        <span className="truncate">Áudio indisponível</span>
-        <a
-          href={src}
-          download="audio.ogg"
-          className="ml-auto text-secondary-container hover:underline text-[10px] font-bold"
-        >
-          Baixar
-        </a>
+        <span className="truncate text-[11px]">Áudio indisponível</span>
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleRetry}
+            className="text-secondary-container hover:text-white text-[10px] font-bold underline flex items-center gap-0.5 cursor-pointer"
+            title="Tentar carregar novamente"
+          >
+            <span className="material-symbols-outlined text-[13px]">refresh</span>
+            <span>Recarregar</span>
+          </button>
+          <a
+            href={src}
+            download="audio.ogg"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-slate-400 hover:text-white text-[10px] font-bold"
+          >
+            Baixar
+          </a>
+        </div>
       </div>
     );
   }

@@ -36,7 +36,39 @@ export default function Navbar({
   const [showTagManager, setShowTagManager] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [unreadWhatsAppCount, setUnreadWhatsAppCount] = useState<number>(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Sincronização periódica do contador de mensagens de WhatsApp não lidas
+  useEffect(() => {
+    const fetchUnreadWhatsApp = async () => {
+      try {
+        const token = localStorage.getItem("mgv_token");
+        if (!token) return;
+        const res = await fetch("/api/whatsapp/chats?filter=unread", {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const unreadChats = await res.json();
+          if (Array.isArray(unreadChats)) {
+            const totalUnread = unreadChats.reduce((acc, c) => acc + (c.unreadCount || 0), 0);
+            setUnreadWhatsAppCount(totalUnread);
+          }
+        }
+      } catch (_) {}
+    };
+
+    fetchUnreadWhatsApp();
+    const interval = setInterval(fetchUnreadWhatsApp, 6000);
+
+    const handleCustomEvent = () => fetchUnreadWhatsApp();
+    window.addEventListener("mgv_whatsapp_unread_changed", handleCustomEvent);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("mgv_whatsapp_unread_changed", handleCustomEvent);
+    };
+  }, []);
 
   // Close user dropdown when clicking outside
   useEffect(() => {
@@ -203,8 +235,8 @@ export default function Navbar({
                     <button
                       key={item.id}
                       onClick={() => handleTabClick(item.id)}
-                      title={isSidebarMinimized ? item.label : ""}
-                      className={`w-full flex items-center transition duration-150 cursor-pointer ${
+                      title={isSidebarMinimized ? (item.id === "whatsapp" && unreadWhatsAppCount > 0 ? `${item.label} (${unreadWhatsAppCount} novas)` : item.label) : ""}
+                      className={`w-full flex items-center transition duration-150 cursor-pointer relative ${
                         isSidebarMinimized ? "md:justify-center md:py-2.5 md:px-0 gap-3 px-4 py-2.5 rounded-xl" : "gap-3 px-3.5 py-2.5 rounded-xl"
                       } ${
                         active
@@ -212,12 +244,24 @@ export default function Navbar({
                           : "text-slate-400 hover:text-white hover:bg-slate-800/40"
                       }`}
                     >
-                      <span className="material-symbols-outlined text-[19px]" style={{ fontVariationSettings: active ? "'FILL' 1" : "'FILL' 0" }}>
-                        {item.icon}
-                      </span>
-                      <span className={`${isSidebarMinimized ? "md:hidden" : "animate-fadein"} text-xs font-semibold block whitespace-nowrap`}>
+                      <div className="relative flex items-center justify-center">
+                        <span className="material-symbols-outlined text-[19px]" style={{ fontVariationSettings: active ? "'FILL' 1" : "'FILL' 0" }}>
+                          {item.icon}
+                        </span>
+                        {item.id === "whatsapp" && unreadWhatsAppCount > 0 && isSidebarMinimized && (
+                          <span className="absolute -top-1.5 -right-2 w-4 h-4 bg-emerald-500 text-slate-950 text-[10px] font-black rounded-full flex items-center justify-center animate-pulse border border-slate-900 shadow-md">
+                            {unreadWhatsAppCount > 9 ? "+9" : unreadWhatsAppCount}
+                          </span>
+                        )}
+                      </div>
+                      <span className={`${isSidebarMinimized ? "md:hidden" : "animate-fadein"} text-xs font-semibold block whitespace-nowrap flex-1 text-left`}>
                         {item.label}
                       </span>
+                      {item.id === "whatsapp" && unreadWhatsAppCount > 0 && !isSidebarMinimized && (
+                        <span className="bg-emerald-500 text-slate-950 text-[10px] font-black px-1.5 py-0.5 rounded-full flex items-center justify-center animate-pulse shadow-sm border border-emerald-400/40 ml-auto">
+                          {unreadWhatsAppCount > 99 ? "+99" : unreadWhatsAppCount}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -346,7 +390,7 @@ export default function Navbar({
                   <button
                     onClick={() => {
                       setShowUserDropdown(false);
-                      alert("Central de Suporte MGV:\n\n• Telefone: (11) 3218-9900\n• E-mail: suporte@mgv.com.br\n• Atendimento: Seg a Sex das 08h às 18h");
+                      alert("Central de Suporte MGV:\n\n• Telefone: (11) 3218-9900\n• E-mail: suporte@mgv.com.br\n• Atendimento: Seg a Qui das 08h às 18h | Sex das 08h às 17h (Sáb e Dom: Fechado)");
                     }}
                     className="w-full px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition cursor-pointer"
                   >

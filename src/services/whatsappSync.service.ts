@@ -499,6 +499,245 @@ export class WhatsAppSyncService {
 
     return { imported };
   }
+
+  // 4. Sincronização Leve e Incremental em Background (Polling Contínuo de Tempo Real)
+  private isAutoSyncing = false;
+
+  async quickSyncRecentEvolution(): Promise<number> {
+    if (this.isAutoSyncing) return 0;
+    this.isAutoSyncing = true;
+
+    try {
+      const { apiUrl, apiToken, instanceName } = await this.getWhatsAppConfig();
+      if (!apiUrl || !apiToken) return 0;
+
+      // 4.1 Busca chats recentes na Evolution API
+      const chatsRes = await fetch(`${apiUrl}/chat/findChats/${instanceName}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", apikey: apiToken },
+        body: JSON.stringify({ where: {} })
+      });
+
+      if (!chatsRes.ok) return 0;
+      const chatsData = await chatsRes.json();
+      const rawChats = Array.isArray(chatsData) ? chatsData : (chatsData.chats || []);
+      if (!Array.isArray(rawChats) || rawChats.length === 0) return 0;
+
+      // Ordena os chats pelo horário da última mensagem (updatedAt) de forma decrescente
+      const sortedChats = [...rawChats].sort((a, b) => {
+        const timeA = new Date(a.updatedAt || (a.lastMessage?.messageTimestamp ? a.lastMessage.messageTimestamp * 1000 : 0)).getTime();
+        const timeB = new Date(b.updatedAt || (b.lastMessage?.messageTimestamp ? b.lastMessage.messageTimestamp * 1000 : 0)).getTime();
+        return timeB - timeA;
+      });
+
+      // Filtra grupos e pega os 15 chats mais recentes ativos
+      const candidateChats = sortedChats
+        .filter(c => c.remoteJid && !c.remoteJid.includes("@g.us") && c.remoteJid !== "status@broadcast" && !c.remoteJid.startsWith("0@"))
+        .slice(0, 15);
+
+      let totalNewMessages = 0;
+
+      for (const item of candidateChats) {
+        const remoteJid = item.remoteJid;
+        const remoteJidAlt = item.lastMessage?.key?.remoteJidAlt;
+        const phoneCandidate = (remoteJidAlt || remoteJid).replace(/@.*$/, "").replace(/\D/g, "");
+        const isLid = remoteJid.endsWith("@lid");
+
+        // Busca as 10 últimas mensagens desse chat
+        try {
+          const msgsRes = await fetch(`${apiUrl}/chat/findMessages/${instanceName}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", apikey: apiToken },
+            body: JSON.stringify({
+              where: { key: { remoteJid } },
+              limit: 10
+            })
+          });
+
+          if (!msgsRes.ok) continue;
+          const msgsData = await msgsRes.json();
+          const rawMessages = Array.isArray(msgsData)
+            ? msgsData
+            : (msgsData.messages?.records || msgsData.messages || msgsData.records || []);
+
+          if (!Array.isArray(rawMessages) || rawMessages.length === 0) continue;
+
+          for (const msgItem of rawMessages) {
+            const key = msgItem.key || {};
+            const keyId = key.id;
+            if (!keyId) continue;
+
+            // Verifica se a mensagem já existe no banco
+            const existingMsg = await (prisma as any).whatsappMessage.findFirst({
+              where: {
+                OR: [
+                  { keyId },
+                  { id: keyId }
+                ]
+              }
+            });
+
+            if (existingMsg) continue; // Mensagem já cadastrada, pula
+
+            // Mensagem NOVA encontrada!
+            const fromMe = Boolean(key.fromMe);
+            const message = msgItem.message || {};
+            let text = "";
+            let messageType: "TEXT" | "IMAGE" | "AUDIO" | "DOCUMENT" | "VIDEO" | "OTHER" = "TEXT";
+            let fileName: string | null = null;
+            let mediaUrl: string | null = null;
+            let mediaMimeType: string | null = null;
+
+            if (message.conversation) {
+              text = message.conversation;
+              messageType = "TEXT";
+            } else if (message.extendedTextMessage?.text) {
+              text = message.extendedTextMessage.text;
+              messageType = "TEXT";
+            } else if (message.imageMessage) {
+              text = message.imageMessage.caption || "📷 Imagem";
+              messageType = "IMAGE";
+              mediaUrl = message.imageMessage.url;
+              mediaMimeType = message.imageMessage.mimetype || "image/jpeg";
+            } else if (message.audioMessage) {
+              text = "🎵 Áudio";
+              messageType = "AUDIO";
+              mediaUrl = message.audioMessage.url;
+              mediaMimeType = message.audioMessage.mimetype || "audio/ogg";
+            } else if (message.documentMessage) {
+              text = message.documentMessage.caption || message.documentMessage.fileName || "📄 Documento";
+              messageType = "DOCUMENT";
+              fileName = message.documentMessage.fileName || "Documento.pdf";
+              mediaUrl = message.documentMessage.url;
+              mediaMimeType = message.documentMessage.mimetype || "application/pdf";
+            } else if (message.videoMessage) {
+              text = message.videoMessage.caption || "🎥 Vídeo";
+              messageType = "VIDEO";
+              mediaUrl = message.videoMessage.url;
+              mediaMimeType = message.videoMessage.mimetype || "video/mp4";
+            }
+
+            if (!text && !messageType) continue;
+
+            const rawTimestamp = msgItem.messageTimestamp;
+            const msgDate = rawTimestamp
+              ? new Date(typeof rawTimestamp === "number" ? rawTimestamp * 1000 : rawTimestamp)
+              : new Date();
+
+            // Localiza ou cria o chat no banco
+            let chat = await (prisma as any).whatsappChat.findFirst({
+              where: {
+                OR: [
+                  { remoteJid },
+                  ...(remoteJidAlt ? [{ remoteJid: remoteJidAlt }] : []),
+                  ...(phoneCandidate.length >= 8 ? [{ phoneNumber: { contains: phoneCandidate.slice(-8) } }] : [])
+                ]
+              },
+              include: {
+                client: { select: { id: true, name: true, phone: true, email: true, cpfCnpj: true } },
+                activeOrder: { select: { id: true, osNumber: true, status: true, totalCost: true } }
+              }
+            });
+
+            if (!chat) {
+              let matchedClient = null;
+              let matchedOrder = null;
+              if (phoneCandidate.length >= 8) {
+                const matchRes = await this.findClientByPhone(phoneCandidate);
+                matchedClient = matchRes.client;
+                matchedOrder = matchRes.order;
+              }
+
+              const pushName = msgItem.pushName || item.pushName || item.name || (matchedClient ? matchedClient.name : (fromMe ? "MGV Suporte" : "Cliente"));
+              chat = await (prisma as any).whatsappChat.create({
+                data: {
+                  remoteJid,
+                  name: matchedClient ? matchedClient.name : pushName,
+                  phoneNumber: phoneCandidate,
+                  profilePicUrl: item.profilePicUrl || null,
+                  clientId: matchedClient?.id || null,
+                  activeOrderId: matchedOrder?.id || null,
+                  lastMessageText: text || `[${messageType}]`,
+                  lastMessageAt: msgDate,
+                  unreadCount: fromMe ? 0 : 1
+                },
+                include: {
+                  client: { select: { id: true, name: true, phone: true, email: true, cpfCnpj: true } },
+                  activeOrder: { select: { id: true, osNumber: true, status: true, totalCost: true } }
+                }
+              });
+            } else {
+              chat = await (prisma as any).whatsappChat.update({
+                where: { id: chat.id },
+                data: {
+                  lastMessageText: text || `[${messageType}]`,
+                  lastMessageAt: msgDate,
+                  unreadCount: fromMe ? chat.unreadCount : { increment: 1 }
+                },
+                include: {
+                  client: { select: { id: true, name: true, phone: true, email: true, cpfCnpj: true } },
+                  activeOrder: { select: { id: true, osNumber: true, status: true, totalCost: true } }
+                }
+              });
+            }
+
+            // Salva a nova mensagem
+            const savedMessage = await (prisma as any).whatsappMessage.create({
+              data: {
+                chatId: chat.id,
+                remoteJid,
+                keyId,
+                fromMe,
+                senderName: fromMe ? "MGV Suporte" : (chat.client?.name || chat.name || "Cliente"),
+                messageType,
+                text,
+                fileName,
+                mediaUrl,
+                mediaMimeType,
+                status: fromMe ? "SENT" : "READ",
+                timestamp: isNaN(msgDate.getTime()) ? new Date() : msgDate,
+                orderId: chat.activeOrderId || null
+              }
+            });
+
+            totalNewMessages++;
+            console.log(`[WhatsApp AutoSync] 📩 Nova mensagem recebida de ${remoteJid}: "${(text || "").slice(0, 35)}..."`);
+
+            // Notifica o frontend via SSE imediatamente
+            const { realtimeEvents } = await import("./realtimeEvents");
+            realtimeEvents.broadcast("new_message", {
+              chatId: chat.id,
+              message: savedMessage,
+              chat
+            });
+            realtimeEvents.broadcast("chat_updated", { chat });
+          }
+        } catch (chatErr) {}
+      }
+
+      return totalNewMessages;
+    } catch (err: any) {
+      return 0;
+    } finally {
+      this.isAutoSyncing = false;
+    }
+  }
+
+  // Inicia a rotina de auto-sync em background contínuo
+  startAutoSyncRoutine(intervalMs = 4000) {
+    // Executa a primeira checagem após 2 segundos do boot
+    setTimeout(() => {
+      this.quickSyncRecentEvolution().catch(() => {});
+    }, 2000);
+
+    // Mantém o ciclo a cada 4 segundos
+    setInterval(() => {
+      this.quickSyncRecentEvolution().catch(() => {});
+    }, intervalMs);
+
+    console.log(`[WhatsApp AutoSync] ⚡ Rotina de sincronização contínua ativada (polling a cada ${intervalMs / 1000}s).`);
+  }
 }
 
 export const whatsAppSyncService = new WhatsAppSyncService();
+

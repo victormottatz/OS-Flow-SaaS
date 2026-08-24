@@ -197,6 +197,37 @@ export function useNotifications() {
       eventSource.addEventListener("whatsapp_approval_resolved", () => {
         syncPendingApprovals();
       });
+
+      eventSource.addEventListener("new_message", (e: MessageEvent) => {
+        try {
+          const data = JSON.parse(e.data);
+          const msg = data.message;
+          const chat = data.chat;
+          // Se for mensagem recebida de cliente (não enviada por nós)
+          if (msg && !msg.fromMe) {
+            const senderName = chat?.client?.name || chat?.name || msg.senderName || "Cliente";
+            const previewText = msg.text || (msg.messageType ? `[${msg.messageType}]` : "Nova mensagem");
+            const osNum = chat?.activeOrder?.osNumber;
+            const title = osNum ? `💬 WhatsApp: ${senderName} (OS #${osNum})` : `💬 WhatsApp: ${senderName}`;
+
+            addNotification(
+              title,
+              previewText,
+              "info",
+              undefined,
+              "navigate_tab",
+              "whatsapp",
+              {
+                orderId: chat?.activeOrderId,
+                osNumber: osNum,
+                previewText: previewText
+              }
+            );
+          }
+        } catch (err) {
+          console.warn("[useNotifications] Erro ao processar new_message SSE:", err);
+        }
+      });
     } catch (sseErr) {
       console.warn("[useNotifications] Falha ao iniciar SSE:", sseErr);
     }

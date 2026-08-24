@@ -1,26 +1,60 @@
 import { Request, Response } from "express";
 import prisma from "../database/prisma";
 import { realtimeEvents } from "../services/realtimeEvents";
-import { formatPhoneNumber, getBase64FromEvolutionMedia, saveMediaToFile } from "../services/whatsapp";
+import { getBase64FromEvolutionMedia, saveMediaToFile } from "../services/whatsapp";
 
 export class WhatsAppWebhookController {
   async handleWebhook(req: Request, res: Response) {
     try {
       const payload = req.body;
-      const event = payload.event || payload.type;
-      const data = payload.data || payload;
+      if (!payload) {
+        return res.status(200).json({ received: true });
+      }
 
-      // Responde imediatamente 200 OK para o webhook não expirar
+      const event = String(payload.event || payload.type || "").toLowerCase();
+      const rawData = payload.data || payload;
+
+      // Responde imediatamente 200 OK para o webhook não sofrer timeout
       res.status(200).json({ received: true });
 
-      if (!event || !data) return;
+      if (!rawData) return;
 
-      if (event === "messages.upsert" || event === "MESSAGES_UPSERT" || event === "messages.upsert" || event === "SEND_MESSAGE") {
-        await this.handleMessageUpsert(data);
-      } else if (event === "messages.update" || event === "MESSAGES_UPDATE") {
-        await this.handleMessageUpdate(data);
-      } else if (event === "connection.update" || event === "CONNECTION_UPDATE") {
-        realtimeEvents.broadcast("whatsapp_connection", data);
+      // Suporte a lotes / arrays ou objetos aninhados
+      let items: any[] = [];
+      if (Array.isArray(rawData)) {
+        items = rawData;
+      } else if (rawData.messages && Array.isArray(rawData.messages)) {
+        items = rawData.messages;
+      } else if (rawData.data && Array.isArray(rawData.data)) {
+        items = rawData.data;
+      } else {
+        items = [rawData];
+      }
+
+      if (
+        event === "messages.upsert" ||
+        event === "messages_upsert" ||
+        event === "send_message" ||
+        event === "send.message" ||
+        event === "message.create" ||
+        event === "messages"
+      ) {
+        for (const item of items) {
+          await this.handleMessageUpsert(item);
+        }
+      } else if (
+        event === "messages.update" ||
+        event === "messages_update" ||
+        event === "message.update"
+      ) {
+        for (const item of items) {
+          await this.handleMessageUpdate(item);
+        }
+      } else if (
+        event === "connection.update" ||
+        event === "connection_update"
+      ) {
+        realtimeEvents.broadcast("whatsapp_connection", rawData);
       }
     } catch (err: any) {
       console.error("[WhatsApp Webhook] Erro ao processar payload:", err);
@@ -29,20 +63,27 @@ export class WhatsAppWebhookController {
 
   private async handleMessageUpsert(data: any) {
     try {
+      if (!data) return;
       const key = data.key || {};
-      const remoteJid = key.remoteJid;
+      const remoteJid = key.remoteJid || data.remoteJid;
       if (!remoteJid || remoteJid.includes("@g.us") || remoteJid === "status@broadcast") {
-        // Ignora grupos e stories do WhatsApp por padrão para não poluir
+        // Ignora grupos e stories do WhatsApp por padrão para manter a caixa de entrada limpa
         return;
       }
 
-      const fromMe = Boolean(key.fromMe);
-      const keyId = key.id || `msg_${Date.now()}`;
-      const pushName = data.pushName || (fromMe ? "MGV Suporte" : "Cliente");
+      const fromMe = Boolean(key.fromMe || data.fromMe);
+      const keyId = key.id || data.keyId || data.id || `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const pushName = data.pushName || data.name || (fromMe ? "MGV Suporte" : "Cliente");
       const cleanPhone = remoteJid.replace(/@.*$/, "").replace(/\D/g, "");
 
-      // Extrai texto e tipo de mensagem
-      const message = data.message || {};
+      // Extrai o conteúdo da mensagem desempacotando se for efêmera, de visualização única ou editada
+      let message = data.message || {};
+      if (message.ephemeralMessage) message = message.ephemeralMessage.message || message;
+      if (message.viewOnceMessage) message = message.viewOnceMessage.message || message;
+      if (message.viewOnceMessageV2) message = message.viewOnceMessageV2.message || message;
+      if (message.documentWithCaptionMessage) message = message.documentWithCaptionMessage.message || message;
+      if (message.editedMessage) message = message.editedMessage.message?.protocolMessage?.editedMessage || message;
+
       let text = "";
       let messageType: "TEXT" | "IMAGE" | "AUDIO" | "DOCUMENT" | "VIDEO" | "LOCATION" | "OTHER" = "TEXT";
       let mediaUrl: string | undefined;
@@ -76,6 +117,9 @@ export class WhatsAppWebhookController {
         messageType = "VIDEO";
         mediaUrl = message.videoMessage.url || data.mediaUrl;
         mediaMimeType = message.videoMessage.mimetype || "video/mp4";
+      } else if (data.text || data.body) {
+        text = data.text || data.body;
+        messageType = "TEXT";
       }
 
       // Se for mídia, tenta salvar em arquivo estático local (/uploads/whatsapp/) para nunca expirar
@@ -98,35 +142,49 @@ export class WhatsAppWebhookController {
         }
       }
 
-      // 1. Localiza ou cadastra o Chat
-      let chat = await (prisma as any).whatsappChat.findUnique({
-        where: { remoteJid }
+      // 1. Localiza ou cadastra o Chat (busca por remoteJid ou phoneNumber para unificar LIDs)
+      let chat = await (prisma as any).whatsappChat.findFirst({
+        where: {
+          OR: [
+            { remoteJid },
+            ...(cleanPhone.length >= 8 ? [{ phoneNumber: { contains: cleanPhone.slice(-8) } }] : [])
+          ]
+        },
+        include: {
+          client: {
+            select: { id: true, name: true, phone: true, email: true, cpfCnpj: true }
+          },
+          activeOrder: {
+            select: { id: true, osNumber: true, status: true, totalCost: true }
+          }
+        }
       });
 
-      // Busca cliente correspondente pelo telefone
-      let matchedClient: any = null;
-      let matchedOrder: any = null;
+      // Busca cliente correspondente pelo telefone se o chat ainda não tiver vínculo
+      let matchedClient: any = chat?.client || null;
+      let matchedOrder: any = chat?.activeOrder || null;
 
       if (!chat || !chat.clientId) {
-        // Tenta encontrar cliente pelo número
         const suffix = cleanPhone.slice(-8); // Últimos 8 dígitos para comparação segura
-        const clients = await prisma.client.findMany({
-          where: {
-            phone: { contains: suffix },
-            deletedAt: null
-          },
-          include: {
-            orders: {
-              orderBy: { createdAt: "desc" as any },
-              take: 1
+        if (suffix.length >= 8) {
+          const clients = await prisma.client.findMany({
+            where: {
+              phone: { contains: suffix },
+              deletedAt: null
+            },
+            include: {
+              orders: {
+                orderBy: { createdAt: "desc" as any },
+                take: 1
+              }
             }
-          }
-        });
+          });
 
-        if (clients.length > 0) {
-          matchedClient = clients[0];
-          if (matchedClient.orders?.length > 0) {
-            matchedOrder = matchedClient.orders[0];
+          if (clients.length > 0) {
+            matchedClient = clients[0];
+            if (matchedClient.orders?.length > 0) {
+              matchedOrder = matchedClient.orders[0];
+            }
           }
         }
       }
@@ -145,6 +203,14 @@ export class WhatsAppWebhookController {
             lastMessageText: text || `[${messageType}]`,
             lastMessageAt: new Date(),
             unreadCount: fromMe ? 0 : 1
+          },
+          include: {
+            client: {
+              select: { id: true, name: true, phone: true, email: true, cpfCnpj: true }
+            },
+            activeOrder: {
+              select: { id: true, osNumber: true, status: true, totalCost: true }
+            }
           }
         });
       } else {
@@ -158,31 +224,63 @@ export class WhatsAppWebhookController {
             unreadCount: fromMe ? chat.unreadCount : { increment: 1 },
             clientId: chat.clientId || matchedClient?.id || null,
             activeOrderId: chat.activeOrderId || matchedOrder?.id || null
+          },
+          include: {
+            client: {
+              select: { id: true, name: true, phone: true, email: true, cpfCnpj: true }
+            },
+            activeOrder: {
+              select: { id: true, osNumber: true, status: true, totalCost: true }
+            }
           }
         });
       }
 
-      // 2. Salva o registro da Mensagem
-      const savedMessage = await (prisma as any).whatsappMessage.create({
-        data: {
-          chatId: chat.id,
-          remoteJid,
-          keyId,
-          fromMe,
-          senderName: fromMe ? "MGV Suporte" : pushName,
-          messageType,
-          text,
-          mediaUrl,
-          mediaMimeType,
-          fileName,
-          status: fromMe ? "SENT" : "READ",
-          orderId: chat.activeOrderId || null,
-          timestamp: new Date()
-        }
-      });
+      // 2. Salva o registro da Mensagem (com proteção contra duplicata pelo keyId)
+      let savedMessage: any = null;
+      if (keyId) {
+        const existingMessage = await (prisma as any).whatsappMessage.findFirst({
+          where: {
+            OR: [
+              { keyId },
+              { AND: [{ remoteJid }, { text }, { fromMe }, { timestamp: { gte: new Date(Date.now() - 5000) } }] }
+            ]
+          }
+        });
 
-      // 3. Notifica o Frontend via SSE
-      realtimeEvents.broadcast("new_message", {
+        if (existingMessage) {
+          savedMessage = await (prisma as any).whatsappMessage.update({
+            where: { id: existingMessage.id },
+            data: {
+              mediaUrl: mediaUrl || existingMessage.mediaUrl,
+              status: fromMe ? existingMessage.status : "READ"
+            }
+          });
+        }
+      }
+
+      if (!savedMessage) {
+        savedMessage = await (prisma as any).whatsappMessage.create({
+          data: {
+            chatId: chat.id,
+            remoteJid,
+            keyId,
+            fromMe,
+            senderName: fromMe ? "MGV Suporte" : pushName,
+            messageType,
+            text,
+            mediaUrl,
+            mediaMimeType,
+            fileName,
+            status: fromMe ? "SENT" : "READ",
+            orderId: chat.activeOrderId || null,
+            timestamp: new Date()
+          }
+        });
+      }
+
+      // 3. Notifica o Frontend via SSE em tempo real (emissão broadcast instantânea)
+      const broadcastPayload = {
         chatId: chat.id,
         message: savedMessage,
         chat: {
@@ -190,7 +288,10 @@ export class WhatsAppWebhookController {
           client: matchedClient ? { id: matchedClient.id, name: matchedClient.name, phone: matchedClient.phone } : null,
           activeOrder: matchedOrder ? { id: matchedOrder.id, osNumber: matchedOrder.osNumber, status: matchedOrder.status } : null
         }
-      });
+      };
+
+      realtimeEvents.broadcast("new_message", broadcastPayload);
+      realtimeEvents.broadcast("chat_updated", { chat: broadcastPayload.chat });
     } catch (err) {
       console.error("[WhatsApp Webhook] Erro ao salvar mensagem recebida:", err);
     }

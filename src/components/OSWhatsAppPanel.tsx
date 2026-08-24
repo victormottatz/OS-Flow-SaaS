@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
+import { formatWhatsAppMessageReact } from "../utils/whatsappTextFormatter";
 
 interface MessageRecord {
   id: string;
@@ -210,7 +211,7 @@ export default function OSWhatsAppPanel({
         withPdf: false
       },
       retirada: {
-        text: `🎉 *Ótima notícia, ${firstName}!* \n\nO seu equipamento *${deviceModel}* (OS *#${osNumber}*) concluiu com sucesso todas as etapas de serviços técnicos e testes de qualidade!\n\n📍 *Seu aparelho já está pronto para retirada:*\n🏢 *MGV Assistência Técnica:* Rua Julio Prestes, 648 - Jardim Sumaré, Ribeirão Preto - SP\n⏰ *Horário:* Segunda a Sexta, das 08h às 18h\n\n📎 *Segue em anexo o Laudo Técnico / Recibo do atendimento.*\n\n💬 _Aguardamos sua visita!_`,
+        text: `🎉 *Ótima notícia, ${firstName}!* \n\nO seu equipamento *${deviceModel}* (OS *#${osNumber}*) concluiu com sucesso todas as etapas de serviços técnicos e testes de qualidade!\n\n📍 *Seu aparelho já está pronto para retirada:*\n🏢 *MGV Assistência Técnica:* Rua Julio Prestes, 648 - Jardim Sumaré, Ribeirão Preto - SP\n⏰ *Horário:* Segunda a Quinta das 08h às 18h | Sexta das 08h às 17h (Sábado e Domingo: Fechado)\n\n📎 *Segue em anexo o Laudo Técnico / Recibo do atendimento.*\n\n💬 _Aguardamos sua visita!_`,
         docId: "recibo",
         withPdf: true
       },
@@ -485,9 +486,9 @@ export default function OSWhatsAppPanel({
                       {record.status}
                     </span>
                   </div>
-                  <p className="text-slate-800 whitespace-pre-wrap mt-1 leading-relaxed bg-white/60 p-2.5 rounded-lg border border-slate-100 font-sans">
-                    {record.messageText}
-                  </p>
+                  <div className="text-slate-800 text-xs whitespace-pre-wrap mt-1 leading-relaxed bg-white/80 p-2.5 rounded-lg border border-slate-100 font-sans">
+                    {formatWhatsAppMessageReact(record.messageText)}
+                  </div>
                   {record.errorDetail && (
                     <p className="text-[10px] text-rose-600 bg-rose-50 border border-rose-100 p-2 rounded-lg font-mono">
                       <strong>Erro/Detalhe:</strong> {record.errorDetail}

@@ -14,6 +14,7 @@ import { PrismaClient } from "@prisma/client";
 import { authenticateJWT, requireAuth, checkRole } from "./src/middlewares/auth";
 import apiRoutes from "./src/routes";
 import { registerSubscribers } from "./src/events/subscribers";
+import { whatsAppSyncService } from "./src/services/whatsappSync.service";
 
 const prisma = new PrismaClient();
 const DB_FILE = path.join(process.cwd(), "database.json");
@@ -81,12 +82,115 @@ async function startServer() {
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  // Rota auto-recuperável e resiliente para /uploads/whatsapp/:fileName (auto-regenera caso o container tenha reiniciado)
+  app.get("/uploads/whatsapp/:fileName", async (req, res) => {
+    try {
+      const fileName = req.params.fileName;
+      const localFilePath = path.join(process.cwd(), "public", "uploads", "whatsapp", fileName);
+
+      // 1. Se o arquivo físico existe no disco local da VPS, serve imediatamente
+      try {
+        await fs.access(localFilePath);
+        return res.sendFile(localFilePath);
+      } catch (notFound) {
+        // Arquivo físico não encontrado (ex: após deploy/rebuild ou pasta limpa)
+      }
+
+      // 2. Tenta recuperar no banco de dados para buscar da Evolution API sob demanda
+      const message = await prisma.whatsappMessage.findFirst({
+        where: {
+          mediaUrl: {
+            contains: fileName
+          }
+        }
+      });
+
+      if (!message || !message.keyId) {
+        return res.status(404).send("Mídia não encontrada no servidor.");
+      }
+
+      // Obtém configurações da Evolution API
+      let apiUrl = process.env.WHATSAPP_API_URL;
+      let apiToken = process.env.WHATSAPP_API_TOKEN;
+      let instanceName = process.env.WHATSAPP_INSTANCE_NAME || "mgv_oficial";
+
+      if (!apiUrl) {
+        const dbUrl = await prisma.officeSetting.findUnique({ where: { key: "WHATSAPP_API_URL" } });
+        apiUrl = dbUrl?.value;
+      }
+      if (!apiToken) {
+        const dbToken = await prisma.officeSetting.findUnique({ where: { key: "WHATSAPP_API_TOKEN" } });
+        apiToken = dbToken?.value;
+      }
+      const dbInstance = await prisma.officeSetting.findUnique({ where: { key: "WHATSAPP_INSTANCE_NAME" } });
+      if (dbInstance?.value) instanceName = dbInstance.value;
+
+      if (!apiUrl || !apiToken) {
+        return res.status(404).send("Configurações do WhatsApp ausentes.");
+      }
+
+      apiUrl = apiUrl.replace(/\/+$/, "");
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
+      const evoRes = await fetch(`${apiUrl}/chat/getBase64FromMediaMessage/${instanceName}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": apiToken
+        },
+        body: JSON.stringify({
+          message: {
+            key: {
+              id: message.keyId,
+              remoteJid: message.remoteJid,
+              fromMe: message.fromMe
+            }
+          },
+          convertToMp4: false
+        })
+      });
+
+      if (!evoRes.ok) {
+        return res.status(404).send("Mídia expirada ou indisponível na Evolution API.");
+      }
+
+      const evoData = await evoRes.json();
+      const base64Str = evoData.base64 || evoData.data;
+
+      if (!base64Str) {
+        return res.status(404).send("Nenhum dado retornado pela Evolution API.");
+      }
+
+      const mime = evoData.mimetype || message.mediaMimeType || (fileName.endsWith(".ogg") ? "audio/ogg" : fileName.endsWith(".jpg") ? "image/jpeg" : "application/octet-stream");
+      const buffer = Buffer.from(base64Str.replace(/^data:[^;]+;base64,/, ""), "base64");
+
+      // Salva em cache no disco para acelerar os acessos seguintes
+      try {
+        const uploadDir = path.join(process.cwd(), "public", "uploads", "whatsapp");
+        await fs.mkdir(uploadDir, { recursive: true });
+        await fs.writeFile(localFilePath, buffer);
+      } catch (writeErr) {
+        console.warn("[Server Media Recovery] Falha ao gravar cache local:", writeErr);
+      }
+
+      res.setHeader("Content-Type", mime);
+      res.setHeader("Content-Length", buffer.length);
+      res.setHeader("Accept-Ranges", "bytes");
+      res.setHeader("Cache-Control", "public, max-age=86400");
+      return res.send(buffer);
+    } catch (err) {
+      console.error("[Server Media Recovery] Erro ao recuperar mídia:", err);
+      return res.status(500).send("Erro interno ao recuperar mídia.");
+    }
+  });
+
   app.use("/uploads", express.static(path.join(process.cwd(), "public", "uploads")));
 
   // Inicia a rotina de backup em background
   startWeeklyBackupRoutine();
+
+  // Inicia o Auto-Sync contínuo da Evolution API (busca em tempo real a cada 4 segundos)
+  whatsAppSyncService.startAutoSyncRoutine(4000);
 
   // Database Migration seeder on boot: Hash passwords and ensure default role permissions (including TECHNICIAN / Bada)
   try {
@@ -154,6 +258,10 @@ async function startServer() {
     }
   });
 
+  // Middlewares essenciais para processamento de JSON e formulários (incluindo Webhooks e uploads)
+  app.use(express.json({ limit: "50mb" }));
+  app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+
   // Middleware de Autenticação JWT com blindagem contra header spoofing
   app.use(authenticateJWT);
 
@@ -181,8 +289,11 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
     app.get("*", (req, res) => {
+      // Impede que recursos não encontrados em /uploads/ ou /api/ retornem o index.html (evitando corromper players e imagens)
+      if (req.path.startsWith("/uploads/") || req.path.startsWith("/api/")) {
+        return res.status(404).json({ error: "Recurso não encontrado." });
+      }
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
