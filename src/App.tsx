@@ -39,8 +39,9 @@ const getInitialTab = () => {
 };
 
 export default function App() {
-  // Roteamento simples para o Portal Público
-  const isPublicPortal = window.location.pathname === "/acompanhar";
+  // Roteamento para o Portal Público do Cliente
+  const path = window.location.pathname.toLowerCase();
+  const isPublicPortal = path === "/acompanhar" || path === "/portal" || path === "/rastreio" || path === "/consultar";
   if (isPublicPortal) {
     return <PublicPortal />;
   }

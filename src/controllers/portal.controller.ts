@@ -71,9 +71,9 @@ function getStatusStep(status: string): number {
 
 function generateTimeline(os: any): any[] {
   const timeline = [];
-  const entryDate = os.createdAt;
+  const entryDate = os.entryDate ? new Date(os.entryDate) : new Date(os.createdAt);
 
-  // Entrada
+  // 1. Entrada
   timeline.push({
     date: entryDate.toISOString(),
     title: "Entrada na Assistência",
@@ -82,61 +82,63 @@ function generateTimeline(os: any): any[] {
 
   const step = getStatusStep(os.status);
 
-  // Orçamento (acontece no mesmo dia/início)
-  if (step >= 1) {
-    const budgetDate = new Date(entryDate.getTime() + 30 * 60 * 1000); // +30 min
+  // 2. Orçamento (Disponibilizado para avaliação/autorização)
+  if (step >= 2) {
+    const budgetDate = new Date(entryDate.getTime() + 30 * 60 * 1000); // Estimativa inicial
     timeline.push({
       date: budgetDate.toISOString(),
-      title: "Orçamento Gerado",
-      description: "Análise técnica realizada e orçamento disponível."
+      title: "Orçamento Elaborado",
+      description: "Análise técnica realizada e orçamento disponibilizado para autorização."
     });
   }
 
-  // Aprovado / Em manutenção (geralmente +12 horas ou no mesmo dia)
-  if (step >= 3) {
-    const approveDate = new Date(entryDate.getTime() + 12 * 60 * 60 * 1000); // +12 horas
+  // 3. Aprovado / Em manutenção
+  if (step >= 4 || os.status === "EM_MANUTENCAO" || os.status === "AGUARDANDO_PECA") {
+    const approveDate = new Date(entryDate.getTime() + 2 * 60 * 60 * 1000);
     timeline.push({
       date: approveDate.toISOString(),
       title: "Orçamento Aprovado",
-      description: "Orçamento aceito pelo cliente. Reparo técnico iniciado."
+      description: "Orçamento aceito pelo cliente. Reparo técnico iniciado na bancada."
     });
   }
 
-  // Pronto para retirada (+24 horas ou no mesmo dia)
-  if (step >= 4) {
-    const readyDate = new Date(entryDate.getTime() + 24 * 60 * 60 * 1000); // +24 horas
+  // 4. Pronto para retirada
+  if (step >= 5) {
+    const readyDate = os.readyDate ? new Date(os.readyDate) : new Date(entryDate.getTime() + 24 * 60 * 60 * 1000);
     timeline.push({
       date: readyDate.toISOString(),
       title: "Reparo Concluído",
-      description: "Equipamento consertado, testado e pronto para retirada."
+      description: "Equipamento consertado, testado nos testes de estresse e pronto para retirada."
     });
   }
 
-  // Finalizado (Entrega)
-  if (step === 5) {
-    const exitDate = os.originalExitDate || new Date(entryDate.getTime() + 36 * 60 * 60 * 1000);
+  // 5. Finalizado (Entrega realizada)
+  if (step === 6 || os.status === "FINALIZADO") {
+    const exitDate = os.exitDate || os.originalExitDate ? new Date(os.exitDate || os.originalExitDate) : new Date();
     timeline.push({
-      date: exitDate instanceof Date ? exitDate.toISOString() : new Date(exitDate).toISOString(),
+      date: exitDate.toISOString(),
       title: "Equipamento Entregue",
-      description: "Equipamento retirado pelo cliente na recepção da MGV."
+      description: "Equipamento retirado pelo cliente na recepção da MGV com termo de garantia."
     });
   }
 
-  return timeline.reverse(); // Mais recente primeiro
+  return timeline.reverse(); // Mais recente no topo
 }
 
 export class PortalController {
   async getOS(req: Request, res: Response) {
     try {
-      const { numero, cpfCnpj } = req.query;
+      const { numero, os: osQuery, cpfCnpj, cpf } = req.query;
+      const targetNumber = numero || osQuery;
+      const targetCpf = cpfCnpj || cpf;
 
-      if (!numero || !cpfCnpj) {
+      if (!targetNumber || !targetCpf) {
         res.status(400).json({ error: "Número da OS e CPF/CNPJ são obrigatórios." });
         return;
       }
 
-      const osNumberStr = String(numero).trim();
-      const inputDigits = String(cpfCnpj).replace(/\D/g, "");
+      const osNumberStr = String(targetNumber).trim();
+      const inputDigits = String(targetCpf).replace(/\D/g, "");
 
       if (!inputDigits) {
         res.status(400).json({ error: "CPF/CNPJ inválido." });
@@ -183,7 +185,7 @@ export class PortalController {
         totalCost: os.totalCost,
         laborCost: os.laborCost,
         usedParts: typeof os.usedParts === "string" ? JSON.parse(os.usedParts) : os.usedParts || [],
-        diagnostic: os.laudoMacro || "", // Oculta o diagnostic original (anotação técnica) e retorna o laudo macro como "diagnostic" para compatibilidade com o frontend
+        diagnostic: os.laudoMacro || "", // Oculta o diagnostic original (anotação técnica interna) e retorna o laudo macro como "diagnostic" para o cliente
         laudoFotos: typeof os.laudoFotos === "string" ? JSON.parse(os.laudoFotos || "[]") : os.laudoFotos || [],
         warrantyExpiresAt: os.device.warrantyExpiresAt ? os.device.warrantyExpiresAt.toISOString() : null,
         timeline: generateTimeline(os)
@@ -197,11 +199,12 @@ export class PortalController {
 
   async approveOS(req: Request, res: Response) {
     try {
-      const { osNumber, cpfCnpj } = req.body;
+      const osNumberInput = req.body.osNumber || req.body.numero;
+      const { cpfCnpj, signature } = req.body;
       const clientIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "UNKNOWN";
 
-      if (!osNumber || !cpfCnpj) {
-        res.status(400).json({ error: "Dados incompletos." });
+      if (!osNumberInput || !cpfCnpj) {
+        res.status(400).json({ error: "Número da OS e CPF/CNPJ são obrigatórios." });
         return;
       }
 
@@ -209,7 +212,7 @@ export class PortalController {
 
       const os = await prisma.ordemServico.findFirst({
         where: {
-          osNumber: String(osNumber),
+          osNumber: String(osNumberInput).trim(),
           deletedAt: null
         },
         include: {
@@ -231,16 +234,21 @@ export class PortalController {
 
       // Validar transição usando a FSM estática — somente OSs em AGUARDANDO_AUTORIZACAO podem ser aprovadas pelo cliente
       if (!await OSStateMachine.canTransition(os.status as OSStatus, "EM_MANUTENCAO")) {
-        res.status(400).json({ error: "Esta OS não pode ser aprovada neste momento. Verifique se o orçamento já foi elaborado e enviado para autorização." });
+        res.status(400).json({ error: "Esta OS não está aguardando autorização no momento." });
         return;
       }
 
-      // We just update the status to EM_MANUTENCAO directly when client approves
-      const updatedOS = await prisma.ordemServico.update({
+      const nowFormatted = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+      const approvalLog = `[Portal do Cliente] Orçamento aprovado eletronicamente em ${nowFormatted} (IP: ${clientIp})${signature ? " [Com Assinatura Digital]" : ""}`;
+
+      // Atualiza o status para EM_MANUTENCAO e registra dados de aceite
+      await prisma.ordemServico.update({
         where: { id: os.id },
         data: {
           status: "EM_MANUTENCAO",
-          diagnostic: os.diagnostic ? `${os.diagnostic}\n[Portal] Cliente aceitou orçamento (IP: ${clientIp})` : `[Portal] Cliente aceitou orçamento (IP: ${clientIp})`
+          approvedBudgetAmount: os.totalCost,
+          clientDecision: "APROVADO",
+          diagnostic: os.diagnostic ? `${os.diagnostic}\n${approvalLog}` : approvalLog
         }
       });
 

@@ -90,14 +90,14 @@ export default function PublicPortal() {
   const [isApproving, setIsApproving] = useState(false);
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
 
-  // ── Setup Canvas
+  // ── Setup Canvas para Assinatura Eletrônica
   useEffect(() => {
     if (!canvasRef.current || activeTab !== "ORCAMENTO") return;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     
-    // Config inicial
+    // Config inicial do traço
     ctx.lineWidth = 3;
     ctx.lineCap = "round";
     ctx.strokeStyle = "#fdc003";
@@ -106,9 +106,14 @@ export default function PublicPortal() {
     
     const getPos = (e: MouseEvent | TouchEvent) => {
       const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
       const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
       const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-      return { x: clientX - rect.left, y: clientY - rect.top };
+      return {
+        x: (clientX - rect.left) * scaleX,
+        y: (clientY - rect.top) * scaleY
+      };
     };
 
     const start = (e: MouseEvent | TouchEvent) => {
@@ -116,7 +121,7 @@ export default function PublicPortal() {
       const { x, y } = getPos(e);
       ctx.beginPath();
       ctx.moveTo(x, y);
-      if(e.cancelable) e.preventDefault();
+      if (e.cancelable) e.preventDefault();
     };
 
     const draw = (e: MouseEvent | TouchEvent) => {
@@ -124,7 +129,7 @@ export default function PublicPortal() {
       const { x, y } = getPos(e);
       ctx.lineTo(x, y);
       ctx.stroke();
-      if(e.cancelable) e.preventDefault();
+      if (e.cancelable) e.preventDefault();
     };
 
     const end = () => { isDrawing = false; };
@@ -158,50 +163,9 @@ export default function PublicPortal() {
     }
   };
 
-  const handleApprove = async () => {
-    if (!canvasRef.current || !result) return;
-    
-    // Checar se o canvas está vazio (simplificado, vamos apenas checar se gerou dataUrl grande)
-    const signature = canvasRef.current.toDataURL("image/png");
-    if (signature.length < 5000) {
-      alert("Por favor, assine no quadro para aprovar.");
-      return;
-    }
-
-    setIsApproving(true);
-    try {
-      const res = await fetch("/api/portal/os/approve", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ numero: result.osNumber, cpfCnpj, signature })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        alert("Orçamento aprovado com sucesso! A equipe iniciará o reparo.");
-        handleConsultar(); // Recarrega a OS para atualizar o status e ocultar aba de aprovação
-        setActiveTab("STATUS");
-      } else {
-        alert(data.error || "Falha ao aprovar.");
-      }
-    } catch (e) {
-      alert("Falha de comunicação.");
-    } finally {
-      setIsApproving(false);
-    }
-  };
-
-  // ── Detectar deep-link: /acompanhar?os=OS-0042
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const osParam = params.get("os");
-    if (osParam) {
-      setOsNumber(osParam.toUpperCase());
-    }
-  }, []);
-
-  const handleConsultar = useCallback(async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!osNumber.trim() || !cpfCnpj.trim()) {
+  const executeConsulta = async (osNum: string, cpfInput: string) => {
+    const cleanCpf = cpfInput.replace(/\D/g, "");
+    if (!osNum.trim() || !cleanCpf.trim()) {
       setError("Preencha o número da OS e o CPF/CNPJ para consultar.");
       return;
     }
@@ -213,7 +177,7 @@ export default function PublicPortal() {
 
     try {
       const res = await fetch(
-        `/api/portal/os?numero=${encodeURIComponent(osNumber.trim())}&cpfCnpj=${encodeURIComponent(cpfCnpj.replace(/\D/g, ""))}`
+        `/api/portal/os?numero=${encodeURIComponent(osNum.trim())}&cpfCnpj=${encodeURIComponent(cleanCpf)}`
       );
       const data = await res.json();
 
@@ -228,6 +192,66 @@ export default function PublicPortal() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleApprove = async () => {
+    if (!canvasRef.current || !result) return;
+    
+    const signature = canvasRef.current.toDataURL("image/png");
+    if (signature.length < 5000) {
+      alert("Por favor, assine digitalmente no quadro para aprovar seu orçamento.");
+      return;
+    }
+
+    setIsApproving(true);
+    try {
+      const res = await fetch("/api/portal/os/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          osNumber: result.osNumber,
+          numero: result.osNumber,
+          cpfCnpj,
+          signature
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert("Orçamento aprovado com sucesso! Nossa equipe técnica dará início ao reparo do seu equipamento.");
+        await executeConsulta(result.osNumber, cpfCnpj);
+        setActiveTab("STATUS");
+      } else {
+        alert(data.error || "Falha ao aprovar orçamento.");
+      }
+    } catch (e) {
+      alert("Falha de comunicação com o servidor ao processar a aprovação.");
+    } finally {
+      setIsApproving(false);
+    }
+  };
+
+  // ── Detectar deep-link com 1 clique (ex: WhatsApp: /acompanhar?numero=OS-0042&cpfCnpj=...)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const osParam = params.get("numero") || params.get("os") || "";
+    const cpfParam = params.get("cpfCnpj") || params.get("cpf") || "";
+    
+    if (osParam) {
+      setOsNumber(osParam.toUpperCase().trim());
+    }
+    if (cpfParam) {
+      setCpfCnpj(formatCPF(cpfParam.trim()));
+    }
+
+    // Se ambos os parâmetros vierem na URL, executa a busca automaticamente
+    if (osParam.trim() && cpfParam.trim()) {
+      executeConsulta(osParam.toUpperCase().trim(), cpfParam.trim());
+    }
+  }, []);
+
+  const handleConsultar = useCallback(async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    await executeConsulta(osNumber, cpfCnpj);
   }, [osNumber, cpfCnpj]);
 
   const handleNovaConsulta = () => {
@@ -236,6 +260,8 @@ export default function PublicPortal() {
     setHasSearched(false);
     setOsNumber("");
     setCpfCnpj("");
+    // Limpa os parâmetros da URL sem recarregar a página
+    window.history.replaceState({}, document.title, window.location.pathname);
   };
 
   const colors = result ? statusColorMap[result.statusColor] : statusColorMap.gray;
@@ -285,7 +311,7 @@ export default function PublicPortal() {
         </div>
 
         <a
-          href="tel:+551132189900"
+          href="tel:+5516991049631"
           style={{
             display: "flex", alignItems: "center", gap: "0.4rem",
             fontSize: "0.78rem", color: "#fdc003", textDecoration: "none",
@@ -293,7 +319,7 @@ export default function PublicPortal() {
           }}
         >
           <span className="material-symbols-outlined" style={{ fontSize: 16 }}>phone</span>
-          <span style={{ display: "none" }} id="phone-label">(11) 3218-9900</span>
+          <span style={{ display: "none" }} id="phone-label">(16) 99104-9631</span>
         </a>
       </header>
 
@@ -826,6 +852,18 @@ export default function PublicPortal() {
                     </>
                   )}
                 </button>
+
+                <div style={{ textAlign: "center", marginTop: "0.75rem" }}>
+                  <a
+                    href={`https://wa.me/5516991049631?text=${encodeURIComponent(`Olá! Gostaria de conversar com o técnico sobre o orçamento da OS #${result.osNumber} (${result.deviceLabel}) antes de aprovar.`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: "0.78rem", color: "#94a3b8", textDecoration: "underline", display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 14, color: "#25d366" }}>chat</span>
+                    Dúvidas sobre os valores? Fale com a equipe no WhatsApp
+                  </a>
+                </div>
               </div>
             )}
 
@@ -861,7 +899,7 @@ export default function PublicPortal() {
             {/* ── AÇÕES ── */}
             <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
               <a
-                href="https://wa.me/551132189900"
+                href={`https://wa.me/5516991049631?text=${encodeURIComponent(`Olá! Sou ${result.clientName} e gostaria de informações sobre a OS #${result.osNumber} (${result.deviceLabel}).`)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 id="btn-whatsapp"
