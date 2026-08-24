@@ -289,11 +289,20 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
+    
+    // Serve os arquivos estáticos compilados (JS, CSS, imagens em /assets)
+    app.use(express.static(distPath, { maxAge: "1y", index: false }));
+
     app.get("*", (req, res) => {
-      // Impede que recursos não encontrados em /uploads/ ou /api/ retornem o index.html (evitando corromper players e imagens)
-      if (req.path.startsWith("/uploads/") || req.path.startsWith("/api/")) {
+      // Impede que assets inexistentes ou rotas de API/uploads caiam no index.html retornando text/html
+      if (req.path.startsWith("/uploads/") || req.path.startsWith("/api/") || req.path.startsWith("/assets/")) {
         return res.status(404).json({ error: "Recurso não encontrado." });
       }
+      
+      // Garante que o index.html sempre busque a versão mais recente dos scripts sem ficar preso em cache
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
