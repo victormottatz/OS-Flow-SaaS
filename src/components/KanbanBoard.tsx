@@ -63,6 +63,15 @@ interface KanbanBoardProps {
   limit: number | "all";
   onLimitChange: (limit: number | "all") => void;
   countsByStatus: Record<string, number>;
+  onSwitchToList?: () => void;
+  targetOpenOS?: {
+    orderId: string;
+    osNumber?: string;
+    initialTab?: string;
+    initialMessageText?: string;
+    whatsappMessageId?: string;
+  } | null;
+  onClearTargetOpenOS?: () => void;
 }
 
 const TECNICO_COLUMNS: { id: OSStatus; name: string; color: string; desc: string }[] = [
@@ -154,13 +163,13 @@ const KanbanCard = React.memo(({
           onClick(os);
         }
       }} 
-      className={`${cardBgColor} rounded-2xl border p-3.5 shadow-sm cursor-pointer transition-all duration-300 hover:shadow-md hover:scale-[1.01] flex flex-col space-y-2 select-text ${
+      className={`${cardBgColor} rounded-xl border p-2.5 shadow-xs cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.01] flex flex-col space-y-1.5 select-text ${
         isSelected ? "border-l-4 border-rose-500 bg-rose-50/5 ring-2 ring-rose-500/20" : getOSCardBorders(os.status)
       }`}
     >
       {/* Header Row */}
-      <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-100 pb-1.5">
-        <div className="flex items-center gap-1.5">
+      <div className="flex flex-wrap items-center justify-between gap-1 border-b border-slate-100 pb-1">
+        <div className="flex items-center gap-1">
           {isSelectMode && (
             <input
               type="checkbox"
@@ -230,7 +239,7 @@ const KanbanCard = React.memo(({
       </div>
 
       {/* Client Section */}
-      <div className="flex justify-between items-center gap-2">
+      <div className="flex justify-between items-center gap-1.5">
         <h4 className="font-extrabold text-slate-900 text-xs truncate">
           {(os as any).client?.name}
         </h4>
@@ -240,22 +249,22 @@ const KanbanCard = React.memo(({
       </div>
 
       {/* Equipment Section */}
-      <div className="bg-slate-50/50 p-1.5 rounded-xl border border-slate-150 text-[10px] space-y-0.5">
+      <div className="bg-slate-50/60 p-1.5 rounded-lg border border-slate-150 text-[9.5px] space-y-0.5">
         <div className="flex items-center gap-1">
-          <span className="material-symbols-outlined text-[12px] text-slate-400">devices</span>
+          <span className="material-symbols-outlined text-[11px] text-slate-400">devices</span>
           <span className="font-bold text-slate-800 truncate">
             {(os as any).device?.type} {(os as any).device?.brand} - {(os as any).device?.model}
           </span>
         </div>
-        <div className="pl-4 text-[9px] text-slate-500 font-mono flex items-center justify-between">
+        <div className="pl-3.5 text-[8.5px] text-slate-500 font-mono flex items-center justify-between">
           <span>Série: <strong className="bg-slate-150/70 px-1 py-0.2 rounded">{(os as any).device?.serialNumber || "Sem Série"}</strong></span>
         </div>
         
         {/* Nova Visualização do benchLocation para a Recepção e Técnicos */}
         {(os as any).benchLocation && (
-          <div className="pl-4 mt-1.5 pt-1.5 border-t border-slate-200/60 flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-[11px] text-rose-500 shrink-0">pin_drop</span>
-            <span className="font-extrabold text-[10px] text-rose-700 uppercase tracking-widest break-words leading-tight">
+          <div className="pl-3.5 mt-1 pt-1 border-t border-slate-200/60 flex items-center gap-1">
+            <span className="material-symbols-outlined text-[10px] text-rose-500 shrink-0">pin_drop</span>
+            <span className="font-extrabold text-[9px] text-rose-700 uppercase tracking-widest break-words leading-tight">
               LOCAL: {(os as any).benchLocation}
             </span>
           </div>
@@ -264,25 +273,25 @@ const KanbanCard = React.memo(({
 
       {/* Symptom/Defect Section */}
       {os.reportedDefect && (
-        <div className="text-[9px] text-slate-650 bg-slate-50/30 px-2 py-1 border border-slate-150/50 rounded-lg italic font-semibold line-clamp-1 leading-relaxed">
+        <div className="text-[8.5px] text-slate-650 bg-slate-50/30 px-1.5 py-0.5 border border-slate-150/50 rounded-md italic font-semibold line-clamp-1 leading-tight">
           Defeito: "{os.reportedDefect}"
         </div>
       )}
 
       {/* Technical Diagnosis Section */}
       {os.diagnostic && (
-        <div className="text-[9px] text-indigo-750 bg-indigo-50/20 px-2 py-1 border border-indigo-100/50 rounded-lg italic font-mono font-bold line-clamp-1 leading-relaxed">
+        <div className="text-[8.5px] text-indigo-750 bg-indigo-50/20 px-1.5 py-0.5 border border-indigo-100/50 rounded-md italic font-mono font-bold line-clamp-1 leading-tight">
           Laudo: {os.diagnostic}
         </div>
       )}
 
       {/* Footer Row */}
-      <div className="border-t border-slate-150 pt-2 flex justify-between items-center text-[9px]">
+      <div className="border-t border-slate-150 pt-1.5 flex justify-between items-center text-[9px]">
         <div className="flex items-center gap-1 text-slate-400 font-semibold">
           <span className="material-symbols-outlined text-[11px]">calendar_today</span>
           <span>{new Date(os.createdAt).toLocaleDateString()}</span>
         </div>
-        <span className="text-slate-900 font-extrabold text-[11px] bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-200 shadow-xs">
+        <span className="text-slate-900 font-extrabold text-[10px] bg-slate-50 px-1.5 py-0.5 rounded-md border border-slate-200 shadow-xs">
           R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
         </span>
       </div>
@@ -451,7 +460,10 @@ export default function KanbanBoard({
   onNavigateToBlingPanel,
   limit,
   onLimitChange,
-  countsByStatus
+  countsByStatus,
+  onSwitchToList,
+  targetOpenOS,
+  onClearTargetOpenOS
 }: KanbanBoardProps) {
   console.log("[KanbanBoard] countsByStatus recebido:", countsByStatus);
   const loadingMoreRef = React.useRef(false);
@@ -548,7 +560,8 @@ export default function KanbanBoard({
   const [selectedOS, setSelectedOS] = useState<OrdemServico | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [modalTab, setModalTab] = useState<"laudo" | "pecas" | "entrada" | "saida">("laudo");
+  const [modalTab, setModalTab] = useState<"laudo" | "pecas" | "entrada" | "saida" | "whatsapp">("laudo");
+  const [initialWhatsAppMessage, setInitialWhatsAppMessage] = useState<string>("");
   
   // Alternância de Visões segmentadas
   const [viewMode, setViewMode] = useState<"tecnico" | "recepcao" | "financeiro">(() => {
@@ -982,7 +995,11 @@ export default function KanbanBoard({
     }
   };
 
-  const openOSDetails = (os: OrdemServico) => {
+  const openOSDetails = (
+    os: OrdemServico, 
+    initialTab: "laudo" | "pecas" | "entrada" | "saida" | "whatsapp" = "laudo",
+    initialMsg?: string
+  ) => {
     // Abrir os detalhes limpa qualquer finalização pendente de um arrasto anterior
     // (evita retomar uma transição que o usuário já desistiu).
     setPendingFinalize(null);
@@ -1007,6 +1024,12 @@ export default function KanbanBoard({
     setEditAccessoriesLeft(os.accessoriesLeft || "");
     setEditPhysicalState(os.physicalState || "");
     setIsEditingEntrada(false);
+
+    if (initialMsg !== undefined) {
+      setInitialWhatsAppMessage(initialMsg);
+    } else {
+      setInitialWhatsAppMessage("");
+    }
 
     // Carregar detalhes completos (com fotos Base64) em background
     const loadFullDetails = async () => {
@@ -1048,7 +1071,7 @@ export default function KanbanBoard({
     setEditChecklistSaida(os.checklistSaida && os.checklistSaida.length > 0 ? os.checklistSaida : defaultSaida);
     setIsEditingSaida(false);
 
-    setModalTab("laudo");
+    setModalTab(initialTab);
     setErrorMsg("");
     setSuccessMsg("");
     setShowEditModal(true);
@@ -1056,6 +1079,44 @@ export default function KanbanBoard({
     // Baseline da guarda de alterações não salvas (não disparar ao apenas abrir)
     editModalBaselineRef.current = captureEditBaseline(os, defaultSaida);
   };
+
+  // Efeito para abrir automaticamente modal da OS quando solicitado externamente (ex: sininho / WhatsApp)
+  useEffect(() => {
+    if (!targetOpenOS) return;
+
+    const handleTarget = async () => {
+      const { orderId, osNumber, initialTab, initialMessageText } = targetOpenOS;
+      let found = ordensServico.find(o => o.id === orderId || (osNumber && o.osNumber === osNumber));
+
+      if (!found && orderId) {
+        try {
+          const token = localStorage.getItem("mgv_token") || "";
+          const res = await fetch(`/api/ordens-servico/${orderId}`, {
+            headers: { "Authorization": `Bearer ${token}` }
+          });
+          if (res.ok) {
+            found = await res.json();
+          }
+        } catch (err) {
+          console.error("Erro ao buscar OS direcionada:", err);
+        }
+      }
+
+      if (found) {
+        openOSDetails(
+          found, 
+          ((initialTab as any) || "whatsapp"), 
+          initialMessageText
+        );
+      }
+
+      if (onClearTargetOpenOS) {
+        onClearTargetOpenOS();
+      }
+    };
+
+    handleTarget();
+  }, [targetOpenOS, ordensServico]);
 
   const handleModalPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -1625,183 +1686,202 @@ export default function KanbanBoard({
 
 
   return (
-    <div className="h-full flex flex-col space-y-4 overflow-hidden">
+    <div className="h-full max-h-full flex flex-col space-y-2.5 overflow-hidden min-h-0">
       {isOffline && (
-        <div className="bg-red-950/60 border border-red-500 rounded-xl p-3 text-red-200 text-xs flex items-center space-x-2 animate-pulse shadow-inner">
+        <div className="bg-red-950/60 border border-red-500 rounded-xl p-2.5 text-red-200 text-xs flex items-center space-x-2 animate-pulse shadow-inner shrink-0">
           <span className="material-symbols-outlined text-[16px] text-red-400 shrink-0">warning</span>
           <span><strong>ALERTA:</strong> Conexão offline ativa. Movimentação bloqueada.</span>
         </div>
       )}
 
-      {/* Search Bar with Scope Dropdown Selector */}
-      <div className="flex flex-col sm:flex-row items-center gap-3 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-sm relative z-10">
-        <div className="relative w-full max-w-xl">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <span className="material-symbols-outlined text-slate-400">search</span>
-          </div>
-          <input
-            type="text"
-            placeholder="Pesquisar por OS, cliente, aparelho, laudo ou sintomas..."
-            value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              if (globalSearchResults !== null) setGlobalSearchResults(null);
-            }}
-            onKeyDown={(e) => { if (e.key === "Enter") handleAdvancedSearch(); }}
-            className="w-full pl-10 pr-10 py-2.5 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-medium placeholder:text-slate-400 shadow-sm"
-          />
-          {searchTerm && (
-            <button
-              onClick={() => {
-                setSearchTerm("");
-                setGlobalSearchResults(null);
+      {/* Search Bar & Actions Bar Integrada e Compacta */}
+      <div className="flex flex-wrap items-center justify-between gap-2 bg-white p-2 rounded-xl border border-slate-200/80 shadow-xs shrink-0 relative z-10">
+        <div className="flex items-center gap-2 flex-1 min-w-[280px]">
+          <div className="relative flex-1 max-w-md">
+            <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+              <span className="material-symbols-outlined text-slate-400 text-[18px]">search</span>
+            </div>
+            <input
+              type="text"
+              placeholder="Pesquisar OS, cliente, aparelho..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                if (globalSearchResults !== null) setGlobalSearchResults(null);
               }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+              onKeyDown={(e) => { if (e.key === "Enter") handleAdvancedSearch(); }}
+              className="w-full pl-8 pr-8 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none focus:border-indigo-500 focus:bg-white transition-all font-medium placeholder:text-slate-400"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => {
+                  setSearchTerm("");
+                  setGlobalSearchResults(null);
+                }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+              >
+                <span className="material-symbols-outlined block text-[15px]">close</span>
+              </button>
+            )}
+          </div>
+          
+          {canUseAdvancedSearch && searchTerm.length >= 2 && globalSearchResults === null && (
+            <button
+              onClick={handleAdvancedSearch}
+              disabled={isSearching}
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 transition disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
             >
-              <span className="material-symbols-outlined block text-[18px]">close</span>
+              <span className={`material-symbols-outlined text-[15px] ${isSearching ? "animate-spin" : ""}`}>
+                {isSearching ? "sync" : "travel_explore"}
+              </span>
+              <span className="hidden md:inline">{isSearching ? "Buscando..." : "Busca Global"}</span>
+            </button>
+          )}
+
+          {/* Seletor de Visão Consolidada do Gestor */}
+          {(userRole === "OWNER" || userRole === "ADMIN") && (
+            <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200/70 shrink-0">
+              <button
+                onClick={() => setViewMode("tecnico")}
+                className={`py-1 px-2.5 text-[10.5px] font-extrabold rounded-md transition flex items-center gap-1 cursor-pointer ${
+                  viewMode === "tecnico"
+                    ? "bg-white text-slate-900 shadow-xs border border-slate-200/50"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+                title="Visualizar fluxo técnico de bancada"
+              >
+                <span className="material-symbols-outlined text-[14px]">build</span>
+                <span className="hidden lg:inline">Técnico</span>
+              </button>
+              <button
+                onClick={() => setViewMode("recepcao")}
+                className={`py-1 px-2.5 text-[10.5px] font-extrabold rounded-md transition flex items-center gap-1 cursor-pointer ${
+                  viewMode === "recepcao"
+                    ? "bg-white text-slate-900 shadow-xs border border-slate-200/50"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+                title="Visualizar fluxo de recepção e handoff"
+              >
+                <span className="material-symbols-outlined text-[14px]">storefront</span>
+                <span className="hidden lg:inline">Recepção</span>
+              </button>
+              <button
+                onClick={() => setViewMode("financeiro")}
+                className={`py-1 px-2.5 text-[10.5px] font-extrabold rounded-md transition flex items-center gap-1 cursor-pointer ${
+                  viewMode === "financeiro"
+                    ? "bg-white text-slate-900 shadow-xs border border-slate-200/50"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+                title="Visualizar controle financeiro de ordens"
+              >
+                <span className="material-symbols-outlined text-[14px]">payments</span>
+                <span className="hidden lg:inline">Financeiro</span>
+              </button>
+            </div>
+          )}
+          {(userRole !== "OWNER" && userRole !== "ADMIN") && (
+            <div className="flex bg-slate-100 p-1 px-2 rounded-lg border border-slate-200/70 items-center gap-1.5 shrink-0">
+              <span className="material-symbols-outlined text-indigo-500 text-[14px]">
+                {viewMode === "tecnico" ? "build" : viewMode === "recepcao" ? "storefront" : "payments"}
+              </span>
+              <span className="font-extrabold text-slate-700 text-[10.5px]">
+                {viewMode === "tecnico" ? "Técnico" : viewMode === "recepcao" ? "Recepção" : "Financeiro"}
+              </span>
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          {onSwitchToList && (
+            <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200/70 shrink-0">
+              <button
+                type="button"
+                className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-extrabold bg-white text-slate-900 shadow-xs border border-slate-200/60"
+                title="Visualização em Quadro Kanban"
+              >
+                <span className="material-symbols-outlined text-[14px]">view_kanban</span>
+                <span className="hidden sm:inline">Quadro</span>
+              </button>
+              <button
+                type="button"
+                onClick={onSwitchToList}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-extrabold text-slate-500 hover:text-slate-900 transition-colors cursor-pointer"
+                title="Alternar para visualização em Lista Tabela"
+              >
+                <span className="material-symbols-outlined text-[14px]">view_list</span>
+                <span className="hidden sm:inline">Lista</span>
+              </button>
+            </div>
+          )}
+
+          <div className="flex items-center gap-1 shrink-0">
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as "asc" | "desc")}
+              className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all cursor-pointer"
+            >
+              <option value="desc">📅 Mais Recentes</option>
+              <option value="asc">📅 Mais Antigas</option>
+            </select>
+          </div>
+
+          {userRole === UserRole.OWNER && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsSelectMode(!isSelectMode);
+                setSelectedIds([]);
+              }}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 border cursor-pointer select-none ${
+                isSelectMode 
+                  ? "bg-rose-600 border-rose-700 text-white shadow-xs hover:bg-rose-700" 
+                  : "bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200"
+              }`}
+            >
+              <span className="material-symbols-outlined text-[14px]">{isSelectMode ? "cancel" : "delete_sweep"}</span>
+              <span className="hidden sm:inline">{isSelectMode ? "Sair" : "Limpeza"}</span>
             </button>
           )}
         </div>
-        
-        {canUseAdvancedSearch && searchTerm.length >= 2 && globalSearchResults === null && (
-          <button
-            onClick={handleAdvancedSearch}
-            disabled={isSearching}
-            className="w-full sm:w-auto px-5 py-3 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-          >
-            {isSearching ? (
-              <span className="material-symbols-outlined animate-spin text-[18px]">sync</span>
-            ) : (
-              <span className="material-symbols-outlined text-[18px]">travel_explore</span>
-            )}
-            {isSearching ? "Buscando..." : "Busca Avançada (Global)"}
-          </button>
-        )}
-
-
-
-        <div className="flex items-center space-x-2 shrink-0 w-full sm:w-auto">
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider hidden md:inline">Ordenação:</label>
-          <select
-            value={sortOrder}
-            onChange={(e) => setSortOrder(e.target.value as "asc" | "desc")}
-            className="w-full sm:w-auto px-3.5 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all cursor-pointer font-semibold"
-          >
-            <option value="desc">📅 Mais Recentes Primeiro</option>
-            <option value="asc">📅 Mais Antigas Primeiro</option>
-          </select>
-        </div>
-
-        {userRole === UserRole.OWNER && (
-          <button
-            type="button"
-            onClick={() => {
-              setIsSelectMode(!isSelectMode);
-              setSelectedIds([]);
-            }}
-            className={`w-full sm:w-auto px-4 py-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 border cursor-pointer select-none ${
-              isSelectMode 
-                ? "bg-rose-600 border-rose-700 text-white shadow-md shadow-rose-900/10 hover:bg-rose-700" 
-                : "bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200"
-            }`}
-          >
-            <span className="material-symbols-outlined text-[16px]">{isSelectMode ? "cancel" : "delete_sweep"}</span>
-            <span>{isSelectMode ? "Sair da Seleção" : "Limpeza (Excluir em Lote)"}</span>
-          </button>
-        )}
       </div>
 
-      {/* Seletor de Visão Consolidada do Gestor */}
-      {(userRole === "OWNER" || userRole === "ADMIN") && (
-        <div className="flex bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/50 max-w-xl shadow-sm">
-          <button
-            onClick={() => setViewMode("tecnico")}
-            className={`flex-1 py-2.5 px-4 text-[11px] font-extrabold rounded-xl transition flex items-center justify-center gap-2 cursor-pointer ${
-              viewMode === "tecnico"
-                ? "bg-white text-slate-900 shadow-sm border border-slate-200/50"
-                : "text-slate-500 hover:text-slate-800"
-            }`}
-          >
-            <span className="material-symbols-outlined text-[16px]">build</span>
-            <span>Fluxo Técnico</span>
-          </button>
-          <button
-            onClick={() => setViewMode("recepcao")}
-            className={`flex-1 py-2.5 px-4 text-[11px] font-extrabold rounded-xl transition flex items-center justify-center gap-2 cursor-pointer ${
-              viewMode === "recepcao"
-                ? "bg-white text-slate-900 shadow-sm border border-slate-200/50"
-                : "text-slate-500 hover:text-slate-800"
-            }`}
-          >
-            <span className="material-symbols-outlined text-[16px]">storefront</span>
-            <span>Recepção (Handoff)</span>
-          </button>
-          <button
-            onClick={() => setViewMode("financeiro")}
-            className={`flex-1 py-2.5 px-4 text-[11px] font-extrabold rounded-xl transition flex items-center justify-center gap-2 cursor-pointer ${
-              viewMode === "financeiro"
-                ? "bg-white text-slate-900 shadow-sm border border-slate-200/50"
-                : "text-slate-500 hover:text-slate-800"
-            }`}
-          >
-            <span className="material-symbols-outlined text-[16px]">payments</span>
-            <span>Financeiro</span>
-          </button>
-        </div>
-      )}
-      {(userRole !== "OWNER" && userRole !== "ADMIN") && (
-        <div className="flex bg-slate-100/80 p-3 rounded-2xl border border-slate-200/50 shadow-sm items-center gap-2">
-          <span className="material-symbols-outlined text-indigo-500 text-xl">
-            {viewMode === "tecnico" ? "build" : viewMode === "recepcao" ? "front_desk" : "payments"}
-          </span>
-          <span className="font-extrabold text-slate-700 text-sm">
-            Seu Painel: {viewMode === "tecnico" ? "Fluxo Técnico" : viewMode === "recepcao" ? "Recepção e Handoff" : "Financeiro"}
-          </span>
-        </div>
-      )}
-
       {globalSearchResults !== null && (
-        <div className="bg-indigo-50/80 border border-indigo-200/60 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
-          <div className="flex items-center gap-3 text-indigo-800">
-            <span className="material-symbols-outlined text-indigo-500 text-2xl">travel_explore</span>
+        <div className="bg-indigo-50/80 border border-indigo-200/60 p-2.5 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-xs shrink-0">
+          <div className="flex items-center gap-2 text-indigo-800 text-xs">
+            <span className="material-symbols-outlined text-indigo-500 text-lg">travel_explore</span>
             <div>
-              <p className="font-bold text-sm">Exibindo Resultados da Pesquisa Global</p>
-              <p className="text-xs text-indigo-600/80">Foram encontrados {globalSearchResults.length} registros no banco de dados para "{searchTerm}".</p>
+              <p className="font-bold text-xs">Exibindo Resultados da Pesquisa Global</p>
+              <p className="text-[11px] text-indigo-600/80">Foram encontrados {globalSearchResults.length} registros para "{searchTerm}".</p>
             </div>
           </div>
           <button
             onClick={() => { setSearchTerm(""); setGlobalSearchResults(null); }}
-            className="px-4 py-2 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-lg text-xs font-bold transition flex items-center gap-1 shrink-0"
+            className="px-3 py-1 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-lg text-xs font-bold transition flex items-center gap-1 shrink-0"
           >
-            <span className="material-symbols-outlined text-[16px]">close</span> Limpar Pesquisa
+            <span className="material-symbols-outlined text-[14px]">close</span> Limpar Pesquisa
           </button>
         </div>
       )}
 
+      {/* Bulk Delete Floating Toolbar */}
       {isSelectMode && (
-        <div className="p-4 rounded-2xl bg-rose-500/5 border border-rose-500/10 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs anim-slideup select-none mb-4">
-          <div className="flex items-center gap-2.5 text-rose-800">
-            <span className="material-symbols-outlined text-rose-500 text-xl">delete_sweep</span>
-            <div>
-              <p className="font-bold text-xs text-rose-900">Modo de Seleção e Exclusão em Lote Ativo</p>
-              <p className="text-[10px] text-rose-700/80">Selecione os cards de testes que deseja excluir. <strong>{selectedIds.length}</strong> selecionados.</p>
-            </div>
+        <div className="bg-rose-50 border border-rose-200 p-2 rounded-xl flex flex-wrap items-center justify-between gap-2 shadow-xs shrink-0">
+          <div className="flex items-center space-x-2 text-rose-800 text-xs">
+            <span className="material-symbols-outlined text-rose-600 text-lg">check_box</span>
+            <span className="font-bold">{selectedIds.length} OS selecionadas</span>
           </div>
-          <div className="flex gap-2 w-full sm:w-auto">
+          <div className="flex items-center space-x-1.5">
             <button
               type="button"
-              onClick={() => {
-                const allIds = dataSource.map(o => o.id);
-                setSelectedIds(allIds);
-              }}
-              className="px-3.5 py-2 border border-slate-250 bg-white hover:bg-slate-50 text-slate-700 text-[10px] font-bold rounded-lg transition active:scale-95 cursor-pointer"
+              onClick={() => setSelectedIds(dataSource.map(o => o.id))}
+              className="px-2.5 py-1 border border-slate-250 bg-white hover:bg-slate-50 text-slate-700 text-[10px] font-bold rounded-lg transition cursor-pointer"
             >
               Selecionar Todos
             </button>
             <button
               type="button"
               onClick={() => setSelectedIds([])}
-              className="px-3.5 py-2 border border-slate-250 bg-white hover:bg-slate-50 text-slate-700 text-[10px] font-bold rounded-lg transition active:scale-95 cursor-pointer"
+              className="px-2.5 py-1 border border-slate-250 bg-white hover:bg-slate-50 text-slate-700 text-[10px] font-bold rounded-lg transition cursor-pointer"
             >
               Desmarcar Todos
             </button>
@@ -1809,10 +1889,10 @@ export default function KanbanBoard({
               type="button"
               disabled={selectedIds.length === 0 || isDeleting}
               onClick={handleBatchDelete}
-              className="flex items-center justify-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-[10px] font-extrabold rounded-lg shadow-md transition active:scale-95 cursor-pointer"
+              className="flex items-center justify-center gap-1 px-3 py-1 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-[10px] font-extrabold rounded-lg shadow-xs transition cursor-pointer"
             >
-              <span className="material-symbols-outlined text-[14px]">delete</span>
-              <span>{isDeleting ? "Excluindo..." : "Excluir Selecionados"}</span>
+              <span className="material-symbols-outlined text-[13px]">delete</span>
+              <span>{isDeleting ? "Excluindo..." : "Excluir"}</span>
             </button>
           </div>
         </div>
@@ -1822,7 +1902,7 @@ export default function KanbanBoard({
         ref={boardScrollRef}
         onDragOver={handleBoardDragOver}
         onDragEnd={handleDragEnd}
-        className={`flex-1 flex overflow-x-auto gap-6 pb-2 pr-2 custom-scrollbar-horizontal ${
+        className={`flex-1 min-h-0 flex overflow-x-auto gap-3 pb-1 pr-1 custom-scrollbar-horizontal ${
           draggingId ? "" : "snap-x snap-mandatory"
         }`}
       >
@@ -1854,17 +1934,17 @@ export default function KanbanBoard({
               key={column.id} 
               onDragOver={handleDragOver} 
               onDrop={(e) => handleDrop(e, column.id)} 
-              className={`w-[360px] min-w-[360px] shrink-0 rounded-2xl border border-slate-200/85 border-t-4 p-4.5 flex flex-col h-full max-h-full gap-4 overflow-hidden ${column.color} ${
+              className={`w-[325px] min-w-[325px] shrink-0 rounded-2xl border border-slate-200/85 border-t-4 p-3 flex flex-col h-full max-h-full gap-2.5 overflow-hidden ${column.color} ${
                 draggingId ? "" : "snap-center"
               }`}
             >
-              <div className="flex items-center justify-between border-b border-slate-200/60 pb-3 shrink-0">
-                <h3 className="font-bold text-sm text-slate-900">{column.name}</h3>
+              <div className="flex items-center justify-between border-b border-slate-200/60 pb-2 shrink-0">
+                <h3 className="font-bold text-xs sm:text-sm text-slate-900">{column.name}</h3>
                 <span className="bg-slate-900 text-white font-mono text-[10px] px-2 py-0.5 rounded-full">{colCount}</span>
               </div>
               <div 
                 onScroll={(e) => handleColumnScroll(e, column.id as any)}
-                className="flex-1 space-y-2.5 overflow-y-auto pr-1 pb-2 custom-scrollbar"
+                className="flex-1 min-h-0 space-y-2 overflow-y-auto pr-1 pb-1 custom-scrollbar"
               >
                 {colOS.map((os) => {
                   // Motor de Recorrência
@@ -3011,6 +3091,7 @@ export default function KanbanBoard({
                   deviceBrand={(selectedOS as any).device?.brand || ""}
                   totalCost={computedTotal}
                   onPrintPDF={() => handlePrintRecibo(selectedOS)}
+                  initialMessageText={initialWhatsAppMessage}
                 />
               )}
 

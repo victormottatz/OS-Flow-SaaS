@@ -47,6 +47,11 @@ Sempre que concluir e aplicar uma nova funcionalidade, correção ou deploy no s
   `D:\HD\MGV\MGV_2026\MGV-Assistencia-Tecnica-TESTE`
 - O diretório principal (`D:\HD\MGV\MGV_2026\MGV-Assistência-Técnica`) é tratado como ambiente de Produção/Master e **nunca** deve receber edições diretas sem instrução super explícita em contrário.
 
+## 🚫 Proibição Absoluta do Navegador Automático (Economia de Tokens)
+
+- **Regra Estrita:** O agente NUNCA deve usar o navegador (browser subagent) nem abrir abas de navegação autônomas.
+- **Validações Visuais:** O agente deve sempre instruir o usuário a testar no próprio navegador e solicitar que ele envie capturas de tela (prints) ou logs do console caso haja qualquer questão visual ou comportamental a ser analisada.
+
 ## 🔔 Protocolo de Pop-up e Notificações In-App (UpdatePopup)
 
 Sempre que concluir e aplicar uma nova atualização no sistema principal (Deploy), o agente deve, obrigatoriamente e de forma proativa:

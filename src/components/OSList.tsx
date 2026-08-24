@@ -16,6 +16,15 @@ interface OSListProps {
   userRole: string;
   isOffline: boolean;
   onRefresh: () => void;
+  onSwitchToKanban?: () => void;
+  targetOpenOS?: {
+    orderId: string;
+    osNumber?: string;
+    initialTab?: string;
+    initialMessageText?: string;
+    whatsappMessageId?: string;
+  } | null;
+  onClearTargetOpenOS?: () => void;
 }
 
 const getStatusBadgeClass = (status: OSStatus, closingReason?: string | null) => {
@@ -65,7 +74,14 @@ const getStatusName = (status: OSStatus, closingReason?: string | null) => {
   }
 };
 
-export default function OSList({ isOffline, onRefresh, userRole }: OSListProps) {
+export default function OSList({ 
+  isOffline, 
+  onRefresh, 
+  userRole, 
+  onSwitchToKanban,
+  targetOpenOS,
+  onClearTargetOpenOS
+}: OSListProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<OSStatus | "ALL">("ALL");
   const [page, setPage] = useState(1);
@@ -76,6 +92,13 @@ export default function OSList({ isOffline, onRefresh, userRole }: OSListProps) 
   const [modalTab, setModalTab] = useState<"laudo" | "pecas" | "entrada" | "saida">("laudo");
   const [editTagIds, setEditTagIds] = useState<string[]>([]);
   const [savingTags, setSavingTags] = useState(false);
+
+  // Se receber targetOpenOS (ex: clique no sininho de notificação), alterna para a visão Kanban
+  useEffect(() => {
+    if (targetOpenOS && onSwitchToKanban) {
+      onSwitchToKanban();
+    }
+  }, [targetOpenOS, onSwitchToKanban]);
 
   const pageSize = 50;
 
@@ -261,6 +284,28 @@ export default function OSList({ isOffline, onRefresh, userRole }: OSListProps) 
           <p className="text-slate-500 text-sm">Visualização, busca rápida e auditoria geral de todas as Ordens de Serviço</p>
         </div>
         <div className="flex items-center gap-3">
+          {onSwitchToKanban && (
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/80 shadow-inner shrink-0">
+              <button
+                type="button"
+                onClick={onSwitchToKanban}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-extrabold text-slate-500 hover:text-slate-900 transition-colors cursor-pointer"
+                title="Alternar para visualização em Quadro Kanban"
+              >
+                <span className="material-symbols-outlined text-[16px]">view_kanban</span>
+                <span className="hidden sm:inline">Quadro</span>
+              </button>
+              <button
+                type="button"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-extrabold bg-white text-slate-900 shadow-sm border border-slate-200/60"
+                title="Visualização em Lista Tabela"
+              >
+                <span className="material-symbols-outlined text-[16px]">view_list</span>
+                <span className="hidden sm:inline">Lista</span>
+              </button>
+            </div>
+          )}
+
           <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2 shadow-sm text-xs text-slate-500">
             <span className="material-symbols-outlined text-[16px] text-slate-400">database</span>
             <span className="font-semibold">{total} OS{total !== 1 ? 's' : ''}</span>

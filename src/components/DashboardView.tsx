@@ -119,23 +119,28 @@ export default function DashboardView({
     }
   }, [isOffline, user.role]);
 
+  // Safe Arrays Guards
+  const safeOS = Array.isArray(ordensServico) ? ordensServico : [];
+  const safeClients = Array.isArray(clients) ? clients : [];
+  const safeParts = Array.isArray(parts) ? parts : [];
+
   // Metrics Calculations (supporting fallback / offline mode)
   const totalClientsCount = serverOperational && serverOperational.totalClientsCount !== undefined
     ? serverOperational.totalClientsCount
-    : clients.length;
-  const localActiveOSCount = ordensServico.filter(o => o.status !== "FINALIZADO").length;
+    : safeClients.length;
+  const localActiveOSCount = safeOS.filter(o => o.status !== "FINALIZADO").length;
   const criticalPartsCount = serverOperational && serverOperational.criticalStockParts
     ? serverOperational.criticalStockParts.length
-    : parts.filter(p => p.stock <= (p.stockMin || 0)).length;
+    : safeParts.filter(p => p.stock <= (p.stockMin || 0)).length;
 
-  const localSlaCriticalCount = ordensServico.filter(o => {
+  const localSlaCriticalCount = safeOS.filter(o => {
     if (o.status === "FINALIZADO") return false;
     const diff = new Date().getTime() - new Date(o.createdAt).getTime();
     return diff / (1000 * 60 * 60 * 24) > 15; // 15 dias limite
   }).length;
 
   const getLocalTmaDays = () => {
-    const finalized = ordensServico.filter(o => o.status === "FINALIZADO");
+    const finalized = safeOS.filter(o => o.status === "FINALIZADO");
     if (finalized.length === 0) return 0;
     let totalDays = 0;
     finalized.forEach(o => {
@@ -151,7 +156,7 @@ export default function DashboardView({
   const getMonthlyReport = () => {
     let receitaTotal = 0;
     let custoPecas = 0;
-    ordensServico.forEach(os => {
+    safeOS.forEach(os => {
       if (os.status === "FINALIZADO") {
         receitaTotal += os.totalCost || 0;
         if (os.usedParts) {
@@ -181,7 +186,7 @@ export default function DashboardView({
 
   const pendingBillingCount = serverOperational && serverOperational.pendingBillingCount !== undefined
     ? serverOperational.pendingBillingCount
-    : ordensServico.filter(o => o.status === "FINALIZADO" && o.billingStatus === "PENDENTE").length;
+    : safeOS.filter(o => o.status === "FINALIZADO" && o.billingStatus === "PENDENTE").length;
 
   // Kanban Funnel distribution
   const getFunnelDistribution = () => {
@@ -194,7 +199,7 @@ export default function DashboardView({
       PAGO_PRONTO_RETIRADA: 0,
       FINALIZADO: 0
     };
-    ordensServico.forEach(o => {
+    safeOS.forEach(o => {
       if (counts[o.status] !== undefined) {
         counts[o.status]++;
       }
@@ -207,14 +212,14 @@ export default function DashboardView({
     .reduce((sum, [_, val]) => sum + (val as number), 0) || 1;
 
   // OS paradas aguardando peças
-  const waitingPartsOS = ordensServico
+  const waitingPartsOS = safeOS
     .filter(o => o.status === "AGUARDANDO_PECA")
     .slice(0, 5); // top 5
 
   // Carga de trabalho dinâmica por categoria de aparelho
   const getCargaEquipamento = () => {
     const counts: Record<string, number> = {};
-    ordensServico.filter(o => o.status !== "FINALIZADO").forEach(o => {
+    safeOS.filter(o => o.status !== "FINALIZADO").forEach(o => {
       const type = o.device?.type || "Outros";
       counts[type] = (counts[type] || 0) + 1;
     });
@@ -230,7 +235,7 @@ export default function DashboardView({
     const list: { type: "success" | "warning" | "info" | "neutral"; title: string; desc: string; time: string; operator?: string }[] = [];
 
     // Critical parts alert
-    parts.filter(p => p.stock <= 3).slice(0, 2).forEach(p => {
+    safeParts.filter(p => p.stock <= 3).slice(0, 2).forEach(p => {
       list.push({
         type: "warning",
         title: "Alerta de Estoque Crítico",
@@ -240,8 +245,8 @@ export default function DashboardView({
     });
 
     // Completed OS
-    ordensServico.filter(o => o.status === "FINALIZADO").slice(0, 2).forEach(o => {
-      const client = clients.find(c => c.id === o.clientId);
+    safeOS.filter(o => o.status === "FINALIZADO").slice(0, 2).forEach(o => {
+      const client = safeClients.find(c => c.id === o.clientId);
       const clientName = client ? client.name : "Cliente";
       list.push({
         type: "success",
@@ -253,8 +258,8 @@ export default function DashboardView({
     });
 
     // Active OS
-    ordensServico.filter(o => ["AGUARDANDO_AVALIACAO", "AGUARDANDO_AUTORIZACAO", "EM_MANUTENCAO"].includes(o.status)).slice(0, 2).forEach(o => {
-      const device = devices.find(d => d.id === o.deviceId);
+    safeOS.filter(o => ["AGUARDANDO_AVALIACAO", "AGUARDANDO_AUTORIZACAO", "EM_MANUTENCAO"].includes(o.status)).slice(0, 2).forEach(o => {
+      const device = (Array.isArray(devices) ? devices : []).find(d => d.id === o.deviceId);
       const deviceName = device ? `${device.brand} ${device.model}` : "Equipamento";
       list.push({
         type: "info",
@@ -564,7 +569,7 @@ export default function DashboardView({
               <span>Gargalos (Falta de Peças)</span>
             </h4>
             <span className="text-[9px] font-mono font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full">
-              {ordensServico.filter(o => o.status === "AGUARDANDO_PECA").length} OS
+              {safeOS.filter(o => o.status === "AGUARDANDO_PECA").length} OS
             </span>
           </div>
 

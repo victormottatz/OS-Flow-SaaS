@@ -337,13 +337,13 @@ export class OSController {
     try {
       // Parse query parameters for pagination, filtering, sorting
       const page = Math.max(1, Number(req.query.page) || 1);
-      const pageSize = Math.min(5000, Math.max(1, Number(req.query.pageSize) || 100));
+      const pageSize = Math.min(5000, Math.max(1, Number(req.query.pageSize) || Number(req.query.limit) || 100));
       const cursor = req.query.cursor as string | undefined;
       const status = req.query.status as string;
       const search = (req.query.search as string)?.trim().toLowerCase() || "";
       const sortBy = (req.query.sortBy as string) || "createdAt";
       const sortOrder = (req.query.sortOrder as string) === "asc" ? "asc" : "desc";
-      const includeRelations = req.query.includeRelations === "true";
+      const includeRelations = req.query.includeRelations !== "false";
 
       const userRole = req.headers["x-user-role"] as string;
       const isProfitEnabled = await featureFlags.isEnabled("OS_PROFITABILITY_CALC");

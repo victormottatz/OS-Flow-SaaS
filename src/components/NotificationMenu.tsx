@@ -63,11 +63,17 @@ export default function NotificationMenu() {
       markAsRead(notif.id);
     }
 
-    // Se for notificação de aprovação de WhatsApp, abre a OS
-    if (notif.action === "approve_whatsapp" || notif.action === "open_os") {
+    // Se for notificação de aprovação de WhatsApp ou abertura de OS
+    if (notif.action === "approve_whatsapp" || notif.action === "open_os" || notif.orderId) {
       if (notif.orderId) {
         window.dispatchEvent(new CustomEvent("mgv_open_os_details", { 
-          detail: { orderId: notif.orderId, osNumber: notif.osNumber } 
+          detail: { 
+            orderId: notif.orderId, 
+            osNumber: notif.osNumber,
+            initialTab: (notif.action === "approve_whatsapp" || Boolean(notif.whatsappMessageId)) ? "whatsapp" : "laudo",
+            initialMessageText: notif.previewText,
+            whatsappMessageId: notif.whatsappMessageId
+          } 
         }));
       }
       setIsOpen(false);
@@ -92,6 +98,25 @@ export default function NotificationMenu() {
       window.open(notif.link, "_blank");
       setIsOpen(false);
     }
+  };
+
+  const handleViewOnOS = (e: React.MouseEvent, notif: SystemNotification) => {
+    e.stopPropagation();
+    if (!notif.read) {
+      markAsRead(notif.id);
+    }
+    if (notif.orderId) {
+      window.dispatchEvent(new CustomEvent("mgv_open_os_details", { 
+        detail: { 
+          orderId: notif.orderId, 
+          osNumber: notif.osNumber,
+          initialTab: "whatsapp",
+          initialMessageText: notif.previewText,
+          whatsappMessageId: notif.whatsappMessageId
+        } 
+      }));
+    }
+    setIsOpen(false);
   };
 
   const handleApproveWhatsApp = async (e: React.MouseEvent, notif: SystemNotification) => {
@@ -316,9 +341,14 @@ export default function NotificationMenu() {
                                     </button>
                                   </div>
 
-                                  <span className="text-[10px] font-bold text-indigo-600 hover:underline flex items-center gap-0.5">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleViewOnOS(e, notif)}
+                                    className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-0.5 cursor-pointer bg-transparent border-0 p-0 transition-colors"
+                                    title="Abrir OS na aba WhatsApp para editar mensagem antes do disparo"
+                                  >
                                     Ver na OS <ExternalLink className="w-2.5 h-2.5" />
-                                  </span>
+                                  </button>
                                 </div>
                               )}
                             </div>

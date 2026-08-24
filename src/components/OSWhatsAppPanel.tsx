@@ -19,6 +19,7 @@ interface OSWhatsAppPanelProps {
   deviceBrand: string;
   totalCost: number;
   onPrintPDF?: () => void;
+  initialMessageText?: string;
 }
 
 export default function OSWhatsAppPanel({
@@ -29,16 +30,32 @@ export default function OSWhatsAppPanel({
   deviceModel,
   deviceBrand,
   totalCost,
-  onPrintPDF
+  onPrintPDF,
+  initialMessageText
 }: OSWhatsAppPanelProps) {
   const [history, setHistory] = useState<MessageRecord[]>([]);
-  const [messageText, setMessageText] = useState("");
+  const [messageText, setMessageText] = useState(initialMessageText || "");
   const [selectedTemplateDoc, setSelectedTemplateDoc] = useState<string>("orcamento");
   const [includePdf, setIncludePdf] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+
+  // Sincroniza mensagem inicial caso venha externamente (ex: notificação do sininho)
+  useEffect(() => {
+    if (initialMessageText && initialMessageText.trim()) {
+      setMessageText(initialMessageText);
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.style.height = "auto";
+          textareaRef.current.style.height = `${Math.min(Math.max(textareaRef.current.scrollHeight, 60), 250)}px`;
+          textareaRef.current.focus();
+        }
+      }, 150);
+    }
+  }, [initialMessageText, orderId]);
 
   // Guarda de alterações não salvas
   useUnsavedChangesGuard(messageText.trim() !== "");
@@ -399,11 +416,20 @@ export default function OSWhatsAppPanel({
 
         {/* Campo de envio */}
         <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-          <label className="block text-[10px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
-            Mensagem personalizada para WhatsApp (Destinatário: {clientPhone})
-          </label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+              Mensagem personalizada para WhatsApp (Destinatário: {clientPhone})
+            </label>
+            {messageText && (
+              <span className="text-[10px] text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded font-bold inline-flex items-center gap-1">
+                <span className="material-symbols-outlined text-[12px]">edit</span>
+                Você pode editar o texto abaixo antes de enviar
+              </span>
+            )}
+          </div>
           <div className="flex flex-col sm:flex-row gap-2">
             <textarea
+              ref={textareaRef}
               rows={2}
               value={messageText}
               onChange={(e) => {

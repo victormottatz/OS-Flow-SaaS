@@ -6,6 +6,7 @@ import UserManagement from "./UserManagement";
 import OSConciliation from "./OSConciliation";
 import CustomFieldsManager from "./CustomFieldsManager";
 import WhatsAppSettingsPanel from "./WhatsAppSettingsPanel";
+import WorkflowVisualizer from "./WorkflowVisualizer";
 
 interface SettingsViewProps {
   userRole: UserRole;
@@ -23,6 +24,7 @@ export default function SettingsView({ userRole, isOffline = false }: SettingsVi
     { id: "conciliation_tool", label: "Ferramenta de Conciliação", icon: "history_toggle_off" },
     { id: "conciliation", label: "Regras de Conciliação", icon: "tune" },
     { id: "whatsapp", label: "WhatsApp", icon: "forum" },
+    { id: "workflow", label: "Arquitetura & Fluxos", icon: "account_tree" },
   ];
 
   return (
@@ -47,7 +49,7 @@ export default function SettingsView({ userRole, isOffline = false }: SettingsVi
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 px-6 py-4 text-sm font-medium whitespace-nowrap transition-colors relative ${
                 activeTab === tab.id 
-                  ? 'text-indigo-600' 
+                  ? 'text-indigo-600 font-bold' 
                   : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
               }`}
             >
@@ -70,6 +72,7 @@ export default function SettingsView({ userRole, isOffline = false }: SettingsVi
           {activeTab === "conciliation_tool" && <OSConciliation />}
           {activeTab === "conciliation" && <SystemConfigPanel />}
           {activeTab === "whatsapp" && <WhatsAppSettingsPanel />}
+          {activeTab === "workflow" && <WorkflowVisualizer />}
         </div>
       </div>
     </div>

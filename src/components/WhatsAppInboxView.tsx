@@ -258,10 +258,16 @@ export default function WhatsAppInboxView({ onOpenOrderModal }: WhatsAppInboxVie
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
-        const data = await res.json();
-        setChats(data);
-        if (!selectedChatId && data.length > 0) {
-          setSelectedChatId(data[0].id);
+        const data: ChatItem[] = await res.json();
+        // Ordena estritamente com as mensagens mais recentes no topo
+        const sorted = [...data].sort((a, b) => {
+          const timeA = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+          const timeB = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+          return timeB - timeA;
+        });
+        setChats(sorted);
+        if (!selectedChatId && sorted.length > 0) {
+          setSelectedChatId(sorted[0].id);
         }
       }
     } catch (err) {
@@ -333,22 +339,33 @@ export default function WhatsAppInboxView({ onOpenOrderModal }: WhatsAppInboxVie
           scrollToBottom();
         }
 
-        // Atualiza a lista lateral de chats
+        // Atualiza a lista lateral de chats e move a conversa mais recente para o topo imediatamente
         setChats(prev => {
           const index = prev.findIndex(c => c.id === chatId);
+          let updated: ChatItem[];
           if (index !== -1) {
-            const updated = [...prev];
+            updated = [...prev];
             updated[index] = {
               ...updated[index],
               lastMessageText: message.text || `[${message.messageType}]`,
-              lastMessageAt: message.timestamp,
+              lastMessageAt: message.timestamp || new Date().toISOString(),
               unreadCount: selectedChatId === chatId ? 0 : updated[index].unreadCount + 1
             };
-            return updated.sort((a, b) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime());
           } else if (chat) {
-            return [chat, ...prev];
+            updated = [{
+              ...chat,
+              lastMessageText: message.text || `[${message.messageType}]`,
+              lastMessageAt: message.timestamp || new Date().toISOString(),
+              unreadCount: selectedChatId === chatId ? 0 : (chat.unreadCount || 1)
+            }, ...prev];
+          } else {
+            return prev;
           }
-          return prev;
+          return updated.sort((a, b) => {
+            const timeA = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+            const timeB = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+            return timeB - timeA;
+          });
         });
       } catch (err) {
         console.error("Erro ao processar SSE new_message:", err);
@@ -748,206 +765,75 @@ export default function WhatsAppInboxView({ onOpenOrderModal }: WhatsAppInboxVie
               <span className="material-symbols-outlined text-3xl text-slate-600 mb-2">chat_bubble_outline</span>
               <p>Nenhuma conversa encontrada.</p>
             </div>
-          ) : filterType === "all" && !searchQuery.trim() ? (
-            <>
-              {/* SEÇÃO 1: ORDENS DE SERVIÇO & CLIENTES */}
-              {chats.filter(c => Boolean(c.activeOrder)).length > 0 && (
-                <div>
-                  <div className="px-3.5 py-1.5 bg-slate-950/90 border-y border-amber-500/20 flex items-center justify-between text-[11px] font-black uppercase tracking-wider text-amber-400 sticky top-0 z-10 backdrop-blur-sm">
-                    <div className="flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-sm">assignment</span>
-                      <span>Ordens de Serviço & Clientes</span>
-                    </div>
-                    <span className="bg-amber-500/20 text-amber-300 text-[10px] px-2 py-0.5 rounded-full font-bold">
-                      {chats.filter(c => Boolean(c.activeOrder)).length}
-                    </span>
-                  </div>
-                  <div className="divide-y divide-slate-800/30">
-                    {chats.filter(c => Boolean(c.activeOrder)).map(chat => {
-                      const isSelected = chat.id === selectedChatId;
-                      const displayName = chat.client?.name || (chat.name && !/^\d+$/.test(chat.name) ? chat.name : (formatDisplayPhone(chat.phoneNumber) || "Contato"));
-                      return (
-                        <div
-                          key={chat.id}
-                          onClick={() => setSelectedChatId(chat.id)}
-                          className={`p-3.5 flex items-start gap-3 cursor-pointer transition-all hover:bg-slate-800/50 ${isSelected ? "bg-slate-800/90 border-l-4 border-amber-500" : ""}`}
-                        >
-                          <ContactAvatar
-                            name={displayName}
-                            phone={chat.phoneNumber}
-                            profilePicUrl={chat.profilePicUrl}
-                            size="md"
-                            hasOrder={true}
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between gap-1 mb-0.5">
-                              <h4 className="font-bold text-xs text-white truncate">{displayName}</h4>
-                              <span className="text-[10px] text-slate-500 font-medium flex-shrink-0">
-                                {formatTime(chat.lastMessageAt) || formatDateLabel(chat.lastMessageAt)}
-                              </span>
-                            </div>
-
-                            {/* Telefone Visível */}
-                            {chat.phoneNumber && (
-                              <div className="text-[10px] text-emerald-400 font-mono mb-1 flex items-center gap-1">
-                                <span className="material-symbols-outlined text-[11px]">call</span>
-                                <span>{formatDisplayPhone(chat.phoneNumber) || chat.phoneNumber}</span>
-                              </div>
-                            )}
-
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="text-[11px] text-slate-400 truncate flex-1">
-                                {chat.lastMessageText || "Nova conversa iniciada..."}
-                              </p>
-                              {chat.unreadCount > 0 && (
-                                <span className="bg-emerald-500 text-slate-950 font-black text-[10px] px-2 py-0.5 rounded-full flex-shrink-0 animate-pulse">
-                                  {chat.unreadCount}
-                                </span>
-                              )}
-                            </div>
-                            {chat.activeOrder && (
-                              <div className="mt-1.5 flex items-center gap-1.5">
-                                <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1">
-                                  <span className="material-symbols-outlined text-[12px]">build</span>
-                                  <span>OS #{chat.activeOrder.osNumber}</span>
-                                </span>
-                                <span className="text-[10px] text-slate-500 truncate">
-                                  {chat.activeOrder.deviceBrand} {chat.activeOrder.deviceModel}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* SEÇÃO 2: CONTATOS DO WHATSAPP */}
-              {chats.filter(c => !c.activeOrder).length > 0 && (
-                <div>
-                  <div className="px-3.5 py-1.5 bg-slate-950/90 border-y border-emerald-500/20 flex items-center justify-between text-[11px] font-black uppercase tracking-wider text-emerald-400 sticky top-0 z-10 backdrop-blur-sm">
-                    <div className="flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-sm">contacts</span>
-                      <span>Contatos do WhatsApp</span>
-                    </div>
-                    <span className="bg-emerald-500/20 text-emerald-300 text-[10px] px-2 py-0.5 rounded-full font-bold">
-                      {chats.filter(c => !c.activeOrder).length}
-                    </span>
-                  </div>
-                  <div className="divide-y divide-slate-800/30">
-                    {chats.filter(c => !c.activeOrder).map(chat => {
-                      const isSelected = chat.id === selectedChatId;
-                      const displayName = chat.client?.name || (chat.name && !/^\d+$/.test(chat.name) ? chat.name : (formatDisplayPhone(chat.phoneNumber) || "Contato WhatsApp"));
-                      return (
-                        <div
-                          key={chat.id}
-                          onClick={() => setSelectedChatId(chat.id)}
-                          className={`p-3.5 flex items-start gap-3 cursor-pointer transition-all hover:bg-slate-800/50 ${isSelected ? "bg-slate-800/90 border-l-4 border-emerald-500" : ""}`}
-                        >
-                          <ContactAvatar
-                            name={displayName}
-                            phone={chat.phoneNumber}
-                            profilePicUrl={chat.profilePicUrl}
-                            size="md"
-                            hasOrder={false}
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between gap-1 mb-0.5">
-                              <h4 className="font-bold text-xs text-white truncate">{displayName}</h4>
-                              <span className="text-[10px] text-slate-500 font-medium flex-shrink-0">
-                                {formatTime(chat.lastMessageAt) || formatDateLabel(chat.lastMessageAt)}
-                              </span>
-                            </div>
-
-                            {/* Telefone Visível */}
-                            {chat.phoneNumber && (
-                              <div className="text-[10px] text-emerald-400 font-mono mb-1 flex items-center gap-1">
-                                <span className="material-symbols-outlined text-[11px]">call</span>
-                                <span>{formatDisplayPhone(chat.phoneNumber) || chat.phoneNumber}</span>
-                              </div>
-                            )}
-
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="text-[11px] text-slate-400 truncate flex-1">
-                                {chat.lastMessageText || "Nova conversa iniciada..."}
-                              </p>
-                              {chat.unreadCount > 0 && (
-                                <span className="bg-emerald-500 text-slate-950 font-black text-[10px] px-2 py-0.5 rounded-full flex-shrink-0 animate-pulse">
-                                  {chat.unreadCount}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </>
           ) : (
-            chats.map(chat => {
-              const isSelected = chat.id === selectedChatId;
-              const displayName = chat.client?.name || (chat.name && !/^\d+$/.test(chat.name) ? chat.name : (formatDisplayPhone(chat.phoneNumber) || "Contato WhatsApp"));
+            <div className="divide-y divide-slate-800/30">
+              {chats.map(chat => {
+                const isSelected = chat.id === selectedChatId;
+                const displayName = chat.client?.name || (chat.name && !/^\d+$/.test(chat.name) ? chat.name : (formatDisplayPhone(chat.phoneNumber) || "Contato WhatsApp"));
 
-              return (
-                <div
-                  key={chat.id}
-                  onClick={() => setSelectedChatId(chat.id)}
-                  className={`p-3.5 flex items-start gap-3 cursor-pointer transition-all hover:bg-slate-800/50 ${isSelected ? "bg-slate-800/90 border-l-4 border-secondary-container" : ""}`}
-                >
-                  <ContactAvatar
-                    name={displayName}
-                    phone={chat.phoneNumber}
-                    profilePicUrl={chat.profilePicUrl}
-                    size="md"
-                    hasOrder={Boolean(chat.activeOrder)}
-                  />
+                return (
+                  <div
+                    key={chat.id}
+                    onClick={() => setSelectedChatId(chat.id)}
+                    className={`p-3.5 flex items-start gap-3 cursor-pointer transition-all hover:bg-slate-800/50 ${
+                      isSelected
+                        ? "bg-slate-800/90 border-l-4 border-emerald-500 shadow-inner"
+                        : "hover:bg-slate-800/30"
+                    }`}
+                  >
+                    <ContactAvatar
+                      name={displayName}
+                      phone={chat.phoneNumber}
+                      profilePicUrl={chat.profilePicUrl}
+                      size="md"
+                      hasOrder={Boolean(chat.activeOrder)}
+                    />
 
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-1 mb-0.5">
-                      <h4 className="font-bold text-xs text-white truncate">{displayName}</h4>
-                      <span className="text-[10px] text-slate-500 font-medium flex-shrink-0">
-                        {formatTime(chat.lastMessageAt) || formatDateLabel(chat.lastMessageAt)}
-                      </span>
-                    </div>
-
-                    {/* Telefone Visível */}
-                    {chat.phoneNumber && (
-                      <div className="text-[10px] text-emerald-400 font-mono mb-1 flex items-center gap-1">
-                        <span className="material-symbols-outlined text-[11px]">call</span>
-                        <span>{formatDisplayPhone(chat.phoneNumber) || chat.phoneNumber}</span>
-                      </div>
-                    )}
-
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-[11px] text-slate-400 truncate flex-1">
-                        {chat.lastMessageText || "Nova conversa iniciada..."}
-                      </p>
-                      {chat.unreadCount > 0 && (
-                        <span className="bg-emerald-500 text-slate-950 font-black text-[10px] px-2 py-0.5 rounded-full flex-shrink-0 animate-pulse">
-                          {chat.unreadCount}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1 mb-0.5">
+                        <h4 className={`font-bold text-xs truncate ${isSelected ? "text-white" : "text-slate-200"}`}>
+                          {displayName}
+                        </h4>
+                        <span className="text-[10px] text-slate-500 font-medium flex-shrink-0">
+                          {formatTime(chat.lastMessageAt) || formatDateLabel(chat.lastMessageAt)}
                         </span>
+                      </div>
+
+                      {/* Telefone Visível */}
+                      {chat.phoneNumber && (
+                        <div className="text-[10px] text-emerald-400 font-mono mb-1 flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[11px]">call</span>
+                          <span>{formatDisplayPhone(chat.phoneNumber) || chat.phoneNumber}</span>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between gap-2">
+                        <p className={`text-[11px] truncate flex-1 ${chat.unreadCount > 0 ? "font-semibold text-slate-200" : "text-slate-400"}`}>
+                          {chat.lastMessageText || "Nova conversa iniciada..."}
+                        </p>
+                        {chat.unreadCount > 0 && (
+                          <span className="bg-emerald-500 text-slate-950 font-black text-[10px] px-2 py-0.5 rounded-full flex-shrink-0 animate-pulse shadow-sm">
+                            {chat.unreadCount}
+                          </span>
+                        )}
+                      </div>
+
+                      {chat.activeOrder && (
+                        <div className="mt-1.5 flex items-center gap-1.5">
+                          <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[12px]">build</span>
+                            <span>OS #{chat.activeOrder.osNumber}</span>
+                          </span>
+                          <span className="text-[10px] text-slate-400 truncate">
+                            {chat.activeOrder.deviceBrand} {chat.activeOrder.deviceModel}
+                          </span>
+                        </div>
                       )}
                     </div>
-
-                    {chat.activeOrder && (
-                      <div className="mt-1.5 flex items-center gap-1.5">
-                        <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1">
-                          <span className="material-symbols-outlined text-[12px]">build</span>
-                          <span>OS #{chat.activeOrder.osNumber}</span>
-                        </span>
-                        <span className="text-[10px] text-slate-500 truncate">
-                          {chat.activeOrder.deviceBrand} {chat.activeOrder.deviceModel}
-                        </span>
-                      </div>
-                    )}
                   </div>
-                </div>
-              );
-            })
+                );
+              })}
+            </div>
           )}
         </div>
       </div>

@@ -63,7 +63,10 @@ export class WhatsAppChatController {
             }
           }
         },
-        orderBy: { lastMessageAt: "desc" }
+        orderBy: [
+          { lastMessageAt: "desc" },
+          { updatedAt: "desc" }
+        ]
       });
 
       res.json(chats);

@@ -14,12 +14,11 @@ import ClientManager from "./components/ClientManager";
 import OSList from "./components/OSList";
 import OSManager from "./components/OSManager";
 import KanbanBoard from "./components/KanbanBoard";
-import BlingSandbox from "./components/BlingSandbox";
+import FiscalHubView from "./components/FiscalHubView";
 import StockManager from "./components/StockManager";
 import PublicPortal from "./components/PublicPortal";
 import SettingsView from "./components/SettingsView";
 import ProfileSettings from "./components/ProfileSettings";
-import FiscalPanel from "./components/FiscalPanel";
 import WorkflowVisualizer from "./components/WorkflowVisualizer";
 import WhatsAppInboxView from "./components/WhatsAppInboxView";
 import { installUnsavedChangesGuard } from "./utils/unsavedChanges";
@@ -29,12 +28,10 @@ const getInitialTab = () => {
   const path = window.location.pathname;
   if (path === "/clientes") return "clients";
   if (path === "/os/nova" || path === "/os-create") return "os-create";
-  if (path === "/os") return "os";
-  if (path === "/kanban") return "kanban";
+  if (path === "/os" || path === "/kanban") return "os";
   if (path === "/whatsapp" || path === "/chat") return "whatsapp";
   if (path === "/estoque") return "estoque";
-  if (path === "/bling") return "bling";
-  if (path === "/fiscal") return "fiscal";
+  if (path === "/fiscal" || path === "/bling") return "fiscal";
   if (path === "/processos" || path === "/arquitetura") return "workflow";
   if (path === "/settings") return "settings";
   if (path === "/perfil") return "profile";
@@ -63,8 +60,18 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState<string>(getInitialTab);
   const [isOffline, setIsOffline] = useState<boolean>(false);
   const [isInitialized, setIsInitialized] = useState<boolean>(false);
+
+  // Modo de visualização de Ordens de Serviço (Quadro Kanban vs Lista Tabela)
+  const [osViewMode, setOsViewMode] = useState<"kanban" | "list">(() => {
+    return (localStorage.getItem("mgv_os_view_mode") as "kanban" | "list") || "kanban";
+  });
+
+  const handleSetOsViewMode = (mode: "kanban" | "list") => {
+    setOsViewMode(mode);
+    localStorage.setItem("mgv_os_view_mode", mode);
+  };
+
   // GUIA: ESTADO DA SIDEBAR (recolhida/expandida). O valor é salvo em localStorage
-  // (chave "mgv_sidebar_minimized"). Para resetar: DevTools → Console → localStorage.clear() → F5.
   const [isSidebarMinimized, setIsSidebarMinimized] = useState<boolean>(() => {
     return localStorage.getItem("mgv_sidebar_minimized") === "true";
   });
@@ -78,29 +85,45 @@ export default function App() {
   };
 
   const handleTabChange = (tab: string) => {
-    setCurrentTab(tab);
+    // Normalização de tabs unificadas
+    let targetTab = tab;
+    if (tab === "kanban") targetTab = "os";
+    if (tab === "bling") targetTab = "fiscal";
+
+    setCurrentTab(targetTab);
     let path = "/dashboard";
-    if (tab === "clients") path = "/clientes";
-    else if (tab === "os") path = "/os";
-    else if (tab === "os-create") path = "/os/nova";
-    else if (tab === "kanban") path = "/kanban";
-    else if (tab === "estoque") path = "/estoque";
-    else if (tab === "bling") path = "/bling";
-    else if (tab === "fiscal") path = "/fiscal";
-    else if (tab === "workflow") path = "/processos";
-    else if (tab === "settings") path = "/settings";
-    else if (tab === "profile") path = "/perfil";
+    if (targetTab === "clients") path = "/clientes";
+    else if (targetTab === "os") path = "/os";
+    else if (targetTab === "os-create") path = "/os/nova";
+    else if (targetTab === "whatsapp") path = "/whatsapp";
+    else if (targetTab === "estoque") path = "/estoque";
+    else if (targetTab === "fiscal") path = "/fiscal";
+    else if (targetTab === "workflow") path = "/processos";
+    else if (targetTab === "settings") path = "/settings";
+    else if (targetTab === "profile") path = "/perfil";
     
     window.history.pushState(null, "", path);
   };
+
+  const [pendingOpenOS, setPendingOpenOS] = useState<{
+    orderId: string;
+    osNumber?: string;
+    initialTab?: string;
+    initialMessageText?: string;
+    whatsappMessageId?: string;
+  } | null>(null);
 
   // Sync tab with browser back/forward buttons
   useEffect(() => {
     const handlePopState = () => {
       setCurrentTab(getInitialTab());
     };
-    const handleOpenOsEvent = () => {
-      handleTabChange("kanban");
+    const handleOpenOsEvent = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent?.detail) {
+        setPendingOpenOS(customEvent.detail);
+      }
+      handleTabChange("os");
     };
 
     window.addEventListener("popstate", handlePopState);
@@ -124,9 +147,7 @@ export default function App() {
     setIsInitialized(true);
   }, []);
 
-  // Guarda de alterações não salvas (padrão Gmail/GitHub): se houver formulário
-  // de OS ou cliente com dados ainda não salvos, o navegador avisa antes de
-  // recarregar ou fechar a página (beforeunload).
+  // Guarda de alterações não salvas
   useEffect(() => {
     return installUnsavedChangesGuard();
   }, []);
@@ -147,93 +168,80 @@ export default function App() {
     FINALIZADO: 0
   });
 
-  // Fetch core models from express server API
-  const loadDatabase = async (
-    currentOsLimit = osLimit,
-    currentClientLimit = clientLimit,
-    currentPartLimit = partLimit,
-    currentClientSearch = clientSearch,
-    currentPartSearch = partSearch
-  ) => {
-    if (isOffline) return; // Freeze API calls if offline
-
-    const activeToken = localStorage.getItem("mgv_token") || token || "";
-    const headers = activeToken ? { "Authorization": `Bearer ${activeToken}` } : {};
-
+  const loadDatabase = async () => {
+    if (!token) return;
     try {
-      const clientsUrl = `/api/clients?limit=${currentClientLimit}${currentClientSearch ? `&search=${encodeURIComponent(currentClientSearch)}` : ""}`;
-      const partsUrl = `/api/parts?limit=${currentPartLimit}${currentPartSearch ? `&search=${encodeURIComponent(currentPartSearch)}` : ""}`;
-      const osUrl = `/api/ordens-servico?pageSize=${currentOsLimit === "all" ? 10000 : currentOsLimit}&includeRelations=true`;
-
-      const [clientsRes, osRes, partsRes] = await Promise.all([
-        fetch(clientsUrl, { headers }),
-        fetch(osUrl, { headers }),
-        fetch(partsUrl, { headers })
+      const [resClients, resOS, resParts, resPartStats, resOSCounts] = await Promise.all([
+        axios.get(`/api/clients?limit=${clientLimit}&search=${encodeURIComponent(clientSearch)}`),
+        axios.get(`/api/ordens-servico?limit=${osLimit}&includeRelations=true`),
+        axios.get(`/api/parts?limit=${partLimit}&search=${encodeURIComponent(partSearch)}`),
+        axios.get('/api/parts/stats').catch(() => ({ data: { lowStockCount: 0, serializedCount: 0, totalStockValue: 0 } })),
+        axios.get('/api/ordens-servico/counts-by-status').catch(() => ({ data: {} }))
       ]);
 
-      if (clientsRes.ok && osRes.ok && partsRes.ok) {
-        const clientsRaw = await clientsRes.json();
-        const osRaw = await osRes.json();
-        console.log("[App.tsx] osRaw retornado do backend:", osRaw);
-        const partsRaw = await partsRes.json();
-        const osData = Array.isArray(osRaw) ? osRaw : (osRaw.data || []);
-        const countsData = (!Array.isArray(osRaw) && osRaw.countsByStatus) ? osRaw.countsByStatus : {};
-
-        // Se o backend retorna { data, total }, usamos o data e total correspondentes, senão retrocompatibilidade
-        const clientsData = clientsRaw && clientsRaw.data ? clientsRaw.data : clientsRaw;
-        const totalCli = clientsRaw && typeof clientsRaw.total === "number" ? clientsRaw.total : clientsRaw.length;
-        
-        const partsData = partsRaw && partsRaw.data ? partsRaw.data : partsRaw;
-        const totalPrt = partsRaw && typeof partsRaw.total === "number" ? partsRaw.total : partsRaw.length;
-        const statsPrt = partsRaw && partsRaw.stats ? partsRaw.stats : { lowStockCount: 0, serializedCount: 0, totalStockValue: 0 };
-
-        setClients(clientsData);
-        setTotalClients(totalCli);
-        setOrdensServico(osData);
-        setOsCountsByStatus(countsData);
-        setParts(partsData);
-        setTotalParts(totalPrt);
-        setPartStats(statsPrt);
+      if (resClients.data.data) {
+        setClients(resClients.data.data);
+        setTotalClients(resClients.data.total || resClients.data.data.length);
+      } else {
+        setClients(resClients.data);
+        setTotalClients(resClients.data.length);
       }
-    } catch (err) {
-      console.error("Erro ao sincronizar base de dados Express:", err);
+
+      if (Array.isArray(resOS.data)) {
+        setOrdensServico(resOS.data);
+      } else if (resOS.data?.data && Array.isArray(resOS.data.data)) {
+        setOrdensServico(resOS.data.data);
+      } else {
+        setOrdensServico([]);
+      }
+      if (resParts.data.data) {
+        setParts(resParts.data.data);
+        setTotalParts(resParts.data.total || resParts.data.data.length);
+      } else {
+        setParts(resParts.data);
+        setTotalParts(resParts.data.length);
+      }
+
+      setPartStats(resPartStats.data);
+      setOsCountsByStatus(resOSCounts.data || {});
+    } catch (err: any) {
+      console.error("Erro ao carregar dados do banco:", err);
+      if (err.response?.status === 401) {
+        handleLogout();
+      }
     }
   };
 
   useEffect(() => {
-    if (user) {
-      loadDatabase(osLimit, clientLimit, partLimit, clientSearch, partSearch);
+    if (user && token) {
+      loadDatabase();
     }
-  }, [user, isOffline, osLimit, clientLimit, partLimit, clientSearch, partSearch]);
+  }, [user, token, osLimit, clientLimit, partLimit, clientSearch, partSearch]);
 
-  // GUIA: SESSÃO (localStorage + Axios). Chaves: "mgv_user" (objeto) e "mgv_token" (string).
-  // Ao logar: salva a sessão e configura o cabeçalho "Authorization" global do Axios.
-  const handleLoginSuccess = (loggedInUser: User, sessionToken: string) => {
-    setUser(loggedInUser);
-    setToken(sessionToken);
-    localStorage.setItem("mgv_user", JSON.stringify(loggedInUser));
-    localStorage.setItem("mgv_token", sessionToken);
-    // Configura Axios globalmente
-    axios.defaults.headers.common['Authorization'] = `Bearer ${sessionToken}`;
-    handleTabChange("dashboard");
+  const handleLoginSuccess = (userData: User, authToken: string) => {
+    setUser(userData);
+    setToken(authToken);
+    localStorage.setItem("mgv_user", JSON.stringify(userData));
+    localStorage.setItem("mgv_token", authToken);
+    axios.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
   };
 
-  // GUIA: LOGOUT. Apaga a sessão do localStorage e remove o cabeçalho do Axios.
   const handleLogout = () => {
     setUser(null);
     setToken(null);
     localStorage.removeItem("mgv_user");
     localStorage.removeItem("mgv_token");
-    // Remove cabeçalho global do Axios
     delete axios.defaults.headers.common['Authorization'];
+    window.location.href = "/";
   };
-
-
 
   if (!isInitialized) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white font-mono text-xs">
-        <span>Iniciando MGV One Hub...</span>
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="w-12 h-12 border-4 border-secondary-container border-t-transparent rounded-full animate-spin"></div>
+          <p className="font-bold text-sm text-slate-400">Iniciando MGV One Hub...</p>
+        </div>
       </div>
     );
   }
@@ -243,11 +251,13 @@ export default function App() {
     return <LoginForm onLoginSuccess={handleLoginSuccess} isOffline={isOffline} />;
   }
 
+  const isOSKanbanActive = (currentTab === "os" || currentTab === "kanban") && osViewMode === "kanban";
+
   // Authenticated Dashboard layout viewport
   return (
     <FeatureFlagProvider token={token}>
     <div className={`min-h-screen bg-slate-50 flex flex-col text-slate-800 antialiased font-sans ${
-      currentTab === "kanban" || currentTab === "whatsapp" ? "h-screen overflow-hidden" : ""
+      isOSKanbanActive || currentTab === "whatsapp" ? "h-screen overflow-hidden" : ""
     }`}>
       <Navbar
         user={user}
@@ -262,17 +272,15 @@ export default function App() {
       
       <UpdatePopup />
 
-      {/* GUIA: MARGEM (offset) do CONTEÚDO conforme sidebar. Valor = largura da sidebar.
-          Se alterar a largura em Navbar.tsx linha ~66, ajuste ESTES valores aqui
-          (e também Navbar.tsx linha ~205 e o rodapé na linha ~369). */}
+      {/* Margem do Conteúdo conforme sidebar */}
       <main className={`flex-1 transition-all duration-300 ${
-        currentTab === "kanban"
-          ? "h-[calc(100vh-20px)] overflow-hidden pb-4 pt-4 flex flex-col" 
+        isOSKanbanActive
+          ? "h-[calc(100vh-4rem)] max-h-[calc(100vh-4rem)] overflow-hidden p-3 md:p-4 flex flex-col" 
           : currentTab === "whatsapp"
           ? "h-full max-h-screen overflow-hidden p-0 flex flex-col"
           : "pb-28 pt-6"
       } ${
-        currentTab === "whatsapp"
+        currentTab === "whatsapp" || isOSKanbanActive
           ? isSidebarMinimized ? "md:ml-[70px]" : "md:ml-[260px]"
           : isSidebarMinimized 
             ? "md:ml-[70px] pt-6 pb-6 pr-6 pl-8 md:pl-10 lg:pl-12" 
@@ -305,12 +313,33 @@ export default function App() {
           />
         )}
 
-        {currentTab === "os" && (
-          <OSList
-            isOffline={isOffline}
-            onRefresh={loadDatabase}
-            userRole={user.role}
-          />
+        {/* Visão de Ordens de Serviço (Quadro Kanban vs Lista Tabela) */}
+        {(currentTab === "os" || currentTab === "kanban") && (
+          osViewMode === "kanban" ? (
+            <KanbanBoard
+              ordensServico={ordensServico}
+              parts={parts}
+              userRole={user.role}
+              isOffline={isOffline}
+              onRefresh={loadDatabase}
+              onNavigateToBlingPanel={() => handleTabChange("fiscal")}
+              limit={osLimit}
+              onLimitChange={setOsLimit}
+              countsByStatus={osCountsByStatus}
+              onSwitchToList={() => handleSetOsViewMode("list")}
+              targetOpenOS={pendingOpenOS}
+              onClearTargetOpenOS={() => setPendingOpenOS(null)}
+            />
+          ) : (
+            <OSList
+              isOffline={isOffline}
+              onRefresh={loadDatabase}
+              userRole={user.role}
+              onSwitchToKanban={() => handleSetOsViewMode("kanban")}
+              targetOpenOS={pendingOpenOS}
+              onClearTargetOpenOS={() => setPendingOpenOS(null)}
+            />
+          )
         )}
 
         {currentTab === "os-create" && (
@@ -324,25 +353,11 @@ export default function App() {
           />
         )}
 
-        {currentTab === "kanban" && (
-          <KanbanBoard
-            ordensServico={ordensServico}
-            parts={parts}
-            userRole={user.role}
-            isOffline={isOffline}
-            onRefresh={loadDatabase}
-            onNavigateToBlingPanel={() => handleTabChange("bling")}
-            limit={osLimit}
-            onLimitChange={setOsLimit}
-            countsByStatus={osCountsByStatus}
-          />
-        )}
-
         {currentTab === "whatsapp" && (
           <WhatsAppInboxView
             onOpenOrderModal={(orderId) => {
-              // Redireciona para visualização da OS no kanban ou modal
-              handleTabChange("kanban");
+              setPendingOpenOS({ orderId, initialTab: "whatsapp" });
+              handleTabChange("os");
             }}
           />
         )}
@@ -364,21 +379,16 @@ export default function App() {
           />
         )}
 
-        {currentTab === "bling" && (
-          <BlingSandbox
+        {/* Visão Unificada Fiscal & Bling */}
+        {(currentTab === "fiscal" || currentTab === "bling") && (
+          <FiscalHubView
             ordensServico={ordensServico}
-            isOffline={isOffline}
-            onRefresh={loadDatabase}
-            userRole={user.role}
-          />
-        )}
-
-        {currentTab === "fiscal" && (
-          <FiscalPanel
             parts={parts}
             clients={clients}
             isOffline={isOffline}
             onRefresh={loadDatabase}
+            userRole={user.role}
+            initialTab={currentTab === "bling" ? "bling" : "productivity"}
           />
         )}
 
@@ -402,11 +412,7 @@ export default function App() {
         )}
       </main>
 
-      {/* GUIA: FAB "Nova OS" (botão redondo amarelo, canto inferior direito).
-          - Mover: ajuste "bottom-8 right-8".
-          - Cor: "bg-secondary-container" (definida em index.css @theme).
-          - Esconder em telas específicas: mude a condição "currentTab !== 'os-create'". */}
-      {/* Floating Action Button (FAB) for OS Creation (hidden when already on OS view or WhatsApp view) */}
+      {/* Floating Action Button (FAB) for OS Creation */}
       {currentTab !== "os-create" && currentTab !== "whatsapp" && (
         <button 
           onClick={() => handleTabChange("os-create")} 
@@ -417,11 +423,8 @@ export default function App() {
         </button>
       )}
 
-      {/* GUIA: RODAPÉ global. O ano já é dinâmico (new Date().getFullYear()).
-          - Editar texto: linha abaixo.
-          - Offset conforme sidebar: valor = largura da sidebar (70px / 260px).
-          - Margem do desktop: "md:ml-[70px]" / "md:ml-[260px]". */}
-      {currentTab !== "kanban" && currentTab !== "whatsapp" && (
+      {/* Rodapé Global */}
+      {!isOSKanbanActive && currentTab !== "whatsapp" && (
         <footer className={`bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-400 font-mono select-none transition-all duration-300 ${
           isSidebarMinimized ? "md:ml-[70px]" : "md:ml-[260px]"
         }`}>

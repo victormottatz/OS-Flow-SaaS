@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { User, UserRole } from "../types";
 import AppLogo from "./AppLogo";
 import NotificationMenu from "./NotificationMenu";
@@ -35,6 +35,23 @@ export default function Navbar({
 }: NavbarProps) {
   const [showTagManager, setShowTagManager] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close user dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowUserDropdown(false);
+      }
+    };
+    if (showUserDropdown) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showUserDropdown]);
 
   const handleTabClick = (tabId: string) => {
     setCurrentTab(tabId);
@@ -49,19 +66,17 @@ export default function Navbar({
       case "clients":
         return "Clientes & Equipamentos";
       case "os":
-        return "Listagem de OS";
+      case "kanban":
+        return "Ordens de Serviço";
       case "os-create":
         return "Nova Ordem de Serviço";
-      case "kanban":
-        return "Ordens de Serviço (Quadro)";
       case "whatsapp":
         return "Central de Atendimento WhatsApp";
       case "estoque":
         return "Gestão de Estoque";
-      case "bling":
-        return "Integração Fiscal & Bling";
       case "fiscal":
-        return "Painel Fiscal de Produtividade";
+      case "bling":
+        return "Gestão Fiscal & Faturamento";
       case "workflow":
         return "Mapa de Navegação e Arquitetura";
       case "settings":
@@ -70,6 +85,52 @@ export default function Navbar({
         return "Meu Perfil";
       default:
         return "MGV Assistência";
+    }
+  };
+
+  // Estrutura semântica categorizada do menu
+  const menuSections = [
+    {
+      title: "Operação",
+      items: [
+        { id: "dashboard", label: "Dashboard", icon: "dashboard", visible: true },
+        { id: "os", label: "Ordens de Serviço", icon: "assignment", visible: true },
+        { id: "whatsapp", label: "Central WhatsApp", icon: "chat", visible: true }
+      ]
+    },
+    {
+      title: "Cadastros",
+      items: [
+        { id: "clients", label: "Clientes", icon: "group", visible: true },
+        { id: "estoque", label: "Estoque", icon: "inventory_2", visible: true }
+      ]
+    },
+    {
+      title: "Gestão",
+      items: [
+        { 
+          id: "fiscal", 
+          label: "Fiscal & Bling", 
+          icon: "request_quote", 
+          visible: user.role === UserRole.OWNER || user.role === UserRole.FINANCIAL || user.role === UserRole.ADMIN 
+        },
+        { 
+          id: "settings", 
+          label: "Configurações", 
+          icon: "settings", 
+          visible: user.role === UserRole.OWNER || user.role === UserRole.ADMIN 
+        }
+      ]
+    }
+  ];
+
+  const getRoleBadge = (role: string) => {
+    switch (role) {
+      case UserRole.OWNER: return "Administrador";
+      case UserRole.ATTENDANT: return "Atendimento";
+      case UserRole.TECHNICIAN: return "Laboratório";
+      case UserRole.FINANCIAL: return "Financeiro";
+      default: return "Usuário";
     }
   };
 
@@ -84,16 +145,11 @@ export default function Navbar({
       )}
 
       {/* 1. FIXED LEFT SIDEBAR */}
-      {/* GUIA: LARGURA DA SIDEBAR (70px recolhida / 260px expandida).
-          Se alterar estes valores, ajuste JUNTO:
-          - Navbar.tsx linha ~205 (header): 102px / 292px (= largura + 32)
-          - App.tsx linhas ~239-240 e ~369 (conteúdo e rodapé): 70px / 260px
-          Use sempre múltiplos "redondos" (70, 260, 300) para facilitar. */}
       <aside className={`flex flex-col h-screen fixed left-0 top-0 bg-primary-container text-white py-6 z-50 border-r border-slate-900 select-none transition-all duration-300 ${
         isMobileMenuOpen ? "translate-x-0 w-[260px]" : "-translate-x-full md:translate-x-0 " + (isSidebarMinimized ? "md:w-[70px]" : "md:w-[260px]")
       }`}>
         {/* Brand header */}
-        <div className="px-4 mb-8 flex justify-center items-center h-10">
+        <div className="px-4 mb-6 flex justify-center items-center h-10">
           <div className={`flex items-center justify-between w-full px-2 ${isSidebarMinimized ? "md:hidden" : ""}`}>
             <div className="flex items-center cursor-pointer group animate-fadein" onClick={() => handleTabClick("dashboard")}>
               <AppLogo 
@@ -104,7 +160,7 @@ export default function Navbar({
             </div>
             <button 
               onClick={toggleSidebar} 
-              className="hidden md:block p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition cursor-pointer"
+              className="hidden md:block p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition cursor-pointer"
               title="Recolher Menu"
             >
               <span className="material-symbols-outlined text-[18px]">menu_open</span>
@@ -125,121 +181,75 @@ export default function Navbar({
           </div>
         </div>
 
-        {/* Sidebar Nav Links */}
-        <nav className="flex-1 space-y-1 px-3">
-          {[
-            { id: "dashboard", label: "Dashboard", icon: "dashboard" },
-            { id: "clients", label: "Clientes", icon: "group" },
-            ...((user.role === UserRole.OWNER || user.role === UserRole.ATTENDANT) ? [{ id: "os", label: "Listagem de OS", icon: "view_list" }] : []),
-            { id: "kanban", label: "Ordens de Serviço", icon: "assignment" },
-            { id: "whatsapp", label: "Central WhatsApp", icon: "chat" },
-            { id: "estoque", label: "Estoque", icon: "inventory_2" },
-            ...((user.role === UserRole.OWNER || user.role === UserRole.FINANCIAL || user.role === UserRole.ADMIN) ? [{ id: "fiscal", label: "Painel Fiscal", icon: "request_quote" }] : []),
-            ...((user.role === UserRole.OWNER || user.role === UserRole.FINANCIAL) ? [{ id: "bling", label: "Integração Fiscal", icon: "sync_alt" }] : []),
-            { id: "workflow", label: "Navegação & Arquitetura", icon: "account_tree" },
-            ...((user.role === UserRole.OWNER || user.role === UserRole.ADMIN) ? [{ id: "settings", label: "Configurações", icon: "settings" }] : [])
-          ].map((item) => {
-            const active = currentTab === item.id;
+        {/* Sidebar Nav Links com Categorias Semânticas */}
+        <nav className="flex-1 space-y-4 px-3 overflow-y-auto hide-scrollbar">
+          {menuSections.map((section, sIdx) => {
+            const visibleItems = section.items.filter(i => i.visible);
+            if (visibleItems.length === 0) return null;
+
             return (
-              <button
-                key={item.id}
-                onClick={() => handleTabClick(item.id)}
-                title={isSidebarMinimized ? item.label : ""}
-                className={`w-full flex items-center transition duration-150 cursor-pointer ${
-                  isSidebarMinimized ? "md:justify-center md:py-3 md:px-0 gap-3 px-4 py-3 rounded-xl" : "gap-3 px-4 py-3 rounded-xl"
-                } ${
-                  active
-                    ? "bg-slate-800 text-white border-l-4 border-secondary-container"
-                    : "text-slate-400 hover:text-white hover:bg-slate-800/40"
-                }`}
-              >
-                <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: active ? "'FILL' 1" : "'FILL' 0" }}>{item.icon}</span>
-                <span className={`${isSidebarMinimized ? "md:hidden" : "animate-fadein"} block whitespace-nowrap`}>{item.label}</span>
-              </button>
+              <div key={section.title || sIdx} className="space-y-1">
+                {section.title && !isSidebarMinimized && (
+                  <p className="px-3 pt-1 pb-1 text-[10px] font-extrabold uppercase tracking-widest text-slate-400 select-none animate-fadein">
+                    {section.title}
+                  </p>
+                )}
+                {visibleItems.map((item) => {
+                  const active = currentTab === item.id || 
+                    (item.id === "os" && (currentTab === "os" || currentTab === "kanban")) ||
+                    (item.id === "fiscal" && (currentTab === "fiscal" || currentTab === "bling"));
+
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => handleTabClick(item.id)}
+                      title={isSidebarMinimized ? item.label : ""}
+                      className={`w-full flex items-center transition duration-150 cursor-pointer ${
+                        isSidebarMinimized ? "md:justify-center md:py-2.5 md:px-0 gap-3 px-4 py-2.5 rounded-xl" : "gap-3 px-3.5 py-2.5 rounded-xl"
+                      } ${
+                        active
+                          ? "bg-slate-800 text-white font-bold border-l-4 border-secondary-container shadow-inner"
+                          : "text-slate-400 hover:text-white hover:bg-slate-800/40"
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[19px]" style={{ fontVariationSettings: active ? "'FILL' 1" : "'FILL' 0" }}>
+                        {item.icon}
+                      </span>
+                      <span className={`${isSidebarMinimized ? "md:hidden" : "animate-fadein"} text-xs font-semibold block whitespace-nowrap`}>
+                        {item.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             );
           })}
         </nav>
 
-        {/* Sidebar Bottom Controls */}
-        <div className="px-3 mt-auto space-y-4">
+        {/* Sidebar Bottom CTA (Nova Ordem) */}
+        <div className="px-3 mt-auto pt-4 border-t border-slate-800/80">
           {(user.role === UserRole.OWNER || user.role === UserRole.ATTENDANT) && (
             <>
               <button
                 onClick={() => handleTabClick("os-create")}
-                className={`hidden ${isSidebarMinimized ? "md:flex" : "hidden"} w-11 h-11 mx-auto bg-secondary-container hover:bg-secondary-container-hover text-primary-container rounded-full font-bold items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer shadow-sm`}
+                className={`hidden ${isSidebarMinimized ? "md:flex" : "hidden"} w-10 h-10 mx-auto bg-secondary-container hover:bg-secondary-container-hover text-primary-container rounded-xl font-bold items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer shadow-md`}
                 title="Nova Ordem de Serviço"
               >
                 <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>add</span>
               </button>
               <button
                 onClick={() => handleTabClick("os-create")}
-                className={`w-full bg-secondary-container hover:bg-secondary-container-hover text-primary-container py-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer shadow-sm animate-fadein ${isSidebarMinimized ? "md:hidden" : "flex"}`}
+                className={`w-full bg-secondary-container hover:bg-secondary-container-hover text-primary-container py-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer shadow-md animate-fadein ${isSidebarMinimized ? "md:hidden" : "flex"}`}
               >
-                <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>add</span>
+                <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>add</span>
                 <span>Nova Ordem</span>
               </button>
             </>
           )}
-          
-          <div className={`pt-4 border-t border-slate-800 space-y-2 flex flex-col ${isSidebarMinimized ? "md:items-center" : ""}`}>
-            <button
-              onClick={() => handleTabClick("profile")}
-              title={isSidebarMinimized ? "Meu Perfil" : ""}
-              className={`flex items-center text-xs font-bold transition cursor-pointer ${
-                currentTab === "profile"
-                  ? "text-white bg-slate-800 border-l-4 border-secondary-container"
-                  : "text-slate-400 hover:text-white hover:bg-slate-800/40"
-              } ${
-                isSidebarMinimized ? "md:justify-center md:p-2 rounded-xl gap-3 px-4 py-2 w-full" : "gap-3 px-4 py-2 w-full rounded-xl"
-              }`}
-            >
-              <span className="material-symbols-outlined text-[18px]">person</span>
-              <span className={`${isSidebarMinimized ? "md:hidden" : "animate-fadein"} block whitespace-nowrap`}>Meu Perfil</span>
-            </button>
-            <button
-              onClick={() => {
-                alert("Central de Suporte MGV: Ligue para (11) 3218-9900 ou mande e-mail para suporte@mgv.com.br");
-                setIsMobileMenuOpen(false);
-              }}
-              title={isSidebarMinimized ? "Suporte" : ""}
-              className={`flex items-center text-xs font-bold text-slate-400 hover:text-white transition cursor-pointer ${
-                isSidebarMinimized ? "md:justify-center md:p-2 rounded-xl hover:bg-slate-800/40 gap-3 px-4 py-2 w-full" : "gap-3 px-4 py-2 w-full rounded-xl"
-              }`}
-            >
-              <span className="material-symbols-outlined text-[18px]">help</span>
-              <span className={`${isSidebarMinimized ? "md:hidden" : "animate-fadein"} block whitespace-nowrap`}>Suporte</span>
-            </button>
-            <button
-              onClick={() => {
-                if(window.confirm("Deseja sair para acessar a conta de outro funcionário?")) {
-                  onLogout();
-                }
-              }}
-              title={isSidebarMinimized ? "Trocar de Conta" : ""}
-              className={`flex items-center text-xs font-bold text-slate-450 hover:text-indigo-400 transition cursor-pointer ${
-                isSidebarMinimized ? "md:justify-center md:p-2 rounded-xl hover:bg-slate-800/40 gap-3 px-4 py-2 w-full" : "gap-3 px-4 py-2 w-full rounded-xl"
-              }`}
-            >
-              <span className="material-symbols-outlined text-[18px]">switch_account</span>
-              <span className={`${isSidebarMinimized ? "md:hidden" : "animate-fadein"} block whitespace-nowrap`}>Trocar de Conta</span>
-            </button>
-            <button
-              onClick={onLogout}
-              title={isSidebarMinimized ? "Sair da Conta" : ""}
-              className={`flex items-center text-xs font-bold text-slate-450 hover:text-red-400 transition cursor-pointer ${
-                isSidebarMinimized ? "md:justify-center md:p-2 rounded-xl hover:bg-slate-800/40 gap-3 px-4 py-2 w-full" : "gap-3 px-4 py-2 w-full rounded-xl"
-              }`}
-            >
-              <span className="material-symbols-outlined text-[18px]">logout</span>
-              <span className={`${isSidebarMinimized ? "md:hidden" : "animate-fadein"} block whitespace-nowrap`}>Sair da Conta</span>
-            </button>
-          </div>
         </div>
       </aside>
 
-      {/* 2. STICKY TOP APP BAR (Header offset dynamic on desktop) */}
-      {/* GUIA: DESLOCAMENTO do header conforme a sidebar.
-          Valor = largura da sidebar + 32px de folga (102 = 70+32 / 292 = 260+32). */}
+      {/* 2. STICKY TOP APP BAR */}
       <header className={`h-16 w-full flex justify-between items-center pr-8 pl-4 sm:pl-6 border-b border-slate-200 bg-white sticky top-0 z-40 select-none transition-all duration-300 ${
         isSidebarMinimized ? "md:pl-[102px]" : "md:pl-[292px]"
       }`}>
@@ -272,7 +282,7 @@ export default function Navbar({
           </div>
         </div>
 
-        {/* Top bar controls */}
+        {/* Top bar controls com Dropdown de Perfil */}
         <div className="flex items-center gap-4">
           <button
             onClick={() => setShowTagManager(true)}
@@ -286,52 +296,115 @@ export default function Navbar({
           
           <div className="h-8 w-[1px] bg-slate-200 hidden sm:block"></div>
           
-          <div 
-            onClick={() => setCurrentTab("profile")}
-            className="flex items-center gap-2.5 cursor-pointer hover:opacity-80 transition-opacity"
-            title="Ver configurações de perfil"
-          >
-            <div className="text-right flex flex-col items-end">
-              <p className="font-bold text-xs text-slate-800 leading-none max-w-[80px] sm:max-w-[150px] truncate">{user.name}</p>
-              <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
-                {user.role === UserRole.OWNER ? "Administrador" : 
-                 user.role === UserRole.ATTENDANT ? "Atendimento" : 
-                 user.role === UserRole.TECHNICIAN ? "Laboratório" : "Financeiro"}
-              </p>
+          {/* User Profile Trigger & Dropdown */}
+          <div className="relative" ref={dropdownRef}>
+            <div 
+              onClick={() => setShowUserDropdown(!showUserDropdown)}
+              className="flex items-center gap-2.5 cursor-pointer p-1 rounded-xl hover:bg-slate-100/80 transition-all select-none"
+              title="Menu do Usuário"
+            >
+              <div className="text-right flex flex-col items-end">
+                <p className="font-bold text-xs text-slate-800 leading-none max-w-[80px] sm:max-w-[150px] truncate">{user.name}</p>
+                <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
+                  {getRoleBadge(user.role)}
+                </p>
+              </div>
+              
+              <img 
+                alt="Avatar do Usuário" 
+                className="w-9 h-9 shrink-0 rounded-xl border border-slate-200 object-cover shadow-sm bg-slate-50"
+                src={user.avatarUrl || FALLBACK_AVATAR}
+              />
+              <span className="material-symbols-outlined text-[16px] text-slate-400">
+                {showUserDropdown ? "expand_less" : "expand_more"}
+              </span>
             </div>
-            
-            <img 
-              alt="Avatar do Técnico" 
-              className="w-9 h-9 shrink-0 rounded-xl border border-slate-200 object-cover shadow-sm bg-slate-50"
-              src={user.avatarUrl || FALLBACK_AVATAR}
-            />
+
+            {/* Dropdown Menu Flutuante */}
+            {showUserDropdown && (
+              <div className="absolute right-0 mt-2 w-60 bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 animate-fadein">
+                <div className="px-4 py-2 border-b border-slate-100">
+                  <p className="text-xs font-bold text-slate-900 truncate">{user.name}</p>
+                  <p className="text-[10px] text-slate-400 font-medium truncate">{user.email || "Operador MGV"}</p>
+                  <span className="inline-block mt-1 px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[9px] font-bold rounded-md border border-indigo-100">
+                    {getRoleBadge(user.role)}
+                  </span>
+                </div>
+
+                <div className="py-1">
+                  <button
+                    onClick={() => {
+                      handleTabClick("profile");
+                      setShowUserDropdown(false);
+                    }}
+                    className="w-full px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[18px] text-slate-500">person</span>
+                    <span>Meu Perfil</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowUserDropdown(false);
+                      alert("Central de Suporte MGV:\n\n• Telefone: (11) 3218-9900\n• E-mail: suporte@mgv.com.br\n• Atendimento: Seg a Sex das 08h às 18h");
+                    }}
+                    className="w-full px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[18px] text-slate-500">help</span>
+                    <span>Central de Suporte</span>
+                  </button>
+                </div>
+
+                <div className="border-t border-slate-100 py-1">
+                  <button
+                    onClick={() => {
+                      setShowUserDropdown(false);
+                      if (window.confirm("Deseja sair para acessar a conta de outro funcionário?")) {
+                        onLogout();
+                      }
+                    }}
+                    className="w-full px-4 py-2 text-xs font-semibold text-indigo-600 hover:bg-indigo-50 flex items-center gap-2.5 transition cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">switch_account</span>
+                    <span>Trocar de Conta</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowUserDropdown(false);
+                      onLogout();
+                    }}
+                    className="w-full px-4 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2.5 transition cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">logout</span>
+                    <span>Sair da Conta</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </header>
 
-      {/* 3. MOBILE NAVIGATION TAB BAR (Bottom screen sticky, visible only on md and below) */}
-      {/* GUIA: BARRA DE NAVEGAÇÃO DO CELULAR (fixa embaixo).
-          - Adicionar/remover abas: edite a lista logo abaixo.
-          - Cor dos botões ativos: linha ~276 (text-indigo-650 bg-indigo-50).
-          - Fundo/transparência: linha ~257 (bg-white/95 backdrop-blur-md). */}
+      {/* 3. MOBILE NAVIGATION TAB BAR */}
       <div className="md:hidden flex border-t border-slate-200/80 bg-white/95 backdrop-blur-md overflow-x-auto justify-around py-2 px-2 sticky bottom-0 z-45">
         {[
           { id: "dashboard", label: "Painel", icon: "dashboard" },
+          { id: "os", label: "OS", icon: "assignment" },
+          { id: "whatsapp", label: "WhatsApp", icon: "chat" },
           { id: "clients", label: "Clientes", icon: "group" },
-          ...((user.role === UserRole.OWNER || user.role === UserRole.ATTENDANT) ? [{ id: "os", label: "Listagem OS", icon: "view_list" }] : []),
-          { id: "kanban", label: "Ordens OS", icon: "assignment" },
           { id: "estoque", label: "Estoque", icon: "inventory_2" },
-          ...((user.role === UserRole.OWNER || user.role === UserRole.FINANCIAL || user.role === UserRole.ADMIN) ? [{ id: "fiscal", label: "Painel Fiscal", icon: "request_quote" }] : []),
-          ...((user.role === UserRole.OWNER || user.role === UserRole.FINANCIAL) ? [{ id: "bling", label: "Fiscal", icon: "sync_alt" }] : []),
-          { id: "workflow", label: "Arquitetura", icon: "account_tree" },
-          ...((user.role === UserRole.OWNER || user.role === UserRole.ADMIN) ? [{ id: "settings", label: "Config", icon: "settings" }] : []),
+          ...((user.role === UserRole.OWNER || user.role === UserRole.FINANCIAL || user.role === UserRole.ADMIN) ? [{ id: "fiscal", label: "Fiscal", icon: "request_quote" }] : []),
           { id: "profile", label: "Perfil", icon: "person" }
         ].map((tab) => {
-          const active = currentTab === tab.id;
+          const active = currentTab === tab.id || 
+            (tab.id === "os" && (currentTab === "os" || currentTab === "kanban")) ||
+            (tab.id === "fiscal" && (currentTab === "fiscal" || currentTab === "bling"));
+
           return (
             <button
               key={tab.id}
-              onClick={() => setCurrentTab(tab.id)}
+              onClick={() => handleTabClick(tab.id)}
               className={`flex flex-col items-center px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
                 active ? "text-indigo-650 bg-indigo-50" : "text-slate-500 hover:text-slate-900"
               }`}
