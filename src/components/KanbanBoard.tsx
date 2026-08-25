@@ -2108,6 +2108,10 @@ export default function KanbanBoard({
                      <span className="material-symbols-outlined text-[18px]">build</span>
                      <span>Reparo em Garantia / Iniciar Direto</span>
                    </button>
+                   <button type="button" onClick={(e) => saveAndMove(e, "AGUARDANDO_PECA")} className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center space-x-2 active:scale-95">
+                     <span className="material-symbols-outlined text-[18px]">inventory_2</span>
+                     <span>Reparo em Garantia / Aguardando Peça</span>
+                   </button>
                    <button type="button" onClick={async (e) => {
                      e.preventDefault();
                      setLoading(true);
@@ -2192,6 +2196,10 @@ export default function KanbanBoard({
                    <button type="button" onClick={(e) => saveAndMove(e, "PRONTO_RETIRADA")} className="w-full py-3 mt-4 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center space-x-2 active:scale-95">
                      <span className="material-symbols-outlined text-[18px]">check_circle</span>
                      <span>Concluir Reparo (Pronto p/ Retirada)</span>
+                   </button>
+                   <button type="button" onClick={(e) => saveAndMove(e, "AGUARDANDO_PECA")} className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center space-x-2 active:scale-95">
+                     <span className="material-symbols-outlined text-[18px]">inventory_2</span>
+                     <span>Aguardando Peça (Pausar Reparo)</span>
                    </button>
                  </div>
               );
@@ -2461,6 +2469,7 @@ export default function KanbanBoard({
                       <input
                         type="number"
                         min={0}
+                        step="0.01"
                         value={discount}
                         onChange={(e) => setDiscount(Math.max(0, Number(e.target.value)))}
                         className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-mono font-bold text-red-600 focus:ring-2 focus:ring-red-500/10 focus:border-red-500 focus:outline-none transition"

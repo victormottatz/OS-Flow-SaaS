@@ -2,7 +2,16 @@ import { Router } from "express";
 import { XMLParser } from "fast-xml-parser";
 import prisma from "../database/prisma";
 import { convertXmlCfop } from "../utils/tax.utils";
-import { syncPartToBling, updateBlingStock } from "../services/bling";
+import { 
+  syncPartToBling, 
+  updateBlingStock, 
+  auditStockAndFiscalDivergences, 
+  syncSinglePartToBling, 
+  syncSinglePartFromBling,
+  startStockSyncWorker,
+  getStockSyncWorkerStatus,
+  stopStockSyncWorker
+} from "../services/bling";
 
 const router = Router();
 
@@ -551,4 +560,120 @@ router.post("/bling/import-xml", async (req, res) => {
   }
 });
 
+// ─── AUDITORIA E RELATÓRIO DE DIVERGÊNCIAS DE ESTOQUE & DADOS FISCAIS (BLING V3) ─
+router.get("/bling/stock/audit", async (req, res) => {
+  try {
+    const report = await auditStockAndFiscalDivergences();
+    res.json(report);
+  } catch (error: any) {
+    console.error("[Bling Stock Audit Error]", error);
+    res.status(500).json({ error: "Erro ao executar auditoria de estoque com o Bling: " + error.message });
+  }
+});
+
+// Sincronizar dados cadastrais, NCM e estoque do MGV para o Bling
+router.post("/bling/stock/sync-to-bling", async (req, res) => {
+  const { partId } = req.body;
+  if (!partId) {
+    res.status(400).json({ error: "partId não informado." });
+    return;
+  }
+
+  try {
+    const result = await syncSinglePartToBling(partId);
+    res.json(result);
+  } catch (error: any) {
+    console.error("[Bling Single Sync Error]", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Sincronizar dados cadastrais, NCM e estoque do Bling para o MGV
+router.post("/bling/stock/sync-from-bling", async (req, res) => {
+  const { partId, stockBling, ncmBling, priceBling, unitBling } = req.body;
+  if (!partId) {
+    res.status(400).json({ error: "partId não informado." });
+    return;
+  }
+
+  try {
+    const result = await syncSinglePartFromBling(partId, {
+      stockBling: Number(stockBling ?? 0),
+      ncmBling,
+      priceBling: priceBling ? Number(priceBling) : undefined,
+      unitBling
+    });
+    res.json(result);
+  } catch (error: any) {
+    console.error("[Bling Pull Sync Error]", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Sincronização em Lote de Peças Divergentes (MGV ➔ Bling)
+router.post("/bling/stock/sync-batch-to-bling", async (req, res) => {
+  const { partIds } = req.body;
+  if (!partIds || !Array.isArray(partIds) || partIds.length === 0) {
+    res.status(400).json({ error: "Lista de partIds não fornecida." });
+    return;
+  }
+
+  try {
+    let successCount = 0;
+    let errorCount = 0;
+    const logs: string[] = [];
+    const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+    for (const pId of partIds) {
+      try {
+        const resPart = await syncSinglePartToBling(pId);
+        successCount++;
+        logs.push(`✓ ${resPart.message}`);
+      } catch (err: any) {
+        errorCount++;
+        logs.push(`❌ Falha no item ${pId}: ${err.message}`);
+      }
+      // Delay para respeitar rate limit do Bling
+      await sleep(500);
+    }
+
+    res.json({
+      success: true,
+      total: partIds.length,
+      successCount,
+      errorCount,
+      logs
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: "Erro na sincronização em lote: " + error.message });
+  }
+});
+
+// ─── ENDPOINTS DO WORKER EM BACKGROUND (MONITORAMENTO CLI / REALTIME) ───────
+
+// Iniciar worker de sincronização em segundo plano
+router.post("/bling/stock/auto-sync/start", async (req, res) => {
+  const { divergentOnly } = req.body;
+  try {
+    const result = await startStockSyncWorker({ divergentOnly: divergentOnly !== false });
+    res.json(result);
+  } catch (error: any) {
+    res.status(500).json({ error: "Erro ao iniciar worker: " + error.message });
+  }
+});
+
+// Consultar status e progresso do worker em tempo real
+router.get("/bling/stock/auto-sync/status", (req, res) => {
+  const status = getStockSyncWorkerStatus();
+  res.json(status);
+});
+
+// Parar/cancelar worker em execução
+router.post("/bling/stock/auto-sync/stop", (req, res) => {
+  const result = stopStockSyncWorker();
+  res.json(result);
+});
+
 export default router;
+
+

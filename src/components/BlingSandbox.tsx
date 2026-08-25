@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from "react";
 import { OrdemServico } from "../types";
 import BlingConnectionStatus from "./BlingConnectionStatus";
+import StockDivergenceReport from "./StockDivergenceReport";
 import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
 
 interface BlingSandboxProps {
@@ -16,7 +17,7 @@ interface BlingSandboxProps {
 }
 
 export default function BlingSandbox({ ordensServico, isOffline, onRefresh }: BlingSandboxProps) {
-  const [activeTab, setActiveTab] = useState<"billing" | "catalog" | "xml" | "logs">("billing");
+  const [activeTab, setActiveTab] = useState<"billing" | "catalog" | "stock-audit" | "xml" | "logs">("billing");
 
   // Faturamento State
   const [selectedOSId, setSelectedOSId] = useState("");
@@ -369,6 +370,18 @@ export default function BlingSandbox({ ordensServico, isOffline, onRefresh }: Bl
           </button>
 
           <button
+            onClick={() => setActiveTab("stock-audit")}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeTab === "stock-audit"
+                ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/30"
+                : "bg-slate-800/60 text-slate-300 hover:bg-slate-800 hover:text-white"
+            }`}
+          >
+            <span>📊</span>
+            <span>Divergências de Estoque & NCM</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab("xml")}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               activeTab === "xml"
@@ -674,6 +687,11 @@ export default function BlingSandbox({ ordensServico, isOffline, onRefresh }: Bl
             </div>
           </div>
         </div>
+      )}
+
+      {/* ABA: DIVERGÊNCIAS DE ESTOQUE & DADOS FISCAIS / NCM */}
+      {activeTab === "stock-audit" && (
+        <StockDivergenceReport onRefreshParent={onRefresh} />
       )}
 
       {/* ABA 3: IMPORTADOR DE XML NFE */}

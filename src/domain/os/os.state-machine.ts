@@ -10,6 +10,7 @@ export class OSStateMachine {
   private static validTransitions: StateTransition[] = [
     { from: "AGUARDANDO_AVALIACAO", to: "AGUARDANDO_AUTORIZACAO" },
     { from: "AGUARDANDO_AVALIACAO", to: "EM_MANUTENCAO" }, // Permite pular autorização para garantia ou início direto
+    { from: "AGUARDANDO_AVALIACAO", to: "AGUARDANDO_PECA" }, // Permite pular autorização para garantia aguardando peça
     { from: "AGUARDANDO_AVALIACAO", to: "FINALIZADO" },
     { from: "AGUARDANDO_AVALIACAO", to: "PRONTO_RETIRADA" }, // Recusa/Sem defeito/Descarte onde o cliente retira
     { from: "AGUARDANDO_AUTORIZACAO", to: "EM_MANUTENCAO" },

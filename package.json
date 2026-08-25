@@ -12,7 +12,10 @@
     "test": "vitest run tests/unit src",
     "import:legacy": "tsx scripts/migrations/import_legacy.ts",
     "sync:from-supabase": "tsx scripts/maintenance/sync_from_supabase.ts",
-    "audit": "tsx scripts/audit/run_orchestrator.ts"
+    "audit": "tsx scripts/audit/run_orchestrator.ts",
+    "sync:bling:start": "tsx scripts/bling-sync-monitor.ts --start",
+    "sync:bling:status": "tsx scripts/bling-sync-monitor.ts --status",
+    "sync:bling:stop": "tsx scripts/bling-sync-monitor.ts --stop"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

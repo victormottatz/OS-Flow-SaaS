@@ -233,6 +233,7 @@ export default function GenericSettingsPanel({ category }: GenericSettingsPanelP
                 ) : s.type === 'number' ? (
                   <input
                     type="number"
+                    step="any"
                     value={localValues[s.key] || s.value}
                     onChange={e => handleValueChange(s.key, e.target.value)}
                     className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold focus:ring-2 focus:ring-teal-500 outline-none"

@@ -6,6 +6,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
 import SupplierManager from "./SupplierManager";
+import StockDivergenceReport from "./StockDivergenceReport";
 
 const DEFAULT_FORM_DATA = {
   name: "", code: "", sku: "", barcode: "",
@@ -70,6 +71,7 @@ export default function StockManager({
 
   // CRUD Modal State
   const [showModal, setShowModal] = useState(false);
+  const [showAuditModal, setShowAuditModal] = useState(false);
   const [editingPart, setEditingPart] = useState<Part | null>(null);
   const [formData, setFormData] = useState(DEFAULT_FORM_DATA);
   const [saving, setSaving] = useState(false);
@@ -433,6 +435,16 @@ export default function StockManager({
           {/* Add Button & XML Import */}
           {userRole !== UserRole.TECHNICIAN && (
             <div className="flex gap-2 w-full sm:w-auto shrink-0">
+              {isFeatureEnabled("FISCAL_NFE_EMISSION") && (
+                <button
+                  onClick={() => setShowAuditModal(true)}
+                  disabled={isOffline}
+                  className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl transition cursor-pointer hover:scale-[1.02] active:scale-[0.98] shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="material-symbols-outlined text-[16px]">query_stats</span>
+                  <span>Conferência Bling</span>
+                </button>
+              )}
               {isFeatureEnabled("FISCAL_NFE_EMISSION") && (
                 <button
                   onClick={() => setShowImportModal(true)}
@@ -1053,6 +1065,40 @@ export default function StockManager({
                   Importar e Atualizar Estoque
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CONFERÊNCIA & AUDITORIA DE ESTOQUE BLING */}
+      {showAuditModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
+          <div className="bg-slate-100 rounded-3xl w-full max-w-7xl max-h-[92vh] flex flex-col shadow-2xl border border-slate-300 overflow-hidden">
+            {/* Modal Header */}
+            <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between border-b border-slate-800 shrink-0">
+              <div className="flex items-center gap-3">
+                <span className="p-2 bg-indigo-500/20 rounded-xl text-indigo-400">
+                  <span className="material-symbols-outlined text-[20px]">query_stats</span>
+                </span>
+                <div>
+                  <h3 className="text-base font-black">Conferência de Estoque & Dados Fiscais (Bling ERP V3)</h3>
+                  <p className="text-xs text-slate-400">Varredura e conciliação em tempo real de saldos, NCMs e preços</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowAuditModal(false);
+                  onRefresh();
+                }}
+                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition cursor-pointer font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto flex-1 space-y-6">
+              <StockDivergenceReport onRefreshParent={onRefresh} />
             </div>
           </div>
         </div>
