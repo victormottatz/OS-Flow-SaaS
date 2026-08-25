@@ -4,13 +4,14 @@
  */
 
 import React, { useState, useEffect } from "react";
-import { OrdemServico, OSStatus, EntradaFoto } from "../types";
+import { OrdemServico, OSStatus, EntradaFoto, UserRole } from "../types";
 import { useOSList } from "../hooks/useOSList";
 import { usePrintDocument } from "../hooks/usePrintDocument";
 import { resolveTemplateForOS, DOCUMENT_TEMPLATES, DocumentTemplate } from "../config/documents.config";
 import { downloadDocumentPdf } from "../utils/downloadDocument";
 import DocumentShell from "./DocumentShell";
 import TagSelector from "./TagSelector";
+import OSHistoryTimeline from "./OSHistoryTimeline";
 
 interface OSListProps {
   userRole: string;
@@ -84,14 +85,36 @@ export default function OSList({
 }: OSListProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<OSStatus | "ALL">("ALL");
+  const [selectedTechnicianFilter, setSelectedTechnicianFilter] = useState<string>("ALL");
+  const [collaborators, setCollaborators] = useState<{ id: string; name: string; role: UserRole; avatarUrl?: string }[]>([]);
+  const [savingTechnician, setSavingTechnician] = useState(false);
   const [page, setPage] = useState(1);
   const [selectedOS, setSelectedOS] = useState<OrdemServico | null>(null);
   const [activePrintOS, setActivePrintOS] = useState<OrdemServico | null>(null);
   const [activePrintTemplate, setActivePrintTemplate] = useState<DocumentTemplate | null>(null);
   const [lightboxPhoto, setLightboxPhoto] = useState<EntradaFoto | null>(null);
-  const [modalTab, setModalTab] = useState<"laudo" | "pecas" | "entrada" | "saida">("laudo");
+  const [modalTab, setModalTab] = useState<"laudo" | "pecas" | "entrada" | "saida" | "timeline">("laudo");
   const [editTagIds, setEditTagIds] = useState<string[]>([]);
   const [savingTags, setSavingTags] = useState(false);
+
+  // Carregar colaboradores
+  useEffect(() => {
+    const fetchCollaborators = async () => {
+      try {
+        const token = localStorage.getItem("mgv_token") || "";
+        const res = await fetch("/api/auth/collaborators", {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setCollaborators(data || []);
+        }
+      } catch (err) {
+        console.error("Erro ao carregar colaboradores:", err);
+      }
+    };
+    fetchCollaborators();
+  }, []);
 
   // Se receber targetOpenOS (ex: clique no sininho de notificação), alterna para a visão Kanban
   useEffect(() => {
@@ -102,10 +125,10 @@ export default function OSList({
 
   const pageSize = 50;
 
-  // Reset to page 1 when search or status filter changes
+  // Reset to page 1 when search, status or technician filter changes
   useEffect(() => {
     setPage(1);
-  }, [searchTerm, statusFilter]);
+  }, [searchTerm, statusFilter, selectedTechnicianFilter]);
 
   const {
     data: ordensServico,
@@ -122,6 +145,7 @@ export default function OSList({
     pageSize,
     search: searchTerm || undefined,
     status: statusFilter === "ALL" ? undefined : statusFilter,
+    technicianId: selectedTechnicianFilter === "ALL" ? undefined : selectedTechnicianFilter,
     sortBy: "createdAt",
     sortOrder: "desc",
   });
@@ -330,7 +354,7 @@ export default function OSList({
 
       {/* Control Panel (Search + Status Filter) */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col gap-4">
-        {/* Search Field with Scope Dropdown Selector */}
+        {/* Search Field and Technician Filter */}
         <div className="relative w-full group flex flex-col sm:flex-row items-center gap-2">
           <div className="relative w-full flex-1">
             <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors">search</span>
@@ -350,6 +374,22 @@ export default function OSList({
                 <span className="material-symbols-outlined text-[16px] block">close</span>
               </button>
             )}
+          </div>
+
+          <div className="w-full sm:w-auto shrink-0">
+            <select
+              value={selectedTechnicianFilter}
+              onChange={(e) => setSelectedTechnicianFilter(e.target.value)}
+              className="w-full sm:w-auto px-4 py-3 bg-slate-50/50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 transition cursor-pointer"
+            >
+              <option value="ALL">👤 Todos os Técnicos</option>
+              <option value="UNASSIGNED">⚪ Sem Técnico Atribuído</option>
+              {collaborators.map((c) => (
+                <option key={c.id} value={c.id}>
+                  👨‍🔧 {c.name} ({c.role})
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -424,10 +464,11 @@ export default function OSList({
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-slate-50/70 border-b border-slate-200 text-slate-450 font-bold uppercase text-[9px] tracking-wider">
+                <tr className="bg-slate-50/70 border-b border-slate-200 text-slate-455 font-bold uppercase text-[9px] tracking-wider">
                   <th className="px-6 py-4 font-bold">Nº OS</th>
                   <th className="px-6 py-4 font-bold">Cliente</th>
                   <th className="px-6 py-4 font-bold">Equipamento</th>
+                  <th className="px-6 py-4 font-bold">Técnico</th>
                   <th className="px-6 py-4 font-bold">Data de Abertura</th>
                   <th className="px-6 py-4 font-bold">Fase / Status</th>
                   <th className="px-6 py-4 font-bold text-right">Valor Total</th>
@@ -450,6 +491,16 @@ export default function OSList({
                         <p className="font-bold text-slate-850">
                           {os.device?.brand || "Aparelho"} {os.device?.type || ""} {os.device?.model && os.device.model.toLowerCase() !== 'indefinido' ? `(${os.device.model})` : ""}
                         </p>
+                      </td>
+                      <td className="px-6 py-4">
+                        {os.assignedTechnician ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md" title={`Técnico Responsável: ${os.assignedTechnician.name}`}>
+                            <span className="material-symbols-outlined text-[13px]">engineering</span>
+                            {os.assignedTechnician.name.split(" ")[0]}
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 italic">Não atribuído</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 font-medium text-slate-500">
                         {new Date(os.createdAt).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" })}
@@ -622,6 +673,16 @@ export default function OSList({
                   4. Checklist de Saída
                 </button>
               )}
+              <button 
+                type="button" 
+                onClick={() => setModalTab("timeline")}
+                className={`px-3 py-1.5 text-xs font-extrabold rounded-lg transition-all duration-200 active:scale-95 flex items-center gap-1 ${
+                  modalTab === "timeline" ? "bg-slate-900 text-white shadow-sm" : "text-slate-650 hover:bg-slate-200/60"
+                }`}
+              >
+                <span className="material-symbols-outlined text-[15px]">history</span>
+                Linha do Tempo
+              </button>
             </div>
 
             {/* Modal Content */}
@@ -639,6 +700,49 @@ export default function OSList({
                   <strong className="text-slate-800 text-sm mt-0.5 block">{selectedOS.device?.type} {selectedOS.device?.brand}</strong>
                   <span className="text-slate-500 block font-semibold text-[10px] mt-0.5">MODELO: {selectedOS.device?.model} | SÉRIE: {selectedOS.device?.serialNumber}</span>
                 </p>
+
+                {/* Técnico Responsável */}
+                <div className="border-t border-slate-100 pt-2 sm:col-span-2 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block">Técnico Responsável</span>
+                    <div className="flex items-center gap-2 mt-1">
+                      <select
+                        value={selectedOS.assignedTechnicianId || ""}
+                        onChange={async (e) => {
+                          const newTechId = e.target.value;
+                          try {
+                            setSavingTechnician(true);
+                            const token = localStorage.getItem("mgv_token") || "";
+                            const res = await fetch(`/api/ordens-servico/${selectedOS.id}/technician`, {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                              body: JSON.stringify({ technicianId: newTechId || null })
+                            });
+                            if (res.ok) {
+                              const updated = await res.json();
+                              setSelectedOS(prev => prev ? { ...prev, assignedTechnicianId: updated.assignedTechnicianId, assignedTechnician: updated.assignedTechnician } : null);
+                              handleRefresh();
+                            }
+                          } catch (err) {
+                            console.error(err);
+                          } finally {
+                            setSavingTechnician(false);
+                          }
+                        }}
+                        className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition cursor-pointer"
+                      >
+                        <option value="">⚪ Não atribuído</option>
+                        {collaborators.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            👨‍🔧 {c.name} ({c.role})
+                          </option>
+                        ))}
+                      </select>
+                      {savingTechnician && <span className="material-symbols-outlined text-xs animate-spin text-indigo-500">sync</span>}
+                    </div>
+                  </div>
+                </div>
+
                 <p className="sm:col-span-2 border-t border-slate-100 pt-2">
                   <span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block">Defeito Relatado</span> 
                   <span className="text-slate-650 italic block mt-1">"{selectedOS.reportedDefect || "N/A"}"</span>
@@ -850,6 +954,17 @@ export default function OSList({
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* TAB 5: LINHA DO TEMPO & HISTÓRICO DA OS */}
+              {modalTab === "timeline" && (
+                <div className="anim-fadein">
+                  <OSHistoryTimeline
+                    orderId={selectedOS.id}
+                    osNumber={selectedOS.osNumber}
+                    userRole={userRole as UserRole}
+                  />
                 </div>
               )}
 

@@ -409,6 +409,26 @@ export class AuthController {
       res.status(500).json({ error: "Erro interno no servidor ao simular perfil." });
     }
   }
+
+  async getCollaborators(req: Request, res: Response): Promise<void> {
+    try {
+      const collaborators = await prisma.user.findMany({
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          phone: true,
+          avatarUrl: true
+        },
+        orderBy: { name: "asc" }
+      });
+      res.json(collaborators);
+    } catch (err) {
+      console.error("[getCollaborators Error]:", err);
+      res.status(500).json({ error: "Erro ao listar colaboradores." });
+    }
+  }
 }
 
 export const authController = new AuthController();

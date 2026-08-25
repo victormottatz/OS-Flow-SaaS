@@ -16,25 +16,25 @@ export function UpdatePopup() {
 
   useEffect(() => {
     const savedVersion = localStorage.getItem("mgv_last_update_version");
-    if (savedVersion !== "4.21.0") {
+    if (savedVersion !== "4.22.0") {
       setIsOpen(true);
       
       // Notificação silenciosa no sino com gatilho para reabrir o modal
       addNotification(
-        "🚀 MGV ONE HUB Atualizado (v4.21.0)",
-        "Relatório de Divergência de Estoque (Bling ERP), Conciliação de Saldos e Ajustes de Garantia.",
+        "🚀 MGV ONE HUB Atualizado (v4.22.0)",
+        "Técnico Responsável por OS, Linha do Tempo / Histórico de Auditoria e Filtros de Produtividade.",
         "info",
         undefined,
         "open_update_popup"
       );
       
-      localStorage.setItem("mgv_last_update_version", "4.21.0");
+      localStorage.setItem("mgv_last_update_version", "4.22.0");
     }
   }, [addNotification]);
 
   const handleClose = () => {
     setIsOpen(false);
-    localStorage.setItem('mgv_update_v4_21_seen', 'true');
+    localStorage.setItem('mgv_update_v4_22_seen', 'true');
   };
 
   // Fecha o popup ao clicar fora da janela de conteúdo (backdrop)
@@ -61,7 +61,7 @@ export function UpdatePopup() {
             className="relative w-full max-w-lg overflow-hidden rounded-2xl bg-slate-900 border border-slate-700/80 shadow-2xl"
           >
             {/* Header com Gradiente */}
-            <div className="bg-gradient-to-r from-amber-600 via-yellow-600 to-indigo-600 p-6 text-white relative">
+            <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-teal-600 p-6 text-white relative">
               <button
                 onClick={handleClose}
                 className="absolute right-4 top-4 p-1.5 rounded-xl bg-black/20 hover:bg-black/40 text-white/80 hover:text-white transition-colors"
@@ -70,51 +70,51 @@ export function UpdatePopup() {
                 <X className="w-5 h-5" />
               </button>
               <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/20 text-[11px] font-black tracking-wider uppercase backdrop-blur-md mb-2">
-                <span>Versão 4.21.0</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                <span>Versão 4.22.0</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse"></span>
               </div>
               <h2 className="text-xl font-black tracking-tight">Novidades da Atualização</h2>
-              <p className="text-amber-100 text-xs mt-1">Relatório de Divergência de Estoque Bling ERP, Conciliação e Garantia.</p>
+              <p className="text-indigo-100 text-xs mt-1">Técnico Responsável, Linha do Tempo e Histórico de Auditoria da OS.</p>
             </div>
 
             {/* Conteúdo com os Destaques */}
             <div className="p-6">
               <ul className="space-y-4">
-                {/* Alteração 1: Relatório de Divergência de Estoque */}
-                <div className="flex gap-3.5">
-                  <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
-                    <span className="material-symbols-outlined text-[18px]">inventory_2</span>
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-slate-200 text-xs">Relatório de Divergência de Estoque</h3>
-                    <p className="text-slate-400 text-[11px] mt-0.5 leading-relaxed">
-                      Auditoria completa e comparativo entre o estoque local e o Bling ERP em tempo real, com filtro de divergências e exportação CSV.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Alteração 2: Integração e Sincronização Bling ERP */}
-                <div className="flex gap-3.5">
-                  <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
-                    <span className="material-symbols-outlined text-[18px]">sync_alt</span>
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-slate-200 text-xs">Sincronização e Conciliação Bling ERP</h3>
-                    <p className="text-slate-400 text-[11px] mt-0.5 leading-relaxed">
-                      Rotas otimizadas para puxar saldos e movimentações diretamente do Bling, garantindo total conformidade contábil e fiscal.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Alteração 3: Fluxo de Status de Garantia */}
+                {/* Alteração 1: Técnico Responsável */}
                 <div className="flex gap-3.5">
                   <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30">
-                    <span className="material-symbols-outlined text-[18px]">verified</span>
+                    <span className="material-symbols-outlined text-[18px]">engineering</span>
                   </div>
                   <div>
-                    <h3 className="font-bold text-slate-200 text-xs">Aprimoramento do Fluxo de Garantia</h3>
+                    <h3 className="font-bold text-slate-200 text-xs">Técnico Responsável por OS</h3>
                     <p className="text-slate-400 text-[11px] mt-0.5 leading-relaxed">
-                      Refinamento das regras da máquina de estados de OS para transições e controle rigoroso de ordens de serviço em garantia.
+                      Atribua técnicos responsáveis na abertura da OS, na prancheta ou na listagem, com badges visuais e filtros dedicados de bancada.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Alteração 2: Linha do Tempo e Auditoria */}
+                <div className="flex gap-3.5">
+                  <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-teal-500/20 text-teal-400 flex items-center justify-center border border-teal-500/30">
+                    <span className="material-symbols-outlined text-[18px]">history</span>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-200 text-xs">Linha do Tempo e Histórico Completo</h3>
+                    <p className="text-slate-400 text-[11px] mt-0.5 leading-relaxed">
+                      Rastreabilidade total de cada OS: registro de fases, laudo, peças aplicadas, testes de bancada e espaço para anotações internas.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Alteração 3: Filtros de Produtividade */}
+                <div className="flex gap-3.5">
+                  <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center border border-purple-500/30">
+                    <span className="material-symbols-outlined text-[18px]">filter_list</span>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-200 text-xs">Filtros por Técnico no Kanban e Lista</h3>
+                    <p className="text-slate-400 text-[11px] mt-0.5 leading-relaxed">
+                      Visualize instantaneamente a fila de trabalho de cada técnico ou identifique equipamentos sem técnico atribuído para agilizar a triagem.
                     </p>
                   </div>
                 </div>
@@ -123,7 +123,7 @@ export function UpdatePopup() {
               <div className="mt-6 pt-4 border-t border-slate-800 flex justify-end">
                 <button
                   onClick={handleClose}
-                  className="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold rounded-xl shadow-lg shadow-amber-500/20 text-xs transition-all active:scale-95 cursor-pointer"
+                  className="px-5 py-2 bg-indigo-500 hover:bg-indigo-400 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/20 text-xs transition-all active:scale-95 cursor-pointer"
                 >
                   Entendi, vamos lá!
                 </button>

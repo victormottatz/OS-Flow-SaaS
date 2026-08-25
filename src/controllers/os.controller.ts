@@ -5,6 +5,7 @@ import { OSStateMachine } from "../domain/os/os.state-machine";
 import { OSPolicies } from "../domain/os/os.policies";
 import { OSStatus, WarrantyType } from "../types";
 import { featureFlags } from "../services/FeatureFlagService";
+import { osHistoryService } from "../services/OSHistoryService";
 import sharp from "sharp";
 
 async function processLaudoFotos(laudoFotos: any[] | undefined | null): Promise<any[]> {
@@ -356,6 +357,15 @@ export class OSController {
         where.status = status;
       }
 
+      const technicianId = req.query.technicianId as string | undefined;
+      if (technicianId) {
+        if (technicianId === "UNASSIGNED") {
+          where.assignedTechnicianId = null;
+        } else if (technicianId !== "ALL") {
+          where.assignedTechnicianId = technicianId;
+        }
+      }
+
       if (search) {
         where.OR = [
           { osNumber: { contains: search, mode: "insensitive" } },
@@ -415,6 +425,10 @@ export class OSController {
         warrantyType: true,
         financialStatus: true,
         financialDueDate: true,
+        assignedTechnicianId: true,
+        assignedTechnician: {
+          select: { id: true, name: true, role: true, avatarUrl: true, phone: true }
+        },
         tags: true,
         ...(includeRelations && {
           client: {
@@ -647,6 +661,9 @@ export class OSController {
         include: {
           client: true,
           device: true,
+          assignedTechnician: {
+            select: { id: true, name: true, role: true, avatarUrl: true, phone: true }
+          },
           tags: {
             include: { owner: { select: { id: true, name: true } } }
           }
@@ -776,6 +793,14 @@ export class OSController {
         warrantyType: os.warrantyType,
         financialStatus: os.financialStatus,
         financialDueDate: os.financialDueDate ? os.financialDueDate.toISOString() : null,
+        assignedTechnicianId: os.assignedTechnicianId,
+        assignedTechnician: (os as any).assignedTechnician ? {
+          id: (os as any).assignedTechnician.id,
+          name: (os as any).assignedTechnician.name,
+          role: (os as any).assignedTechnician.role,
+          avatarUrl: (os as any).assignedTechnician.avatarUrl,
+          phone: (os as any).assignedTechnician.phone
+        } : null,
         client: os.client ? { id: os.client.id, name: os.client.name, cpfCnpj: os.client.cpfCnpj, phone: os.client.phone, phone2: os.client.phone2, email: os.client.email, address: os.client.address } : null,
         device: os.device ? { id: os.device.id, type: os.device.type, brand: os.device.brand, model: os.device.model, serialNumber: os.device.serialNumber, description: os.device.description } : null,
         recurrent: os.recurrent,
@@ -798,7 +823,7 @@ export class OSController {
   }
 
   async create(req: Request, res: Response) {
-    const { clientId, deviceId, reportedDefect, accessoriesLeft, physicalState, checklistEntrada, laudoFotos, warrantyType, tagIds } = req.body;
+    const { clientId, deviceId, reportedDefect, accessoriesLeft, physicalState, checklistEntrada, laudoFotos, warrantyType, tagIds, assignedTechnicianId } = req.body;
     
     if (!clientId || !deviceId || !reportedDefect) {
       res.status(422).json({ error: "O preenchimento do Cliente, Dispositivo e Defeito Relatado é estritamente obrigatório." });
@@ -836,9 +861,15 @@ export class OSController {
           billingStatus: "PENDENTE",
           billingLogs: [],
           warrantyType: warrantyType || "NENHUMA",
+          assignedTechnicianId: assignedTechnicianId || null,
           tags: tagIds && tagIds.length > 0 ? {
             connect: tagIds.map((id: string) => ({ id }))
           } : undefined
+        },
+        include: {
+          assignedTechnician: {
+            select: { id: true, name: true, role: true, avatarUrl: true, phone: true }
+          }
         }
       });
 
@@ -859,6 +890,21 @@ export class OSController {
         version: 1
       });
 
+      // Registra no histórico da OS
+      await osHistoryService.record({
+        orderId: newOS.id,
+        userId: (req as any).user?.id || (req.headers["x-user-id"] as string) || null,
+        userName: (req as any).user?.name || (req.headers["x-user-name"] as string) || "Sistema",
+        userRole: (req as any).user?.role || (req.headers["x-user-role"] as string) || null,
+        actionType: "CREATED",
+        description: "Ordem de Serviço criada e registrada no sistema.",
+        metadata: {
+          osNumber: newOS.osNumber,
+          reportedDefect: newOS.reportedDefect,
+          assignedTechnician: newOS.assignedTechnician ? newOS.assignedTechnician.name : null
+        }
+      });
+
       const createdResponse: any = {
         ...newOS,
         laudoMacro: "",
@@ -872,6 +918,8 @@ export class OSController {
         warrantyType: newOS.warrantyType,
         financialStatus: newOS.financialStatus,
         financialDueDate: newOS.financialDueDate ? newOS.financialDueDate.toISOString() : null,
+        assignedTechnicianId: newOS.assignedTechnicianId,
+        assignedTechnician: newOS.assignedTechnician || null,
         recurrentAlert: isRecurrent ? await getRecurrentAlert(newOS) : null,
         warrantyNotice: await getWarrantyNotice(newOS),
         tags: []
@@ -895,11 +943,12 @@ export class OSController {
 
   async update(req: Request, res: Response) {
     const { id } = req.params;
-    const { diagnostic, laudoMacro, usedParts, laborCost, technicianLaborHours, technicianHourlyRate, checklistEntrada, laudoFotos, warrantyType, financialStatus, financialDueDate, discount, tagIds, benchLocation, returnMethod, packagingCleaned } = req.body;
+    const { diagnostic, laudoMacro, usedParts, laborCost, technicianLaborHours, technicianHourlyRate, checklistEntrada, laudoFotos, warrantyType, financialStatus, financialDueDate, discount, tagIds, benchLocation, returnMethod, packagingCleaned, assignedTechnicianId } = req.body;
 
     try {
       const currentOS = await prisma.ordemServico.findUnique({
-        where: { id }
+        where: { id },
+        include: { assignedTechnician: true }
       });
       if (!currentOS || currentOS.deletedAt) {
         res.status(404).json({ error: "Ordem de Serviço não encontrada." });
@@ -988,12 +1037,16 @@ export class OSController {
               });
               if (item.costSnapshot === undefined) {
                 const prevItemMatch = prevParts.find((p: any) => p.id === item.id && p.partId === item.partId);
-                item.costSnapshot = prevItemMatch?.costSnapshot !== undefined ? prevItemMatch.costSnapshot : (freshPart.cost || 0);
+                if (prevItemMatch && prevItemMatch.costSnapshot !== undefined) {
+                  item.costSnapshot = prevItemMatch.costSnapshot;
+                } else {
+                  item.costSnapshot = freshPart.cost;
+                }
               }
             }
           });
-        } catch (txError: any) {
-          res.status(400).json({ error: txError.message || "Erro de validação ao atualizar estoque" });
+        } catch (txErr: any) {
+          res.status(400).json({ error: txErr.message || "Falha na transação de estoque para peças." });
           return;
         }
       }
@@ -1031,16 +1084,20 @@ export class OSController {
           benchLocation: benchLocation !== undefined ? benchLocation : currentOS.benchLocation,
           returnMethod: returnMethod !== undefined ? returnMethod : currentOS.returnMethod,
           packagingCleaned: packagingCleaned !== undefined ? packagingCleaned : currentOS.packagingCleaned,
+          assignedTechnicianId: assignedTechnicianId !== undefined ? (assignedTechnicianId || null) : currentOS.assignedTechnicianId,
           tags: tagIds !== undefined ? { set: tagIds.map((id: string) => ({ id })) } : undefined
         },
-        ...(tagIds !== undefined && {
-          include: {
+        include: {
+          assignedTechnician: {
+            select: { id: true, name: true, role: true, avatarUrl: true, phone: true }
+          },
+          ...(tagIds !== undefined && {
             tags: { include: { owner: { select: { id: true, name: true } } } }
-          }
-        })
+          })
+        }
       });
 
-      // Auditoria
+      // Auditoria Geral via EventBus
       eventBus.emit("OS_UPDATED" as any, {
         id: crypto.randomUUID(),
         timestamp: new Date().toISOString(),
@@ -1050,6 +1107,54 @@ export class OSController {
         payload: { old: currentOS, new: updated },
         version: 1
       });
+
+      // Registro Detalhado na Linha do Tempo / Histórico da OS
+      const actorId = (req as any).user?.id || (req.headers["x-user-id"] as string) || null;
+      const actorName = (req as any).user?.name || (req.headers["x-user-name"] as string) || "Sistema";
+      const actorRole = (req as any).user?.role || (req.headers["x-user-role"] as string) || null;
+
+      // 1. Mudança de Técnico Responsável
+      if (assignedTechnicianId !== undefined && assignedTechnicianId !== currentOS.assignedTechnicianId) {
+        const techName = updated.assignedTechnician ? updated.assignedTechnician.name : "Não atribuído";
+        await osHistoryService.record({
+          orderId: id,
+          userId: actorId,
+          userName: actorName,
+          userRole: actorRole,
+          actionType: "TECHNICIAN_ASSIGNED",
+          description: assignedTechnicianId
+            ? `Técnico responsável alterado para "${techName}".`
+            : "Atribuição de técnico responsável removida.",
+          metadata: { technicianId: assignedTechnicianId, technicianName: techName }
+        });
+      }
+
+      // 2. Mudança de Diagnóstico Pericial
+      if (diagnostic !== undefined && diagnostic !== currentOS.diagnostic && diagnostic.trim()) {
+        await osHistoryService.record({
+          orderId: id,
+          userId: actorId,
+          userName: actorName,
+          userRole: actorRole,
+          actionType: "DIAGNOSTIC_UPDATED",
+          description: "Diagnóstico pericial técnico atualizado na prancheta.",
+          metadata: { diagnosticPreview: diagnostic.substring(0, 100) }
+        });
+      }
+
+      // 3. Mudança de Peças ou Serviços
+      if (usedParts !== undefined && JSON.stringify(usedParts) !== JSON.stringify(currentOS.usedParts)) {
+        const count = Array.isArray(usedParts) ? usedParts.length : 0;
+        await osHistoryService.record({
+          orderId: id,
+          userId: actorId,
+          userName: actorName,
+          userRole: actorRole,
+          actionType: "PARTS_UPDATED",
+          description: `Itens (peças/serviços) da OS atualizados (${count} itens totalizando R$ ${resolvedTotal.toFixed(2)}).`,
+          metadata: { totalCost: resolvedTotal, itemsCount: count }
+        });
+      }
 
       const userRole = req.headers["x-user-role"] as string;
       const isProfitEnabled = await featureFlags.isEnabled("OS_PROFITABILITY_CALC");
@@ -1068,6 +1173,8 @@ export class OSController {
         warrantyType: updated.warrantyType,
         financialStatus: updated.financialStatus,
         financialDueDate: updated.financialDueDate ? updated.financialDueDate.toISOString() : null,
+        assignedTechnicianId: updated.assignedTechnicianId,
+        assignedTechnician: updated.assignedTechnician || null,
         recurrentAlert: await getRecurrentAlert(updated),
         tags: Array.isArray((updated as any).tags) ? (updated as any).tags : []
       };
@@ -1392,6 +1499,38 @@ export class OSController {
         version: 1
       });
 
+      // Gravação na Linha do Tempo / Histórico da OS
+      const statusLabels: Record<string, string> = {
+        AGUARDANDO_AVALIACAO: "Aguardando Avaliação",
+        AGUARDANDO_AUTORIZACAO: "Aguardando Autorização",
+        AGUARDANDO_PECA: "Aguardando Peça",
+        EM_MANUTENCAO: "Em Manutenção",
+        PRONTO_RETIRADA: "Pronto p/ Retirada",
+        PAGO_PRONTO_RETIRADA: "Pago Pronto p/ Retirada",
+        FINALIZADO: "Finalizado"
+      };
+
+      const actorId = (req as any).user?.id || (req.headers["x-user-id"] as string) || null;
+      const actorName = (req as any).user?.name || (req.headers["x-user-name"] as string) || "Sistema";
+      const actorRole = (req as any).user?.role || (req.headers["x-user-role"] as string) || null;
+      const fromLabel = statusLabels[previousStatus] || previousStatus;
+      const toLabel = statusLabels[targetStatus] || targetStatus;
+
+      await osHistoryService.record({
+        orderId: id,
+        userId: actorId,
+        userName: actorName,
+        userRole: actorRole,
+        actionType: "STATUS_CHANGE",
+        description: `Fase da OS alterada de "${fromLabel}" para "${toLabel}".${updated.closingReason ? ` (Motivo: ${updated.closingReason})` : ""}`,
+        metadata: {
+          previousStatus,
+          targetStatus,
+          closingReason: updated.closingReason,
+          paymentMethod: updated.paymentMethod
+        }
+      });
+
       // INTEGRAÇÃO WHATSAPP (Automática)
       // Dispara para PRONTO_RETIRADA ou FINALIZADO sem reparo (orçamento recusado, descarte)
       if (
@@ -1635,6 +1774,108 @@ export class OSController {
       res.json({ message: "Ordem de Serviço excluída (soft delete) com sucesso!" });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
+    }
+  }
+
+  async getHistory(req: Request, res: Response): Promise<void> {
+    const { id } = req.params;
+    try {
+      const history = await osHistoryService.getOrderHistory(id);
+      res.json(history);
+    } catch (err: any) {
+      console.error("[getHistory Error]:", err);
+      res.status(500).json({ error: "Erro ao buscar histórico da Ordem de Serviço." });
+    }
+  }
+
+  async addHistoryNote(req: Request, res: Response): Promise<void> {
+    const { id } = req.params;
+    const { note } = req.body;
+    if (!note || typeof note !== "string" || !note.trim()) {
+      res.status(400).json({ error: "O texto da observação/nota é obrigatório." });
+      return;
+    }
+    try {
+      const os = await prisma.ordemServico.findUnique({ where: { id } });
+      if (!os || os.deletedAt) {
+        res.status(404).json({ error: "Ordem de Serviço não encontrada." });
+        return;
+      }
+      const userId = (req as any).user?.id || (req.headers["x-user-id"] as string) || null;
+      const userName = (req as any).user?.name || (req.headers["x-user-name"] as string) || "Colaborador";
+      const userRole = (req as any).user?.role || (req.headers["x-user-role"] as string) || null;
+
+      await osHistoryService.record({
+        orderId: id,
+        userId,
+        userName,
+        userRole,
+        actionType: "NOTE_ADDED",
+        description: note.trim(),
+        metadata: { manualNote: true }
+      });
+
+      const updatedHistory = await osHistoryService.getOrderHistory(id);
+      res.status(201).json(updatedHistory);
+    } catch (err: any) {
+      console.error("[addHistoryNote Error]:", err);
+      res.status(500).json({ error: "Erro ao registrar nota no histórico." });
+    }
+  }
+
+  async assignTechnician(req: Request, res: Response): Promise<void> {
+    const { id } = req.params;
+    const { technicianId } = req.body; // string UUID or null
+    try {
+      const currentOS = await prisma.ordemServico.findUnique({
+        where: { id },
+        include: { assignedTechnician: true }
+      });
+      if (!currentOS || currentOS.deletedAt) {
+        res.status(404).json({ error: "Ordem de Serviço não encontrada." });
+        return;
+      }
+
+      let techName = "Não atribuído";
+      if (technicianId) {
+        const tech = await prisma.user.findUnique({ where: { id: technicianId } });
+        if (!tech) {
+          res.status(404).json({ error: "Técnico selecionado não foi encontrado." });
+          return;
+        }
+        techName = tech.name;
+      }
+
+      const updated = await prisma.ordemServico.update({
+        where: { id },
+        data: { assignedTechnicianId: technicianId || null },
+        include: {
+          assignedTechnician: {
+            select: { id: true, name: true, role: true, avatarUrl: true, phone: true }
+          }
+        }
+      });
+
+      const userId = (req as any).user?.id || (req.headers["x-user-id"] as string) || null;
+      const userName = (req as any).user?.name || (req.headers["x-user-name"] as string) || "Sistema";
+      const userRole = (req as any).user?.role || (req.headers["x-user-role"] as string) || null;
+
+      await osHistoryService.record({
+        orderId: id,
+        userId,
+        userName,
+        userRole,
+        actionType: "TECHNICIAN_ASSIGNED",
+        description: technicianId
+          ? `Técnico responsável atribuído para "${techName}".`
+          : `Atribuição de técnico responsável removida.`,
+        metadata: { technicianId, technicianName: techName }
+      });
+
+      res.json(updated);
+    } catch (err: any) {
+      console.error("[assignTechnician Error]:", err);
+      res.status(500).json({ error: "Erro ao atualizar técnico responsável." });
     }
   }
 }

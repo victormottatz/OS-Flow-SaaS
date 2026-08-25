@@ -229,6 +229,16 @@ export interface OrdemServico {
   financialStatus: OSFinancialStatus;
   financialDueDate?: string | null;
 
+  // Responsável Técnico
+  assignedTechnicianId?: string | null;
+  assignedTechnician?: {
+    id: string;
+    name: string;
+    role: UserRole;
+    avatarUrl?: string | null;
+    phone?: string | null;
+  } | null;
+
   // Rentabilidade (Virtual / Computado no backend para OWNER)
   hasZeroCostParts?: boolean;
 
@@ -237,5 +247,23 @@ export interface OrdemServico {
 
   // Aviso de Garantia (Virtual / Computado no backend)
   warrantyNotice?: { osNumber: string; originalExitDate: string; warrantyExpiresAt: string } | null;
+}
+
+export interface OSHistoryItem {
+  id: string;
+  orderId: string;
+  userId?: string | null;
+  userName: string;
+  userRole?: string | null;
+  actionType: string;
+  description: string;
+  metadata?: Record<string, any> | null;
+  createdAt: string;
+  user?: {
+    id: string;
+    name: string;
+    role: UserRole;
+    avatarUrl?: string | null;
+  } | null;
 }
 

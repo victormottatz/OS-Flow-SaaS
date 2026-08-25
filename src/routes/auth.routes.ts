@@ -14,6 +14,7 @@ router.delete("/users/:id", checkRole(UserRole.OWNER), authController.deleteUser
 router.get("/users/:id/permissions", checkRole(UserRole.OWNER, UserRole.ADMIN), authController.getUserPermissions.bind(authController));
 router.put("/users/:id/permissions", checkRole(UserRole.OWNER, UserRole.ADMIN), authController.updateUserPermissions.bind(authController));
 
+router.get("/collaborators", requireAuth, authController.getCollaborators.bind(authController));
 router.get("/profile", requireAuth, authController.getProfile.bind(authController));
 router.put("/profile", requireAuth, authController.updateProfile.bind(authController));
 

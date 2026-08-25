@@ -162,6 +162,8 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
   const [physicalState, setPhysicalState] = useState("");
   const [osTagIds, setOsTagIds] = useState<string[]>([]);
   const [warrantyType, setWarrantyType] = useState<'NENHUMA' | 'FABRICA' | 'MGV'>('NENHUMA');
+  const [assignedTechnicianId, setAssignedTechnicianId] = useState<string>("");
+  const [collaborators, setCollaborators] = useState<{ id: string; name: string; role: UserRole; avatarUrl?: string }[]>([]);
 
   // Checklist & Photos fields
   const [checklist, setChecklist] = useState<ChecklistItem[]>(DEFAULT_CHECKLIST);
@@ -171,6 +173,25 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [createdOS, setCreatedOS] = useState<OrdemServico | null>(null);
+
+  // Carregar lista de colaboradores
+  useEffect(() => {
+    const fetchCollaborators = async () => {
+      try {
+        const token = localStorage.getItem("mgv_token") || "";
+        const res = await fetch("/api/auth/collaborators", {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setCollaborators(data || []);
+        }
+      } catch (err) {
+        console.error("Erro ao carregar colaboradores:", err);
+      }
+    };
+    fetchCollaborators();
+  }, []);
 
   // --- Guarda de alterações não salvas (beforeunload) ---
   // Considera o wizard "sujo" assim que o usuário começa a preencher qualquer
@@ -308,7 +329,8 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
           checklistEntrada: checklist,
           laudoFotos: photos,
           tagIds: osTagIds,
-          warrantyType
+          warrantyType,
+          assignedTechnicianId: assignedTechnicianId || null
         })
       });
 
@@ -332,6 +354,7 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
       setReportedDefect("");
       setAccessoriesLeft("");
       setPhysicalState("");
+      setAssignedTechnicianId("");
       setChecklist(DEFAULT_CHECKLIST);
       setPhotos([]);
       setOsTagIds([]);
@@ -1044,6 +1067,27 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
                         </button>
                       ))}
                     </div>
+                  </div>
+
+                  {/* Técnico Responsável (Opcional) */}
+                  <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5 flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[16px] text-indigo-600">engineering</span>
+                      Técnico Responsável (Opcional)
+                    </label>
+                    <select
+                      value={assignedTechnicianId}
+                      onChange={(e) => setAssignedTechnicianId(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition cursor-pointer"
+                    >
+                      <option value="">⚪ Não atribuir no momento (Triagem aberta)</option>
+                      {collaborators.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          👨‍🔧 {c.name} ({c.role})
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-slate-400 mt-1">Você também poderá definir ou transferir o técnico no Kanban da oficina a qualquer momento.</p>
                   </div>
                 </div>
 

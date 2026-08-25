@@ -47,6 +47,7 @@ const captureEditBaseline = (src: any, saidaDefault: ChecklistItem[]) =>
 import { useFeatureFlags } from "../contexts/FeatureFlagContext";
 import { OrdemServico, OSStatus, Part, UsedPart, UserRole, Client, Device, ChecklistItem, EntradaFoto, AvulsoCategory } from "../types";
 import OSWhatsAppPanel from "./OSWhatsAppPanel";
+import OSHistoryTimeline from "./OSHistoryTimeline";
 import TagSelector from "./TagSelector";
 import { matchOS } from "../utils/searchUtils";
 import { validateFiscalData } from "../services/nfeService";
@@ -287,9 +288,17 @@ const KanbanCard = React.memo(({
 
       {/* Footer Row */}
       <div className="border-t border-slate-150 pt-1.5 flex justify-between items-center text-[9px]">
-        <div className="flex items-center gap-1 text-slate-400 font-semibold">
-          <span className="material-symbols-outlined text-[11px]">calendar_today</span>
-          <span>{new Date(os.createdAt).toLocaleDateString()}</span>
+        <div className="flex items-center gap-1.5 text-slate-400 font-semibold flex-wrap">
+          <div className="flex items-center gap-1">
+            <span className="material-symbols-outlined text-[11px]">calendar_today</span>
+            <span>{new Date(os.createdAt).toLocaleDateString()}</span>
+          </div>
+          {os.assignedTechnician && (
+            <span className="text-[8px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded-md flex items-center gap-0.5 shadow-2xs" title={`Técnico Responsável: ${os.assignedTechnician.name}`}>
+              <span className="material-symbols-outlined text-[10px]">engineering</span>
+              {os.assignedTechnician.name.split(" ")[0]}
+            </span>
+          )}
         </div>
         <span className="text-slate-900 font-extrabold text-[10px] bg-slate-50 px-1.5 py-0.5 rounded-md border border-slate-200 shadow-xs">
           R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
@@ -560,9 +569,15 @@ export default function KanbanBoard({
   const [selectedOS, setSelectedOS] = useState<OrdemServico | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [modalTab, setModalTab] = useState<"laudo" | "pecas" | "entrada" | "saida" | "whatsapp">("laudo");
+  const [modalTab, setModalTab] = useState<"laudo" | "pecas" | "entrada" | "saida" | "whatsapp" | "timeline">("laudo");
   const [initialWhatsAppMessage, setInitialWhatsAppMessage] = useState<string>("");
   
+  // Colaboradores e Filtro de Técnico Responsável
+  const [collaborators, setCollaborators] = useState<{ id: string; name: string; role: UserRole; avatarUrl?: string }[]>([]);
+  const [selectedTechnicianFilter, setSelectedTechnicianFilter] = useState<string>("ALL");
+  const [editAssignedTechnicianId, setEditAssignedTechnicianId] = useState<string>("");
+  const [savingTechnician, setSavingTechnician] = useState<boolean>(false);
+
   // Alternância de Visões segmentadas
   const [viewMode, setViewMode] = useState<"tecnico" | "recepcao" | "financeiro">(() => {
     if (userRole === "ATTENDANT") return "recepcao";
@@ -648,7 +663,24 @@ export default function KanbanBoard({
         console.error("Erro ao carregar categorias:", err);
       }
     };
+
+    const fetchCollaborators = async () => {
+      try {
+        const token = localStorage.getItem("mgv_token") || "";
+        const res = await fetch("/api/auth/collaborators", {
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setCollaborators(data || []);
+        }
+      } catch (err) {
+        console.error("Erro ao carregar colaboradores:", err);
+      }
+    };
+
     fetchCategories();
+    fetchCollaborators();
   }, []);
 
   // Cancela o loop de auto-scroll caso o componente seja desmontado durante um drag
@@ -1017,6 +1049,7 @@ export default function KanbanBoard({
     setBenchLocation((os as any).benchLocation || "");
     setReturnMethod((os as any).returnMethod || "");
     setPackagingCleaned((os as any).packagingCleaned || false);
+    setEditAssignedTechnicianId(os.assignedTechnicianId || "");
     setEditTagIds(((os as any).tags || []).map((t: any) => t.id));
     setSelectedParts(os.usedParts || []);
     setEditChecklist(os.checklistEntrada && os.checklistEntrada.length > 0 ? os.checklistEntrada : DEFAULT_ENTRADA_CHECKLIST);
@@ -1049,6 +1082,7 @@ export default function KanbanBoard({
           setBenchLocation((fullOS as any).benchLocation || "");
           setReturnMethod((fullOS as any).returnMethod || "");
           setPackagingCleaned((fullOS as any).packagingCleaned || false);
+          setEditAssignedTechnicianId(fullOS.assignedTechnicianId || "");
           setEditTagIds((fullOS.tags || []).map((t: any) => t.id));
           setEditAccessoriesLeft(fullOS.accessoriesLeft || "");
           setEditPhysicalState(fullOS.physicalState || "");
@@ -1624,7 +1658,17 @@ export default function KanbanBoard({
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({ diagnostic, laudoMacro, usedParts: selectedParts, discount, benchLocation, returnMethod, packagingCleaned, tagIds: editTagIds })
+        body: JSON.stringify({ 
+          diagnostic, 
+          laudoMacro, 
+          usedParts: selectedParts, 
+          discount, 
+          benchLocation, 
+          returnMethod, 
+          packagingCleaned, 
+          tagIds: editTagIds,
+          assignedTechnicianId: editAssignedTechnicianId || null
+        })
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -1679,7 +1723,16 @@ export default function KanbanBoard({
     }
   };
 
-  const localFilteredOS = ordensServico.filter(os => matchOS(os, searchTerm));
+  const localFilteredOS = ordensServico.filter(os => {
+    if (selectedTechnicianFilter !== "ALL") {
+      if (selectedTechnicianFilter === "UNASSIGNED") {
+        if (os.assignedTechnicianId) return false;
+      } else {
+        if (os.assignedTechnicianId !== selectedTechnicianFilter) return false;
+      }
+    }
+    return matchOS(os, searchTerm);
+  });
 
   const dataSource = globalSearchResults !== null ? globalSearchResults : localFilteredOS;
   const canUseAdvancedSearch = ["OWNER", "ADMIN", "ATTENDANT", "TECHNICIAN", "EDITOR", "SUPERVISOR", "FINANCIAL"].includes(userRole);
@@ -1791,7 +1844,25 @@ export default function KanbanBoard({
           )}
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+          {/* Filtro por Técnico Responsável */}
+          <div className="flex items-center gap-1 shrink-0">
+            <select
+              value={selectedTechnicianFilter}
+              onChange={(e) => setSelectedTechnicianFilter(e.target.value)}
+              className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all cursor-pointer max-w-[170px] truncate"
+              title="Filtrar por Técnico Responsável"
+            >
+              <option value="ALL">👤 Todos os Técnicos</option>
+              <option value="UNASSIGNED">⚪ Sem Técnico</option>
+              {collaborators.map((c) => (
+                <option key={c.id} value={c.id}>
+                  👨‍🔧 {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {onSwitchToList && (
             <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200/70 shrink-0">
               <button
@@ -1995,7 +2066,17 @@ export default function KanbanBoard({
             const resDados = await fetch(`/api/ordens-servico/${selectedOS.id}`, {
               method: "PUT",
               headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-              body: JSON.stringify({ diagnostic, laudoMacro, usedParts: selectedParts, discount, benchLocation, returnMethod, packagingCleaned, tagIds: editTagIds })
+              body: JSON.stringify({ 
+                diagnostic, 
+                laudoMacro, 
+                usedParts: selectedParts, 
+                discount, 
+                benchLocation, 
+                returnMethod, 
+                packagingCleaned, 
+                tagIds: editTagIds,
+                assignedTechnicianId: editAssignedTechnicianId || null
+              })
             });
             if (!resDados.ok) throw new Error("Erro ao gravar dados.");
             
@@ -2314,6 +2395,16 @@ export default function KanbanBoard({
                   {isFeatureEnabled("CHECKLIST_SAIDA") ? "5. WhatsApp" : "4. WhatsApp"}
                 </button>
               )}
+              <button 
+                type="button" 
+                onClick={() => setModalTab("timeline" as any)}
+                className={`px-3 py-1.5 text-xs font-extrabold rounded-lg transition-all duration-200 active:scale-95 flex items-center gap-1 ${
+                  modalTab === ("timeline" as any) ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-slate-200/60"
+                }`}
+              >
+                <span className="material-symbols-outlined text-[15px]">history</span>
+                Linha do Tempo
+              </button>
             </div>
 
             {/* Inner Content */}
@@ -2323,7 +2414,6 @@ export default function KanbanBoard({
                   {errorMsg}
                 </div>
               )}
-
               {successMsg && (
                 <div className="bg-emerald-50 border-l-4 border-emerald-500 p-3.5 rounded-xl text-xs text-emerald-700 font-semibold border border-emerald-200/30">
                   {successMsg}
@@ -2340,6 +2430,50 @@ export default function KanbanBoard({
                   </div>
                 </div>
                 <p><span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block">Dispositivo em conserto</span> <strong className="text-slate-800 text-sm mt-0.5 block">{(selectedOS as any).device?.type} {(selectedOS as any).device?.brand} ({(selectedOS as any).device?.model})</strong></p>
+                
+                {/* Técnico Responsável */}
+                <div className="border-t border-slate-100 pt-2 sm:col-span-2 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block">Técnico Responsável</span>
+                    <div className="flex items-center gap-2 mt-1">
+                      <select
+                        value={editAssignedTechnicianId}
+                        onChange={async (e) => {
+                          const newTechId = e.target.value;
+                          setEditAssignedTechnicianId(newTechId);
+                          try {
+                            setSavingTechnician(true);
+                            const token = localStorage.getItem("mgv_token") || "";
+                            const res = await fetch(`/api/ordens-servico/${selectedOS.id}/technician`, {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                              body: JSON.stringify({ technicianId: newTechId || null })
+                            });
+                            if (res.ok) {
+                              const updated = await res.json();
+                              setSelectedOS(prev => prev ? { ...prev, assignedTechnicianId: updated.assignedTechnicianId, assignedTechnician: updated.assignedTechnician } : null);
+                              onRefresh();
+                            }
+                          } catch (err) {
+                            console.error(err);
+                          } finally {
+                            setSavingTechnician(false);
+                          }
+                        }}
+                        className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition cursor-pointer"
+                      >
+                        <option value="">⚪ Não atribuído</option>
+                        {collaborators.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            👨‍🔧 {c.name} ({c.role})
+                          </option>
+                        ))}
+                      </select>
+                      {savingTechnician && <span className="material-symbols-outlined text-xs animate-spin text-indigo-500">sync</span>}
+                    </div>
+                  </div>
+                </div>
+
                 {(selectedOS as any).tags && (selectedOS as any).tags.length > 0 && (
                   <p className="sm:col-span-2 border-t border-slate-100 pt-2">
                     <span className="font-bold text-slate-400 uppercase tracking-widest text-[9px] block mb-1.5">Etiquetas</span>
@@ -3102,6 +3236,17 @@ export default function KanbanBoard({
                   onPrintPDF={() => handlePrintRecibo(selectedOS)}
                   initialMessageText={initialWhatsAppMessage}
                 />
+              )}
+
+              {/* TAB 5: LINHA DO TEMPO & HISTÓRICO DA OS */}
+              {modalTab === ("timeline" as any) && (
+                <div className="anim-fadein">
+                  <OSHistoryTimeline
+                    orderId={selectedOS.id}
+                    osNumber={selectedOS.osNumber}
+                    userRole={userRole}
+                  />
+                </div>
               )}
 
               {/* Bling Transition reminder */}

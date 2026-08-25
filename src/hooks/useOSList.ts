@@ -17,6 +17,7 @@ export interface UseOSListOptions {
   pageSize: number;
   search?: string;
   status?: OSStatus;
+  technicianId?: string;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
 }
@@ -76,6 +77,7 @@ export function useOSList(options: UseOSListOptions): UseOSListReturn {
       params.set('pageSize', String(opts.pageSize));
       if (opts.search) params.set('search', opts.search);
       if (opts.status) params.set('status', opts.status);
+      if (opts.technicianId) params.set('technicianId', opts.technicianId);
       if (opts.sortBy) params.set('sortBy', opts.sortBy);
       if (opts.sortOrder) params.set('sortOrder', opts.sortOrder);
       params.set('includeRelations', 'true');
