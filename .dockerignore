@@ -1,0 +1,12 @@
+node_modules
+dist
+backups
+.git
+.env
+*.tar.gz
+*.csv
+*.log
+temp
+scratch
+playwright-report
+test-results
