@@ -304,14 +304,14 @@ export default function PublicPortal() {
           </div>
           <div>
             <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: "0.95rem", color: "#f8fafc", letterSpacing: "-0.02em" }}>
-              MGV Assistência Técnica
+              OS Flow
             </div>
-            <div style={{ fontSize: "0.7rem", color: "#64748b", marginTop: 1 }}>Portal do Cliente</div>
+            <div style={{ fontSize: "0.7rem", color: "#64748b", marginTop: 1 }}>Portal de Acompanhamento</div>
           </div>
         </div>
 
         <a
-          href="tel:+5516991049631"
+          href="tel:+5511999999999"
           style={{
             display: "flex", alignItems: "center", gap: "0.4rem",
             fontSize: "0.78rem", color: "#fdc003", textDecoration: "none",
@@ -319,7 +319,7 @@ export default function PublicPortal() {
           }}
         >
           <span className="material-symbols-outlined" style={{ fontSize: 16 }}>phone</span>
-          <span style={{ display: "none" }} id="phone-label">(16) 99104-9631</span>
+          <span style={{ display: "none" }} id="phone-label">Central de Atendimento</span>
         </a>
       </header>
 
@@ -855,7 +855,7 @@ export default function PublicPortal() {
 
                 <div style={{ textAlign: "center", marginTop: "0.75rem" }}>
                   <a
-                    href={`https://wa.me/5516991049631?text=${encodeURIComponent(`Olá! Gostaria de conversar com o técnico sobre o orçamento da OS #${result.osNumber} (${result.deviceLabel}) antes de aprovar.`)}`}
+                    href={`https://wa.me/5511999999999?text=${encodeURIComponent(`Olá! Gostaria de conversar com o técnico sobre o orçamento da OS #${result.osNumber} (${result.deviceLabel}) antes de aprovar.`)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{ fontSize: "0.78rem", color: "#94a3b8", textDecoration: "underline", display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
@@ -899,7 +899,7 @@ export default function PublicPortal() {
             {/* ── AÇÕES ── */}
             <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
               <a
-                href={`https://wa.me/5516991049631?text=${encodeURIComponent(`Olá! Sou ${result.clientName} e gostaria de informações sobre a OS #${result.osNumber} (${result.deviceLabel}).`)}`}
+                href={`https://wa.me/5511999999999?text=${encodeURIComponent(`Olá! Sou ${result.clientName} e gostaria de informações sobre a OS #${result.osNumber} (${result.deviceLabel}).`)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 id="btn-whatsapp"
@@ -954,7 +954,7 @@ export default function PublicPortal() {
         color: "#334155",
       }}>
         <p style={{ margin: 0 }}>
-          MGV Assistência Técnica © {new Date().getFullYear()} — Rua Julio Prestes, 648 — (16) 99104-9631
+          OS Flow © {new Date().getFullYear()} — Sistema Integrado de Gestão e Acompanhamento de Ordens de Serviço
         </p>
         <p style={{ margin: "0.25rem 0 0" }}>
           <a href="/" style={{ color: "#475569", textDecoration: "none" }}>← Acesso Restrito (Colaboradores)</a>

@@ -9,6 +9,9 @@ database.json
 /data/
 /EXPOTAÇÃO-SH OFICINA/
 /bling/
+*.tar.gz
+*.csv
+backups_seguros/
 
 # Documentos, planilhas e backups locais
 *.xlsx

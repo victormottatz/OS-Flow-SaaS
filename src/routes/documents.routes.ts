@@ -52,7 +52,11 @@ router.post("/pdf/:templateId", checkPermission("os.view"), async (req, res) => 
 
     const os = await prisma.ordemServico.findUnique({
       where: { id: osId },
-      include: { client: true, device: true }
+      include: { 
+        client: true, 
+        device: true,
+        company: true
+      }
     });
 
     if (!os || os.deletedAt) {
@@ -68,7 +72,16 @@ router.post("/pdf/:templateId", checkPermission("os.view"), async (req, res) => 
       checklistEntrada: safeJsonArray(os.checklistEntrada)
     };
 
-    const buffer = await buildDocumentPdf(template, osData, dataEmissao);
+    // Monta informações white-label da assistência do tenant se disponível
+    const companyInfo = os.company ? {
+      razaoSocial: os.company.name,
+      cnpj: os.company.cnpj ? `CNPJ: ${os.company.cnpj}` : undefined,
+      endereco: [os.company.address, os.company.city, os.company.state].filter(Boolean).join(" - "),
+      phone: os.company.phone || undefined,
+      logoBase64: os.company.logoUrl || undefined
+    } : undefined;
+
+    const buffer = await buildDocumentPdf(template, osData, dataEmissao, companyInfo);
     // Defesa extra: garante Buffer nativo antes do res.send (o Express serializa
     // objetos como JSON, mesmo com Content-Type application/pdf já definido).
     const raw: Buffer = Buffer.isBuffer(buffer)

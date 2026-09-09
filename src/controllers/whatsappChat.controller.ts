@@ -25,6 +25,11 @@ export class WhatsAppChatController {
   // Lista todos os chats com dados resumidos e dados da OS
   async getChats(req: Request, res: Response) {
     try {
+      // Se a Evolution API não estiver configurada no ambiente (teste/demo), não expõe histórico legado
+      if (!process.env.WHATSAPP_API_URL && !process.env.WHATSAPP_API_TOKEN) {
+        return res.json([]);
+      }
+
       const { search, filter } = req.query;
 
       let whereClause: any = {};
@@ -79,6 +84,10 @@ export class WhatsAppChatController {
   // Obtém mensagens de uma conversa
   async getMessages(req: Request, res: Response) {
     try {
+      if (!process.env.WHATSAPP_API_URL && !process.env.WHATSAPP_API_TOKEN) {
+        return res.json([]);
+      }
+
       const { chatId } = req.params;
       const { limit = 100 } = req.query;
 

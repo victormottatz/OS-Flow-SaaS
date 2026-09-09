@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 import { authenticateJWT, requireAuth } from "../../src/middlewares/auth";
 import { Request, Response, NextFunction } from "express";
 
-const TEST_SECRET = "mgv_tecnologia_super_secure_jwt_secret_key_123!";
+const TEST_SECRET = process.env.JWT_SECRET || "osflow_super_secure_jwt_secret_key_2026!";
 
 describe("Auth Middleware - Blindagem de Segurança e Injeção de Headers", () => {
   it("deve remover headers x-user-id e x-user-role forjados pelo cliente externo", () => {

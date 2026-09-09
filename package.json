@@ -1,5 +1,5 @@
 {
-  "name": "mgv-one-hub",
+  "name": "os-flow-saas",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -7,12 +7,14 @@
     "dev": "tsx watch server.ts",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "npx prisma db push && node dist/server.cjs",
+    "db:init:clean": "tsx scripts/seeds/seed_saas_clean_init.ts",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "test": "vitest run tests/unit src",
     "import:legacy": "tsx scripts/migrations/import_legacy.ts",
     "sync:from-supabase": "tsx scripts/maintenance/sync_from_supabase.ts",
     "audit": "tsx scripts/audit/run_orchestrator.ts",
+    "sync:bling": "tsx scripts/sync_estoque_ncm_completo.ts",
     "sync:bling:start": "tsx scripts/bling-sync-monitor.ts --start",
     "sync:bling:status": "tsx scripts/bling-sync-monitor.ts --status",
     "sync:bling:stop": "tsx scripts/bling-sync-monitor.ts --stop"

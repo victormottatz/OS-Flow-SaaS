@@ -10,7 +10,7 @@ import { useFeatureFlags } from "../contexts/FeatureFlagContext";
 import { matchClient } from "../utils/searchUtils";
 import { isValidCpfOrCnpj } from "../utils/cpfCnpjValidator";
 import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
-
+import DataImportModal from "./DataImportModal";
 
 interface ClientManagerProps {
   clients: (Client & { devices: Device[] })[];
@@ -25,6 +25,7 @@ interface ClientManagerProps {
 }
 
 export default function ClientManager({ clients, userRole, isOffline, onRefresh, limit, onLimitChange, searchTerm, onSearchChange, totalItems }: ClientManagerProps) {
+  const [showImportModal, setShowImportModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditClientModal, setShowEditClientModal] = useState(false);
   const [editClientId, setEditClientId] = useState("");
@@ -850,13 +851,23 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
         </div>
         
         {(userRole === UserRole.OWNER || userRole === UserRole.ATTENDANT) && (
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs uppercase tracking-wider px-4.5 py-2.5 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 hover-premium active-premium flex items-center space-x-2 shrink-0 cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-[16px]">person_add</span>
-            <span>Cadastrar Cliente</span>
-          </button>
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-bold text-xs px-3.5 py-2.5 rounded-lg shadow-sm transition flex items-center space-x-1.5 shrink-0 cursor-pointer"
+              title="Importar clientes e equipamentos via planilha CSV"
+            >
+              <span className="material-symbols-outlined text-[16px] text-emerald-600">upload_file</span>
+              <span>Importar CSV</span>
+            </button>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs uppercase tracking-wider px-4.5 py-2.5 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 hover-premium active-premium flex items-center space-x-2 shrink-0 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[16px]">person_add</span>
+              <span>Cadastrar Cliente</span>
+            </button>
+          </div>
         )}
       </div>
 
@@ -2560,6 +2571,13 @@ export default function ClientManager({ clients, userRole, isOffline, onRefresh,
           </div>
         </div>
       )}
+
+      {/* Modal de Importação em Lote CSV (SaaS Onboarding) */}
+      <DataImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onSuccess={onRefresh}
+      />
     </div>
   );
 }

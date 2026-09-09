@@ -4,11 +4,50 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = "postgresql://postgres:k6k2tHwYChVlRTQg@179.198.121.203:5433/postgres_teste?schema=public"
+  url      = env("DATABASE_URL")
+}
+
+model Company {
+  id        String   @id @default(uuid())
+  name      String
+  cnpj      String?  @unique
+  slug      String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Dados cadastrais e visuais da assistência
+  logoUrl         String?
+  phone           String?
+  email           String?
+  address         String?
+  city            String?
+  state           String?
+  zipCode         String?
+  asaasCustomerId String?
+
+  // Relações
+  subscription   Subscription?
+  users          User[]
+  clients        Client[]
+  devices        Device[]
+  parts          Part[]
+  orders         OrdemServico[]
+  blingConfigs   BlingConfig[]
+  tags           Tag[]
+  officeSettings OfficeSetting[]
+  suppliers      Supplier[]
+  customFields   CustomField[]
+  whatsappChats  WhatsappChat[]
+  auditLogs      AuditLog[]
+
+  @@map("companies")
 }
 
 model User {
   id           String   @id @default(uuid())
+  companyId    String?  @map("company_id")
+  company      Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
   name         String
   email        String   @unique
   passwordHash String
@@ -58,6 +97,8 @@ model Client {
   website        String         @default("")
   zipCode        String         @default("")
   blingContactId String?
+  companyId      String?        @map("company_id")
+  company        Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
   devices        Device[]
   orders         OrdemServico[]
   whatsappChats  WhatsappChat[]
@@ -83,6 +124,8 @@ model Device {
   notes             String         @default("")
   patrimony         String         @default("")
   status            Int            @default(1)
+  companyId         String?        @map("company_id")
+  company           Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
   deviceNotes       DeviceNote[]
   client            Client?        @relation(fields: [clientId], references: [id])
   orders            OrdemServico[]
@@ -211,6 +254,8 @@ model Part {
   icmsEfetValor       Float     @default(0.0)
   supplierId          String?
   supplierRel         Supplier? @relation(fields: [supplierId], references: [id])
+  companyId           String?   @map("company_id")
+  company             Company?  @relation(fields: [companyId], references: [id], onDelete: SetNull)
 
   @@map("parts")
 }
@@ -303,6 +348,8 @@ model OrdemServico {
   profitMarginPercent  Float?
   profitValue          Float?
   assignedTechnicianId String?              @map("assigned_technician_id")
+  companyId            String?              @map("company_id")
+  company              Company?             @relation(fields: [companyId], references: [id], onDelete: SetNull)
   assignedTechnician   User?                @relation("AssignedTechnician", fields: [assignedTechnicianId], references: [id], onDelete: SetNull)
   histories            OSHistory[]
   messageHistories     MessageHistory[]
@@ -339,7 +386,9 @@ model OSHistory {
 }
 
 model BlingConfig {
-  id           Int      @id @default(1)
+  id           String   @id @default(uuid())
+  companyId    String?  @unique @map("company_id")
+  company      Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
   accessToken  String
   refreshToken String
   expiresAt    DateTime
@@ -356,6 +405,8 @@ model Tag {
   description String         @default("")
   ownerId     String?
   scope       TagScope       @default(GLOBAL)
+  companyId   String?        @map("company_id")
+  company     Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
   owner       User?          @relation(fields: [ownerId], references: [id])
   clients     Client[]       @relation("ClientToTag")
   devices     Device[]       @relation("DeviceToTag")
@@ -396,6 +447,8 @@ model AuditLog {
   newValue   Json?
   userId     String
   createdAt  DateTime @default(now())
+  companyId  String?  @map("company_id")
+  company    Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
   ipAddress  String?
   reason     String?
   source     String?
@@ -424,13 +477,16 @@ model DeviceCategory {
 
 model OfficeSetting {
   id          String   @id @default(uuid())
-  key         String   @unique
+  companyId   String?  @map("company_id")
+  company     Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  key         String
   value       String
   type        String   @default("string")
   description String?
   updatedAt   DateTime @updatedAt
   category    String   @default("GERAL")
 
+  @@unique([companyId, key])
   @@map("office_settings")
 }
 
@@ -549,6 +605,8 @@ model Supplier {
   createdAt      DateTime  @default(now()) @map("cadastrado_em")
   lastPurchaseAt DateTime? @map("ultima_compra_em")
   deletedAt      DateTime? @map("deleted_at")
+  companyId      String?   @map("company_id")
+  company        Company?  @relation(fields: [companyId], references: [id], onDelete: SetNull)
   parts          Part[]
 
   @@map("fornecedores")
@@ -565,6 +623,8 @@ model CustomField {
   createdAt  DateTime           @default(now())
   updatedAt  DateTime           @updatedAt
   deletedAt  DateTime?
+  companyId  String?            @map("company_id")
+  company    Company?           @relation(fields: [companyId], references: [id], onDelete: SetNull)
   values     CustomFieldValue[]
 
   @@map("custom_fields")
@@ -653,7 +713,9 @@ enum WhatsappMessageStatus {
 
 model WhatsappChat {
   id              String            @id @default(uuid())
-  remoteJid       String            @unique @map("remote_jid")
+  companyId       String?           @map("company_id")
+  company         Company?          @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  remoteJid       String            @map("remote_jid")
   name            String?
   phoneNumber     String            @map("phone_number")
   profilePicUrl   String?           @map("profile_pic_url")
@@ -669,6 +731,7 @@ model WhatsappChat {
   updatedAt       DateTime          @updatedAt @map("updated_at")
   messages        WhatsappMessage[]
 
+  @@unique([companyId, remoteJid])
   @@map("whatsapp_chats")
 }
 
@@ -694,4 +757,83 @@ model WhatsappMessage {
   @@index([chatId, timestamp])
   @@map("whatsapp_messages")
 }
+
+// -------------------------------------------------------------
+// MÓDULO SAAS: PLANOS, ASSINATURAS E BILLING
+// -------------------------------------------------------------
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  UNPAID
+}
+
+enum BillingCycle {
+  MONTHLY
+  ANNUAL
+}
+
+enum PlanTier {
+  STARTER
+  PRO
+  ENTERPRISE
+}
+
+model Plan {
+  id                  String         @id @default(uuid())
+  name                String
+  tier                PlanTier       @unique @default(PRO)
+  description         String         @default("")
+  priceMonthly        Float          @default(0.0)
+  priceAnnual         Float          @default(0.0)
+  maxUsers            Int            @default(5)
+  maxOrdersPerMonth   Int            @default(9999)
+  features            String[]       @default([])
+  active              Boolean        @default(true)
+  createdAt           DateTime       @default(now()) @map("created_at")
+  updatedAt           DateTime       @updatedAt @map("updated_at")
+  subscriptions       Subscription[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id                   String             @id @default(uuid())
+  companyId            String             @unique @map("company_id")
+  company              Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  planId               String             @map("plan_id")
+  plan                 Plan               @relation(fields: [planId], references: [id])
+  status               SubscriptionStatus @default(TRIAL)
+  cycle                BillingCycle       @default(MONTHLY)
+  asaasSubscriptionId  String?            @map("asaas_subscription_id")
+  trialEndsAt          DateTime?          @map("trial_ends_at")
+  currentPeriodStart   DateTime           @default(now()) @map("current_period_start")
+  currentPeriodEnd     DateTime           @map("current_period_end")
+  cancelAtPeriodEnd    Boolean            @default(false) @map("cancel_at_period_end")
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+  invoices             Invoice[]
+
+  @@map("subscriptions")
+}
+
+model Invoice {
+  id              String       @id @default(uuid())
+  subscriptionId  String       @map("subscription_id")
+  subscription    Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  asaasInvoiceId  String?      @unique @map("asaas_invoice_id")
+  amount          Float
+  status          String       @default("PENDING") // PENDING, PAID, OVERDUE, CANCELED
+  dueDate         DateTime     @map("due_date")
+  paidAt          DateTime?    @map("paid_at")
+  invoiceUrl      String?      @map("invoice_url")
+  pixQrCode       String?      @map("pix_qrcode")
+  pixCopyPaste    String?      @map("pix_copypaste")
+  createdAt       DateTime     @default(now()) @map("created_at")
+
+  @@map("invoices")
+}
+
 

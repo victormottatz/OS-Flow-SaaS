@@ -1,4 +1,4 @@
-# Regras do Projeto (MGV Assistência Técnica)
+# Regras do Projeto (OS-Flow SaaS / MGV)
 
 ## Protocolo de Engenharia de Prompt e Otimização de Janela de Contexto
 
@@ -36,16 +36,16 @@ Para maximizar a eficiência e minimizar o consumo de tokens:
 Sempre que concluir e aplicar uma nova funcionalidade, correção ou deploy no sistema de produção, o agente deve gerar de forma proativa uma sugestão de mensagem estruturada para que o proprietário envie no WhatsApp para a equipe da assistência técnica:
 - **Formato:** Texto formatado com negritos (`*texto*`) compatíveis com o WhatsApp.
 - **Estrutura:**
-  - Título chamativo com emojis (ex: `🚀 *MGV ONE HUB - ATUALIZAÇÃO* 🚀`).
+  - Título chamativo com emojis (ex: `🚀 *OS-FLOW / MGV - ATUALIZAÇÃO* 🚀`).
   - Resumo didático e direto de "O que muda na prática para vocês?".
   - Ações imediatas ou cuidados necessários (ex: recarregar a tela com Ctrl+F5, preencher NCM ou CEP).
   - Linguagem amigável, clara e acessível a leigos (atendentes e técnicos).
 
-## 🛡️ Ambiente de Execução Restrito
+## 🛡️ Ambiente de Execução e Segurança
 
-- **Regra de Ouro (Inquebrável):** Qualquer desenvolvimento, elaboração de planos, refatoração de código, teste ou execução de comandos deve ser feito OBRIGATORIAMENTE no diretório de testes:
-  `D:\HD\MGV\MGV_2026\MGV-Assistencia-Tecnica-TESTE`
-- O diretório principal (`D:\HD\MGV\MGV_2026\MGV-Assistência-Técnica`) é tratado como ambiente de Produção/Master e **nunca** deve receber edições diretas sem instrução super explícita em contrário.
+- **Workspace de Trabalho:** `D:\HD\MGV\MGV_2026\OS-Flow-SaaS`
+- Toda alteração deve ser validada e compilada antes de ser promovida.
+- Não modificar diretamente ambientes de produção sem teste e validação prévia.
 
 ## 🚫 Proibição Absoluta do Navegador Automático (Economia de Tokens)
 
@@ -81,3 +81,41 @@ O projeto conta com uma extensa biblioteca de workflows unificada na pasta `.age
 12. **Commits**: Conventional commits rigorosos (`feat:`, `fix:`, `chore:`).
 13. **Ambiente**: DBs isolados; `.env` segregados (DEV x PROD); *Feature flags* para WIP.
 14. **Docs as Code**: Código auto-documentado elimina comentários óbvios; docstrings explícitos em funções chave.
+
+## 🔐 Protocolo de Segurança de Dados, RLS & LGPD
+
+Para garantir a proteção de dados sensíveis e conformidade contínua:
+
+1. **Zero Exposição de Chaves Administrativas**:
+   - Nunca utilizar a chave `SUPABASE_SERVICE_ROLE_KEY` no Frontend ou exposta no bundle cliente.
+   - Qualquer operação com privilégio elevado deve ser isolada em rotas protegidas de backend ou Edge Functions com validação de sessão.
+
+2. **Políticas de Isolamento Multi-Tenancy (RLS)**:
+   - Toda e qualquer tabela do Supabase DEVE ter `Row Level Security (RLS)` ativado.
+   - Nenhuma query no Frontend ou Backend pode omitir o filtro por `company_id`.
+   - As políticas de RLS no banco devem validar rigorosamente `company_id = auth.jwt() ->> 'company_id'` ou `auth.uid()`.
+
+3. **Proteção de Dados Pessoais (LGPD / PII)**:
+   - **Proibição de Logs Sensíveis:** É expressamente proibido fazer `console.log` de objetos brutos contendo CPF/CNPJ, senhas, chaves de API, telefones, dados de cartão ou payloads integrais de clientes.
+   - Mascaramento visual de dados sensíveis nas interfaces onde a exibição integral não for obrigatória.
+
+4. **Blindagem de Segredos e Terceiros**:
+   - Tokens de integração de ERPs (Bling, WhatsApp, Gateways de Pagamento) devem ser criptografados no banco ou gerenciados via variáveis de ambiente seguras (`Supabase Vault`).
+   - Bloqueio imediato de commits que contenham chaves de teste ou arquivos `.env`.
+
+## 🧹 Protocolo de Governança e Higiene Estrutural do Repositório
+
+Para manter o projeto limpo, seguro e de fácil navegação:
+
+1. **Blindagem da Raiz do Projeto**:
+   - É expressamente proibido criar scripts temporários de teste, dumps de banco, planilhas ou relatórios diretamente na raiz.
+   - A raiz deve conter **estritamente** os manifestos e arquivos de configuração vitais (`package.json`, `tsconfig.json`, `vite.config.ts`, `server.ts`, `build.cjs`, `.env.example`, `.gitignore`, `README.md`, Docker e orquestradores).
+
+2. **Destino Obrigatório por Categoria**:
+   - **Documentações & Guias:** Sempre em `docs/guias/`, `docs/relatorios/` ou `docs/database/`.
+   - **Planilhas e Auditorias:** Arquivos `.xlsx`, `.xls` e `.csv` devem ser salvos em `planilhas_excel/`.
+   - **Dumps SQL e Backups:** Devem ficar em `backups_seguros/` (protegidos pelo `.gitignore`).
+   - **Scripts de Teste & One-Off:** Scripts rápidos (`test-*.ts`, `check_*.ts`) devem ser criados em `scripts/tests/` ou `scripts/utils/`.
+   - **Scripts Legados:** Rotinas temporárias de migração concluídas devem ser arquivadas em `scripts/archive/`.
+
+

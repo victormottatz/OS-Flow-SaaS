@@ -156,6 +156,101 @@ export class DashboardController {
       res.status(500).json({ error: err.message });
     }
   }
+
+  /**
+   * Exportação Integral de Dados do Tenant (Direito à Portabilidade - LGPD Art. 18)
+   */
+  async exportTenantData(req: Request, res: Response) {
+    try {
+      const companyId = req.headers["x-company-id"] as string || (req as any).companyId;
+      if (!companyId) {
+        res.status(400).json({ error: "Identificação da empresa (companyId) não encontrada na requisição." });
+        return;
+      }
+      const whereTenant = { companyId };
+
+      const [clients, devices, orders, parts] = await Promise.all([
+        prisma.client.findMany({
+          where: { ...whereTenant, deletedAt: null },
+          select: {
+            id: true,
+            name: true,
+            cpfCnpj: true,
+            phone: true,
+            email: true,
+            address: true,
+            city: true,
+            state: true,
+            zipCode: true,
+            createdAt: true
+          }
+        }),
+        prisma.device.findMany({
+          where: { ...whereTenant, deletedAt: null },
+          select: {
+            id: true,
+            clientId: true,
+            type: true,
+            brand: true,
+            model: true,
+            serialNumber: true,
+            description: true
+          }
+        }),
+        prisma.ordemServico.findMany({
+          where: { ...whereTenant, deletedAt: null },
+          select: {
+            id: true,
+            osNumber: true,
+            status: true,
+            clientId: true,
+            deviceId: true,
+            reportedDefect: true,
+            diagnostic: true,
+            totalCost: true,
+            laborCost: true,
+            createdAt: true
+          }
+        }),
+        prisma.part.findMany({
+          where: { deletedAt: null },
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            stock: true,
+            cost: true,
+            price: true,
+            ncm: true
+          }
+        })
+      ]);
+
+      const exportPayload = {
+        exportedAt: new Date().toISOString(),
+        version: "OS-Flow SaaS 2026 - LGPD Data Export",
+        counts: {
+          clients: clients.length,
+          devices: devices.length,
+          orders: orders.length,
+          parts: parts.length
+        },
+        data: {
+          clients,
+          devices,
+          orders,
+          parts
+        }
+      };
+
+      res.setHeader("Content-Disposition", `attachment; filename=backup-osflow-${new Date().toISOString().split("T")[0]}.json`);
+      res.setHeader("Content-Type", "application/json");
+      res.json(exportPayload);
+    } catch (err: any) {
+      console.error("[ExportTenantData Error]:", err);
+      res.status(500).json({ error: "Falha ao gerar exportação de dados: " + err.message });
+    }
+  }
 }
 
 export const dashboardController = new DashboardController();

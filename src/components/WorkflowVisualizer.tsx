@@ -122,7 +122,7 @@ export default function WorkflowVisualizer() {
                 Traefik["🛡️ Traefik Reverse Proxy<br/>(Portas 80/443 + SSL Let's Encrypt Automático)"]:::proxy
                 
                 subgraph DOCKER_STACK ["⚙️ Orquestração Coolify & Docker"]
-                    HubContainer["📦 MGV One Hub (Node.js + React)<br/>Porta 3000"]:::container
+                    HubContainer["📦 OS Flow Core (Node.js + React)<br/>Porta 3000"]:::container
                     EvoContainer["🤖 Evolution API (WhatsApp Engine)<br/>Porta 8080"]:::container
                     PgContainer[("🐘 PostgreSQL (Prisma ORM)<br/>Porta 5432/5433")]:::container
                 end
@@ -250,7 +250,7 @@ export default function WorkflowVisualizer() {
           sequenceDiagram
             autonumber
             actor Atendente as 📋 Atendente / Técnico
-            participant Core as ⚡ MGV One Hub (Hostinger VPS)
+            participant Core as ⚡ OS Flow Core (Hostinger VPS)
             participant DNS as 🏢 Net Profissional (whatsapp.mgvrp.com.br)
             participant Evo as 🤖 Evolution API (Docker)
             actor Cliente as 📱 Cliente (WhatsApp)
@@ -407,7 +407,7 @@ export default function WorkflowVisualizer() {
             <h2 className="text-lg font-bold text-white tracking-wide">Mapa de Navegação e Arquitetura</h2>
           </div>
           <p className="text-xs text-slate-400 font-medium mt-0.5">
-            Esboço visual interativo do conglomerado MGV One Hub, infraestrutura e fluxos operacionais
+            Esboço visual interativo do ecossistema OS Flow, infraestrutura e fluxos operacionais
           </p>
         </div>
 

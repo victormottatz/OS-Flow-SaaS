@@ -5,6 +5,7 @@ import WhatsAppMediaModal from "./whatsapp/WhatsAppMediaModal";
 import WhatsAppAudioRecorder from "./whatsapp/WhatsAppAudioRecorder";
 import { formatWhatsAppMessageReact } from "../utils/whatsappTextFormatter";
 import { EmojiPickerPopover } from "./EmojiPickerPopover";
+import { DEMO_WHATSAPP_CHATS, DEMO_WHATSAPP_MESSAGES } from "../demo";
 
 interface ClientData {
   id: string;
@@ -274,7 +275,7 @@ export default function WhatsAppInboxView({ onOpenOrderModal }: WhatsAppInboxVie
   // Carrega lista de chats do backend
   const fetchChats = async () => {
     try {
-      const token = localStorage.getItem("mgv_token");
+      const token = localStorage.getItem("osflow_token") || localStorage.getItem("mgv_token");
       let url = `/api/whatsapp/chats?`;
       if (filterType !== "all") url += `filter=${filterType}&`;
       if (searchQuery.trim()) url += `search=${encodeURIComponent(searchQuery)}&`;
@@ -284,19 +285,31 @@ export default function WhatsAppInboxView({ onOpenOrderModal }: WhatsAppInboxVie
       });
       if (res.ok) {
         const data: ChatItem[] = await res.json();
-        // Ordena estritamente com as mensagens mais recentes no topo
-        const sorted = [...data].sort((a, b) => {
-          const timeA = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
-          const timeB = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
-          return timeB - timeA;
-        });
-        setChats(sorted);
-        if (!selectedChatId && sorted.length > 0) {
-          setSelectedChatId(sorted[0].id);
+        if (!data || data.length === 0) {
+          setChats([]);
+          setSelectedChatId(null);
+          setMessages([]);
+        } else {
+          const sorted = [...data].sort((a, b) => {
+            const timeA = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+            const timeB = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+            return timeB - timeA;
+          });
+          setChats(sorted);
+          if (!selectedChatId && sorted.length > 0) {
+            setSelectedChatId(sorted[0].id);
+          }
         }
+      } else {
+        setChats([]);
+        setSelectedChatId(null);
+        setMessages([]);
       }
     } catch (err) {
       console.error("Erro ao carregar chats de WhatsApp:", err);
+      setChats([]);
+      setSelectedChatId(null);
+      setMessages([]);
     } finally {
       setIsLoadingChats(false);
     }
@@ -304,25 +317,32 @@ export default function WhatsAppInboxView({ onOpenOrderModal }: WhatsAppInboxVie
 
   // Carrega histórico de mensagens do chat selecionado
   const fetchMessages = async (chatId: string) => {
+    if (!chatId) {
+      setMessages([]);
+      return;
+    }
+
     setIsLoadingMessages(true);
     try {
-      const token = localStorage.getItem("mgv_token");
+      const token = localStorage.getItem("osflow_token") || localStorage.getItem("mgv_token");
       const res = await fetch(`/api/whatsapp/chats/${chatId}/messages`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
         const data = await res.json();
-        setMessages(data);
+        setMessages(data || []);
         scrollToBottom(true);
+      } else {
+        setMessages([]);
       }
-      // Marca conversa como lida
       fetch(`/api/whatsapp/chats/${chatId}/mark-read`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` }
-      });
+      }).catch(() => {});
       setChats(prev => prev.map(c => c.id === chatId ? { ...c, unreadCount: 0 } : c));
     } catch (err) {
       console.error("Erro ao carregar mensagens:", err);
+      setMessages([]);
     } finally {
       setIsLoadingMessages(false);
     }
@@ -349,7 +369,10 @@ export default function WhatsAppInboxView({ onOpenOrderModal }: WhatsAppInboxVie
     let reconnectTimer: NodeJS.Timeout | null = null;
 
     const setupSSE = () => {
-      const token = localStorage.getItem("mgv_token");
+      const isDemo = localStorage.getItem("osflow_live_demo") === "true";
+      if (isDemo) return;
+
+      const token = localStorage.getItem("osflow_token") || localStorage.getItem("mgv_token");
       eventSource = new EventSource(`/api/whatsapp/events?token=${token}`);
 
       eventSource.onopen = () => {
@@ -609,10 +632,36 @@ export default function WhatsAppInboxView({ onOpenOrderModal }: WhatsAppInboxVie
     if (chatInputRef.current) {
       chatInputRef.current.style.height = "auto";
     }
+
+    const isDemo = localStorage.getItem("osflow_live_demo") === "true";
+    if (isDemo) {
+      const newMsg: MessageItem = {
+        id: `demo-msg-${Date.now()}`,
+        chatId: selectedChatId,
+        remoteJid: activeChat?.remoteJid || "demo@s.whatsapp.net",
+        fromMe: true,
+        senderName: "Suporte Técnico",
+        messageType: "TEXT",
+        text: textToSend,
+        mediaUrl: null,
+        mediaMimeType: null,
+        fileName: null,
+        status: "SENT",
+        errorDetail: null,
+        timestamp: new Date().toISOString(),
+        orderId: activeChat?.activeOrderId || null
+      };
+
+      setMessages(prev => [...prev, newMsg]);
+      setChats(prev => prev.map(c => c.id === selectedChatId ? { ...c, lastMessageText: textToSend, lastMessageAt: new Date().toISOString() } : c));
+      scrollToBottom();
+      return;
+    }
+
     setIsSending(true);
 
     try {
-      const token = localStorage.getItem("mgv_token");
+      const token = localStorage.getItem("osflow_token") || localStorage.getItem("mgv_token");
       const res = await fetch(`/api/whatsapp/chats/${selectedChatId}/send-text`, {
         method: "POST",
         headers: {
@@ -767,7 +816,7 @@ export default function WhatsAppInboxView({ onOpenOrderModal }: WhatsAppInboxVie
     const brand = os?.deviceBrand || "";
     const model = os?.deviceModel || "Equipamento";
     const totalFormatted = (os?.totalCost || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 });
-    const linkPortal = `https://sistema.mgvrp.com.br/acompanhar?numero=${osNum}`;
+    const linkPortal = `${window.location.origin}/acompanhar?numero=${osNum}`;
 
     return [
       {
@@ -801,7 +850,7 @@ export default function WhatsAppInboxView({ onOpenOrderModal }: WhatsAppInboxVie
         name: "Equipamento Pronto para Retirada",
         docId: "recibo",
         withPdf: true,
-        text: `🎉 *Ótima notícia, ${firstName}!* \n\nO seu equipamento *${model}* (OS *#${osNum}*) concluiu com sucesso todas as etapas de serviços técnicos e testes de qualidade!\n\n📍 *Já está pronto para retirada em nossa sede:*\n🏢 *Endereço:* Rua Julio Prestes, 648 - Jardim Sumaré, Ribeirão Preto - SP\n⏰ *Horário:* Segunda a Quinta das 08h às 18h | Sexta das 08h às 17h (Sábado e Domingo: Fechado)\n\n📎 *Em anexo segue o Laudo Técnico / Recibo do serviço.*\n\n💳 _Se preferir agilizar o pagamento via PIX, basta solicitar por aqui!_`
+        text: `🎉 *Ótima notícia, ${firstName}!* \n\nO seu equipamento *${model}* (OS *#${osNum}*) concluiu com sucesso todas as etapas de serviços técnicos e testes de qualidade!\n\n📍 *Já está pronto para retirada em nossa unidade.*\n⏰ *Horário:* Segunda a Sexta em horário comercial\n\n📎 *Em anexo segue o Laudo Técnico / Recibo do serviço.*\n\n💳 _Se preferir agilizar o pagamento via PIX, basta solicitar por aqui!_`
       },
       {
         id: "recibo_entrega",
@@ -1669,7 +1718,7 @@ export default function WhatsAppInboxView({ onOpenOrderModal }: WhatsAppInboxVie
               <button
                 onClick={() => {
                   const firstName = (activeChat.client?.name || activeChat.name || "Cliente").split(" ")[0];
-                  setMessageText(`💳 *Chave PIX da MGV Assistência Técnica:*\n\n🔑 *Chave CNPJ:* 12.345.678/0001-90\n🏦 *Banco:* Cora SCD\n👤 *Favorecido:* MGV Assistência Técnica LTDA\n\n_Favor nos enviar o comprovante por aqui assim que efetuar o pagamento!_ ✨`);
+                  setMessageText(`💳 *Dados para Pagamento via PIX:*\n\n🔑 *Chave PIX:* (Chave cadastrada na empresa)\n🏦 *Banco:* Banco Digital / Principal\n👤 *Favorecido:* Assistência Técnica\n\n_Favor nos enviar o comprovante por aqui assim que efetuar o pagamento!_ ✨`);
                   chatInputRef.current?.focus();
                 }}
                 className="w-full p-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs font-bold text-slate-200 flex items-center gap-2.5 transition-all cursor-pointer text-left"

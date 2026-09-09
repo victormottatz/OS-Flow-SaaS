@@ -1,5 +1,5 @@
 /* ============================================================
-   MGV SANDBOX DE APRENDIZADO — JAVASCRIPT (JS)
+   OS FLOW SANDBOX DE APRENDIZADO — JAVASCRIPT (JS)
    ============================================================
    Todo o COMPORTAMENTO da página fica aqui:
      - criar cartões automaticamente
@@ -197,4 +197,4 @@ renderizar();
 
 // console.log é sua melhor amiga para aprender:
 // abra o F12 > aba "Console" e veja este aviso.
-console.log('♻️ Sandbox MGV carregado! Experimente alterar o array ordensDeServico.');
+console.log('⚡ Sandbox OS Flow carregado! Experimente alterar o array ordensDeServico.');

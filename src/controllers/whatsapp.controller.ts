@@ -12,14 +12,14 @@ export class WhatsAppController {
     let instanceName = process.env.WHATSAPP_INSTANCE_NAME || "mgv_oficial";
 
     if (!apiUrl) {
-      const dbUrl = await prisma.officeSetting.findUnique({ where: { key: 'WHATSAPP_API_URL' } });
+      const dbUrl = await prisma.officeSetting.findFirst({ where: { key: 'WHATSAPP_API_URL' } });
       apiUrl = dbUrl?.value;
     }
     if (!apiToken) {
-      const dbToken = await prisma.officeSetting.findUnique({ where: { key: 'WHATSAPP_API_TOKEN' } });
+      const dbToken = await prisma.officeSetting.findFirst({ where: { key: 'WHATSAPP_API_TOKEN' } });
       apiToken = dbToken?.value;
     }
-    const dbInstance = await prisma.officeSetting.findUnique({ where: { key: 'WHATSAPP_INSTANCE_NAME' } });
+    const dbInstance = await prisma.officeSetting.findFirst({ where: { key: 'WHATSAPP_INSTANCE_NAME' } });
     if (dbInstance?.value) instanceName = dbInstance.value;
 
     if (apiUrl) apiUrl = apiUrl.replace(/\/+$/, "");

@@ -166,12 +166,12 @@ export default function StockDivergenceReport({ onRefreshParent }: StockDivergen
     const headers = [
       "Codigo/SKU",
       "Descricao",
-      "Estoque MGV",
+      "Estoque Local",
       "Estoque Bling",
       "Diferenca Saldo",
-      "NCM MGV",
+      "NCM Local",
       "NCM Bling",
-      "Preco MGV (R$)",
+      "Preco Local (R$)",
       "Preco Bling (R$)",
       "Status",
       "Diagnostico Divergencias"
@@ -365,7 +365,7 @@ export default function StockDivergenceReport({ onRefreshParent }: StockDivergen
           </div>
 
           <div className="bg-white p-4 rounded-2xl border border-blue-200 shadow-xs text-center bg-blue-50/20">
-            <span className="text-[10px] font-bold uppercase text-blue-600 block">Apenas MGV</span>
+            <span className="text-[10px] font-bold uppercase text-blue-600 block">Apenas no Sistema</span>
             <span className="text-xl font-black text-blue-600">{report.onlyMgvCount}</span>
             <span className="text-[10px] text-blue-600/80 block mt-0.5">não criados no ERP</span>
           </div>
@@ -373,7 +373,7 @@ export default function StockDivergenceReport({ onRefreshParent }: StockDivergen
           <div className="bg-white p-4 rounded-2xl border border-purple-200 shadow-xs text-center bg-purple-50/20">
             <span className="text-[10px] font-bold uppercase text-purple-600 block">Apenas Bling</span>
             <span className="text-xl font-black text-purple-600">{report.onlyBlingCount}</span>
-            <span className="text-[10px] text-purple-600/80 block mt-0.5">não criados no MGV</span>
+            <span className="text-[10px] text-purple-600/80 block mt-0.5">não criados no Sistema</span>
           </div>
         </div>
       )}
@@ -388,14 +388,14 @@ export default function StockDivergenceReport({ onRefreshParent }: StockDivergen
                 Balanço Financeiro de Estoque
               </h4>
               <p className="text-[11px] text-slate-300">
-                Valorização monetária dos itens no MGV comparada aos saldos do Bling.
+                Valorização monetária dos itens no Sistema comparada aos saldos do Bling.
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-6 text-xs">
             <div className="text-right">
-              <span className="text-[10px] text-slate-400 block font-semibold">Valor Total MGV</span>
+              <span className="text-[10px] text-slate-400 block font-semibold">Valor Total Sistema</span>
               <span className="font-bold text-white">R$ {report.totalValueMgv.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
             </div>
             <div className="text-right">
@@ -465,7 +465,7 @@ export default function StockDivergenceReport({ onRefreshParent }: StockDivergen
                 : "bg-blue-50 text-blue-800 hover:bg-blue-100"
             }`}
           >
-            Só MGV ({report?.onlyMgvCount || 0})
+            Só Sistema ({report?.onlyMgvCount || 0})
           </button>
           <button
             onClick={() => setFilterType("ONLY_BLING")}
@@ -510,12 +510,12 @@ export default function StockDivergenceReport({ onRefreshParent }: StockDivergen
               <tr>
                 <th className="py-3 px-4">Código / SKU</th>
                 <th className="py-3 px-4">Descrição da Peça</th>
-                <th className="py-3 px-3 text-center">Estoque MGV</th>
+                <th className="py-3 px-3 text-center">Estoque Local</th>
                 <th className="py-3 px-3 text-center">Estoque Bling</th>
                 <th className="py-3 px-3 text-center">Diferença Saldo</th>
-                <th className="py-3 px-3 text-center">NCM MGV</th>
+                <th className="py-3 px-3 text-center">NCM Local</th>
                 <th className="py-3 px-3 text-center">NCM Bling</th>
-                <th className="py-3 px-3 text-right">Preço MGV</th>
+                <th className="py-3 px-3 text-right">Preço Local</th>
                 <th className="py-3 px-3 text-right">Preço Bling</th>
                 <th className="py-3 px-3 text-center">Status</th>
                 <th className="py-3 px-4 text-center">Ações de Sincronização</th>
@@ -631,7 +631,7 @@ export default function StockDivergenceReport({ onRefreshParent }: StockDivergen
                         )}
                         {item.status === "ONLY_MGV" && (
                           <span className="px-2 py-1 bg-blue-50 text-blue-700 font-extrabold text-[10px] rounded-lg border border-blue-200">
-                            Só no MGV
+                            Só no Sistema
                           </span>
                         )}
                         {item.status === "ONLY_BLING" && (
@@ -646,23 +646,23 @@ export default function StockDivergenceReport({ onRefreshParent }: StockDivergen
                         <div className="flex items-center justify-center gap-1.5">
                           {item.partId && (
                             <button
-                              title="Sincronizar dados cadastrais, NCM e estoque do MGV para o Bling"
+                              title="Sincronizar dados cadastrais, NCM e estoque local para o Bling"
                               onClick={() => handleSyncToBling(item.partId!)}
                               disabled={isSyncing}
                               className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[10px] rounded-md border border-indigo-200 transition cursor-pointer disabled:opacity-50"
                             >
-                              {isSyncing ? "..." : "MGV ➔ Bling"}
+                              {isSyncing ? "..." : "Sistema ➔ Bling"}
                             </button>
                           )}
 
                           {item.partId && item.blingId && (
                             <button
-                              title="Atualizar estoque e NCM local no MGV com os dados do Bling"
+                              title="Atualizar estoque e NCM local com os dados do Bling"
                               onClick={() => handleSyncFromBling(item)}
                               disabled={isSyncing}
                               className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] rounded-md border border-slate-200 transition cursor-pointer disabled:opacity-50"
                             >
-                              Bling ➔ MGV
+                              Bling ➔ Sistema
                             </button>
                           )}
                         </div>

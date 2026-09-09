@@ -22,6 +22,14 @@ export interface User {
   avatarUrl?: string;
   bio?: string;
   createdAt: string;
+  companyId?: string | null;
+  company?: {
+    id: string;
+    name: string;
+    slug?: string;
+    logoUrl?: string | null;
+    subscription?: any;
+  } | null;
 }
 
 export type TagScope = 'GLOBAL' | 'CLIENT' | 'DEVICE' | 'ORDEM_SERVICO';
@@ -78,7 +86,7 @@ export type OSClosingReason =
   | 'DESCARTE_OFICINA'
   | 'EQUIPAMENTO_SEM_DEFEITO';
 
-export type WarrantyType = 'NENHUMA' | 'FABRICA' | 'MGV';
+export type WarrantyType = 'NENHUMA' | 'FABRICA' | 'OFICINA' | 'MGV';
 
 export type OSFinancialStatus = 'PENDENTE' | 'CREDIARIO' | 'PAGAR_DEPOIS' | 'PAGO';
 
@@ -266,4 +274,73 @@ export interface OSHistoryItem {
     avatarUrl?: string | null;
   } | null;
 }
+
+// -------------------------------------------------------------
+// MÓDULO SAAS: MULTI-TENANCY, PLANOS E ASSINATURAS
+// -------------------------------------------------------------
+
+export type SubscriptionStatus = 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'CANCELED' | 'UNPAID';
+export type BillingCycle = 'MONTHLY' | 'ANNUAL';
+export type PlanTier = 'STARTER' | 'PRO' | 'ENTERPRISE';
+
+export interface Company {
+  id: string;
+  name: string;
+  cnpj?: string | null;
+  slug: string;
+  active: boolean;
+  logoUrl?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zipCode?: string | null;
+  asaasCustomerId?: string | null;
+  createdAt: string;
+  subscription?: Subscription | null;
+}
+
+export interface Plan {
+  id: string;
+  name: string;
+  tier: PlanTier;
+  description: string;
+  priceMonthly: number;
+  priceAnnual: number;
+  maxUsers: number;
+  maxOrdersPerMonth: number;
+  features: string[];
+  active: boolean;
+}
+
+export interface Subscription {
+  id: string;
+  companyId: string;
+  planId: string;
+  plan?: Plan;
+  status: SubscriptionStatus;
+  cycle: BillingCycle;
+  asaasSubscriptionId?: string | null;
+  trialEndsAt?: string | null;
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  cancelAtPeriodEnd: boolean;
+  invoices?: Invoice[];
+}
+
+export interface Invoice {
+  id: string;
+  subscriptionId: string;
+  asaasInvoiceId?: string | null;
+  amount: number;
+  status: string;
+  dueDate: string;
+  paidAt?: string | null;
+  invoiceUrl?: string | null;
+  pixQrCode?: string | null;
+  pixCopyPaste?: string | null;
+  createdAt: string;
+}
+
 

@@ -20,12 +20,27 @@ router.put("/:key", checkRole(UserRole.OWNER, UserRole.ADMIN), async (req, res) 
   const { key } = req.params;
   const { value, category, description, type } = req.body;
   try {
-    const updated = await prisma.officeSetting.upsert({
-      where: { key },
-      update: { value, category, description, type },
-      create: { key, value, category, description, type }
-    });
-    res.json(updated);
+    const existing = await prisma.officeSetting.findFirst({ where: { key } });
+    if (existing) {
+      const updated = await prisma.officeSetting.update({
+        where: { id: existing.id },
+        data: { value, category, description, type }
+      });
+      res.json(updated);
+    } else {
+      const defaultCompany = await prisma.company.findFirst();
+      const created = await prisma.officeSetting.create({
+        data: {
+          companyId: defaultCompany?.id || null,
+          key,
+          value,
+          category,
+          description,
+          type
+        }
+      });
+      res.json(created);
+    }
   } catch (error) {
     res.status(500).json({ error: "Erro ao salvar configuração." });
   }

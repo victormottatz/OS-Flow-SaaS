@@ -12,7 +12,7 @@ async function testContactCreation() {
   console.log("=== Teste de Contato Bling v3 ===\n");
 
   // 1. Buscar token
-  const config = await prisma.blingConfig.findUnique({ where: { id: 1 } });
+  const config = await prisma.blingConfig.findFirst();
   if (!config) {
     console.error("❌ Nenhum token Bling encontrado no banco de dados.");
     console.error("   Execute o OAuth primeiro via /api/integration/bling/connect");

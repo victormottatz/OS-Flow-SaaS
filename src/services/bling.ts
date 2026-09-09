@@ -95,21 +95,28 @@ export async function exchangeCode(code: string): Promise<string> {
     // Calculate expiration time (adding a 1-minute safety buffer)
     const expiresAt = new Date(Date.now() + (expires_in - 60) * 1000);
 
-    // Save tokens in database (upsert id 1)
-    await prisma.blingConfig.upsert({
-      where: { id: 1 },
-      update: {
-        accessToken: access_token,
-        refreshToken: refresh_token,
-        expiresAt: expiresAt,
-      },
-      create: {
-        id: 1,
-        accessToken: access_token,
-        refreshToken: refresh_token,
-        expiresAt: expiresAt,
-      },
-    });
+    // Salva ou atualiza a configuração do Bling
+    let existingConfig = await prisma.blingConfig.findFirst();
+    if (existingConfig) {
+      await prisma.blingConfig.update({
+        where: { id: existingConfig.id },
+        data: {
+          accessToken: access_token,
+          refreshToken: refresh_token,
+          expiresAt: expiresAt,
+        },
+      });
+    } else {
+      const defaultCompany = await prisma.company.findFirst();
+      await prisma.blingConfig.create({
+        data: {
+          companyId: defaultCompany?.id || null,
+          accessToken: access_token,
+          refreshToken: refresh_token,
+          expiresAt: expiresAt,
+        },
+      });
+    }
 
     console.log(`[Bling OAuth] Authorization code trocado e salvo com sucesso. Expira em: ${expiresAt.toISOString()}`);
     return access_token;
@@ -126,7 +133,7 @@ export async function exchangeCode(code: string): Promise<string> {
  * Retrieve active Access Token, automatically executing OAuth refresh logic
  * with mutex protection to prevent race conditions on concurrent API calls.
  */
-export async function getAccessToken(): Promise<string | null> {
+export async function getAccessToken(companyId?: string): Promise<string | null> {
   const clientId = process.env.BLING_CLIENT_ID;
   const clientSecret = process.env.BLING_CLIENT_SECRET;
 
@@ -135,10 +142,10 @@ export async function getAccessToken(): Promise<string | null> {
     return null;
   }
 
-  // 1. Fetch current config from Supabase
-  const config = await prisma.blingConfig.findUnique({
-    where: { id: 1 },
-  });
+  // 1. Fetch current config from Supabase/Postgres
+  const config = companyId
+    ? await prisma.blingConfig.findFirst({ where: { companyId } })
+    : await prisma.blingConfig.findFirst();
 
   if (!config) {
     console.warn("[Bling OAuth] Integração Bling pendente: nenhuma credencial cadastrada na tabela bling_configs.");
@@ -185,7 +192,7 @@ export async function getAccessToken(): Promise<string | null> {
       const expiresAt = new Date(Date.now() + (expires_in - 60) * 1000);
 
       await prisma.blingConfig.update({
-        where: { id: 1 },
+        where: { id: config.id },
         data: {
           accessToken: access_token,
           refreshToken: refresh_token || config.refreshToken,
@@ -446,37 +453,40 @@ export async function syncPartToBling(part: {
       productId = existing[0].id;
     }
   } catch (err: any) {
-    console.error(`[Bling Sync] Erro ao buscar produto por cÃ³digo ${part.code}:`, err.message);
+    console.error(`[Bling Sync] Erro ao buscar produto por código ${part.code}:`, err.message);
   }
 
-  const payload: BlingProductPayload = {
-    nome: part.name,
-    codigo: part.code,
-    preco: part.price,
+  const cleanName = (part.name || "Peça Sem Nome").trim().replace(/\s+/g, " ");
+  const cleanCode = (part.code || "").trim();
+  const cleanNcm = (part.ncm || "").replace(/\D/g, "");
+
+  const payload: any = {
+    nome: cleanName,
+    codigo: cleanCode,
+    preco: part.price > 0 ? part.price : 1.0,
     tipo: "P", // Produto
     formato: "S", // Simples
-    situacao: "A"
+    situacao: "A",
+    unidade: (part.unit || "UN").toUpperCase().trim()
   };
 
-  // NCM: envia apenas se for um código válido de 8 dígitos (normalizado) — um NCM
-  // inválido/vazio seria rejeitado pelo Bling e derrubaria a sincronização inteira.
-  const cleanNcm = (part.ncm || "").replace(/\D/g, "");
+  // No Bling V3 o NCM DEVE ser enviado dentro de `tributacao.ncm`
+  const tributacao: any = {};
   if (cleanNcm.length === 8) {
-    payload.ncm = cleanNcm;
+    tributacao.ncm = cleanNcm;
   }
-  if (part.unit) {
-    payload.unidade = part.unit;
+  if (cfopCalculado) {
+    tributacao.cfop = cfopCalculado;
   }
-
-  if (cfopCalculado || cstIcms) {
-    payload.tributacao = {
-      cfop: cfopCalculado,
-      csosn: cstIcms
-    };
+  if (cstIcms) {
+    tributacao.csosn = cstIcms;
+  }
+  if (Object.keys(tributacao).length > 0) {
+    payload.tributacao = tributacao;
   }
 
   if (productId) {
-    console.log(`[Bling Sync] Atualizando produto existente ID: ${productId}`);
+    console.log(`[Bling Sync] Atualizando produto existente ID: ${productId} (${cleanCode})`);
     try {
       await requestWithRetry(() => axios.put(`https://api.bling.com.br/Api/v3/produtos/${productId}`, payload, {
         headers: {
@@ -490,7 +500,7 @@ export async function syncPartToBling(part: {
       throw new Error(errorMsg);
     }
   } else {
-    console.log(`[Bling Sync] Criando novo produto: ${part.name}`);
+    console.log(`[Bling Sync] Criando novo produto: ${cleanName} (${cleanCode})`);
     try {
       const response = await requestWithRetry(() => axios.post("https://api.bling.com.br/Api/v3/produtos", payload, {
         headers: {
@@ -500,7 +510,7 @@ export async function syncPartToBling(part: {
       }));
       const newId = response.data?.data?.id;
       if (!newId) {
-        throw new Error("Resposta do Bling nÃ£o retornou o ID do produto criado.");
+        throw new Error("Resposta do Bling não retornou o ID do produto criado.");
       }
       return newId;
     } catch (err: any) {
@@ -644,38 +654,40 @@ export async function fetchAllBlingProducts(): Promise<any[]> {
 /**
  * Busca todos os saldos de estoque no Bling V3 com paginação automática.
  */
-export async function fetchAllBlingStockBalances(): Promise<any[]> {
+/**
+ * Busca os saldos de estoque no Bling V3 para uma lista de IDs de produtos em lotes de 50.
+ */
+export async function fetchAllBlingStockBalances(productIds?: number[]): Promise<any[]> {
   const token = await getAccessToken();
   if (!token) throw new Error("Não foi possível obter um token válido para o Bling.");
 
+  if (!productIds || productIds.length === 0) {
+    return [];
+  }
+
   const allBalances: any[] = [];
-  let page = 1;
-  const limit = 100;
+  const chunkSize = 50;
   const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 
-  while (true) {
+  for (let i = 0; i < productIds.length; i += chunkSize) {
+    const chunk = productIds.slice(i, i + chunkSize);
+    const queryString = chunk.map(id => `idsProdutos[]=${id}`).join("&");
+
     try {
       const response = await requestWithRetry(() => axios.get(
-        "https://api.bling.com.br/Api/v3/estoques/saldos",
+        `https://api.bling.com.br/Api/v3/estoques/saldos?${queryString}`,
         {
-          params: { pagina: page, limite: limit },
           headers: { Authorization: `Bearer ${token}` }
         }
       ));
 
       const items = response.data?.data || [];
-      if (items.length === 0) break;
-
       allBalances.push(...items);
-
-      if (items.length < limit) break;
-      page++;
-      await sleep(250);
     } catch (err: any) {
-      if (err.response?.status === 404) break;
-      console.error(`[Bling Stock Balances] Erro na página ${page}:`, err.message);
-      break;
+      console.error(`[Bling Stock Balances] Erro no lote ${Math.floor(i / chunkSize) + 1}:`, err.message);
     }
+
+    await sleep(200); // Throttle para respeitar o rate limit
   }
 
   return allBalances;
@@ -687,16 +699,20 @@ export interface StockDivergenceItem {
   blingId?: number;
   code: string;
   name: string;
-  stockMgv: number;
+  stockLocal: number;
+  stockMgv?: number; // Alias para compatibilidade
   stockBling: number;
-  stockDelta: number; // stockMgv - stockBling
-  ncmMgv: string;
+  stockDelta: number; // stockLocal - stockBling
+  ncmLocal: string;
+  ncmMgv?: string; // Alias para compatibilidade
   ncmBling: string;
-  priceMgv: number;
+  priceLocal: number;
+  priceMgv?: number; // Alias para compatibilidade
   priceBling: number;
-  unitMgv: string;
+  unitLocal: string;
+  unitMgv?: string; // Alias para compatibilidade
   unitBling: string;
-  status: "OK" | "QTY_DIVERGENCE" | "FISCAL_DIVERGENCE" | "ONLY_MGV" | "ONLY_BLING";
+  status: "OK" | "QTY_DIVERGENCE" | "FISCAL_DIVERGENCE" | "ONLY_LOCAL" | "ONLY_MGV" | "ONLY_BLING" | "SERVICE_OR_LEGACY";
   divergences: string[];
 }
 
@@ -706,29 +722,42 @@ export interface StockAuditReport {
   synchronizedCount: number;
   qtyDivergenceCount: number;
   fiscalDivergenceCount: number;
-  onlyMgvCount: number;
+  onlyLocalCount: number;
+  onlyMgvCount?: number; // Alias para compatibilidade
   onlyBlingCount: number;
-  totalValueMgv: number;
+  serviceOrLegacyCount: number;
+  totalValueLocal: number;
+  totalValueMgv?: number; // Alias para compatibilidade
   totalValueBling: number;
   financialDifference: number;
   items: StockDivergenceItem[];
 }
 
+function normalizeSku(sku: string): string {
+  return (sku || "").trim().toUpperCase().replace(/^0+/, "");
+}
+
+function normalizeName(name: string): string {
+  return (name || "").trim().toUpperCase().replace(/\s+/g, " ");
+}
+
 /**
- * Executa a varredura completa cruzando a base de dados do MGV com produtos e estoques do Bling.
+ * Executa a varredura completa cruzando a base de dados do OS Flow com produtos e estoques do Bling.
  */
 export async function auditStockAndFiscalDivergences(): Promise<StockAuditReport> {
-  // 1. Obter peças ativas do MGV
-  const mgvParts = await prisma.part.findMany({
+  // 1. Obter peças ativas do OS Flow
+  const localParts = await prisma.part.findMany({
     where: { deletedAt: null },
     orderBy: { name: "asc" }
   });
 
-  // 2. Obter produtos e saldos do Bling em paralelo
-  const [blingProducts, blingBalances] = await Promise.all([
-    fetchAllBlingProducts(),
-    fetchAllBlingStockBalances()
-  ]);
+  // 2. Obter produtos do Bling
+  const blingProducts = await fetchAllBlingProducts();
+  const productIds = blingProducts.map(p => p.id).filter(Boolean);
+
+  // 3. Obter saldos de estoque correspondentes aos produtos do Bling
+  const blingBalances = await fetchAllBlingStockBalances(productIds);
+
 
   // Mapa de saldos por ID de produto do Bling
   const balanceMap = new Map<number, { saldoFisico: number; saldoVirtual: number }>();
@@ -746,8 +775,8 @@ export async function auditStockAndFiscalDivergences(): Promise<StockAuditReport
   const blingByName = new Map<string, any>();
 
   for (const bp of blingProducts) {
-    const code = (bp.codigo || "").trim().toUpperCase();
-    const name = (bp.nome || "").trim().toUpperCase();
+    const code = normalizeSku(bp.codigo || "");
+    const name = normalizeName(bp.nome || "");
     if (code) blingByCode.set(code, bp);
     if (name) blingByName.set(name, bp);
   }
@@ -755,27 +784,28 @@ export async function auditStockAndFiscalDivergences(): Promise<StockAuditReport
   const items: StockDivergenceItem[] = [];
   const processedBlingIds = new Set<number>();
 
-  let totalValueMgv = 0;
+  let totalValueLocal = 0;
   let totalValueBling = 0;
   let synchronizedCount = 0;
   let qtyDivergenceCount = 0;
   let fiscalDivergenceCount = 0;
-  let onlyMgvCount = 0;
+  let onlyLocalCount = 0;
   let onlyBlingCount = 0;
+  let serviceOrLegacyCount = 0;
 
-  // 3. Processa todas as peças do MGV
-  for (const part of mgvParts) {
-    const codeClean = (part.code || "").trim().toUpperCase();
-    const nameClean = (part.name || "").trim().toUpperCase();
+  // 3. Processa todas as peças do OS Flow
+  for (const part of localParts) {
+    const codeClean = normalizeSku(part.code || "");
+    const nameClean = normalizeName(part.name || "");
 
     const matchedBling = (codeClean && blingByCode.get(codeClean)) || blingByName.get(nameClean);
 
-    const stockMgv = Number(part.stock || 0);
-    const priceMgv = Number(part.price || 0);
-    const ncmMgv = (part.ncm || "").replace(/\D/g, "");
-    const unitMgv = (part.unit || "UN").toUpperCase();
+    const stockLocal = Number(part.stock || 0);
+    const priceLocal = Number(part.price || 0);
+    const ncmLocal = (part.ncm || "").replace(/\D/g, "");
+    const unitLocal = (part.unit || "UN").toUpperCase();
 
-    totalValueMgv += stockMgv * priceMgv;
+    totalValueLocal += stockLocal * priceLocal;
 
     if (matchedBling) {
       processedBlingIds.add(matchedBling.id);
@@ -788,30 +818,30 @@ export async function auditStockAndFiscalDivergences(): Promise<StockAuditReport
 
       totalValueBling += stockBling * priceBling;
 
-      const stockDelta = stockMgv - stockBling;
+      const stockDelta = stockLocal - stockBling;
       const divergences: string[] = [];
 
       // Checagem de Divergência de Quantidade
-      const hasQtyDiff = stockMgv !== stockBling;
+      const hasQtyDiff = stockLocal !== stockBling;
       if (hasQtyDiff) {
-        divergences.push(`Estoque divergente: MGV (${stockMgv}) vs Bling (${stockBling}) [Dif: ${stockDelta > 0 ? `+${stockDelta}` : stockDelta}]`);
+        divergences.push(`Estoque divergente: OS Flow (${stockLocal}) vs Bling (${stockBling}) [Dif: ${stockDelta > 0 ? `+${stockDelta}` : stockDelta}]`);
       }
 
       // Checagem de Divergência de NCM
-      const hasNcmDiff = ncmMgv !== ncmBling;
+      const hasNcmDiff = ncmLocal !== ncmBling;
       if (hasNcmDiff) {
-        divergences.push(`NCM divergente: MGV (${ncmMgv || "Não preenchido"}) vs Bling (${ncmBling || "Não preenchido"})`);
+        divergences.push(`NCM divergente: OS Flow (${ncmLocal || "Não preenchido"}) vs Bling (${ncmBling || "Não preenchido"})`);
       }
 
       // Checagem de Divergência de Preço (tolerância de R$ 0.01 para arredondamentos)
-      const hasPriceDiff = Math.abs(priceMgv - priceBling) > 0.01;
+      const hasPriceDiff = Math.abs(priceLocal - priceBling) > 0.01;
       if (hasPriceDiff) {
-        divergences.push(`Preço divergente: MGV (R$ ${priceMgv.toFixed(2)}) vs Bling (R$ ${priceBling.toFixed(2)})`);
+        divergences.push(`Preço divergente: OS Flow (R$ ${priceLocal.toFixed(2)}) vs Bling (R$ ${priceBling.toFixed(2)})`);
       }
 
       // Checagem de Unidade
-      if (unitMgv !== unitBling) {
-        divergences.push(`Unidade divergente: MGV (${unitMgv}) vs Bling (${unitBling})`);
+      if (unitLocal !== unitBling) {
+        divergences.push(`Unidade divergente: OS Flow (${unitLocal}) vs Bling (${unitBling})`);
       }
 
       let itemStatus: StockDivergenceItem["status"] = "OK";
@@ -832,38 +862,46 @@ export async function auditStockAndFiscalDivergences(): Promise<StockAuditReport
         blingId: matchedBling.id,
         code: part.code || matchedBling.codigo || "S/C",
         name: part.name,
-        stockMgv,
+        stockLocal,
+        stockMgv: stockLocal,
         stockBling,
         stockDelta,
-        ncmMgv,
+        ncmLocal,
+        ncmMgv: ncmLocal,
         ncmBling,
-        priceMgv,
+        priceLocal,
+        priceMgv: priceLocal,
         priceBling,
-        unitMgv,
+        unitLocal,
+        unitMgv: unitLocal,
         unitBling,
         status: itemStatus,
         divergences
       });
 
     } else {
-      // Produto existe apenas no MGV
-      onlyMgvCount++;
+      // Produto existe apenas no OS Flow
+      onlyLocalCount++;
       items.push({
         id: part.id,
         partId: part.id,
         code: part.code || "S/C",
         name: part.name,
-        stockMgv,
+        stockLocal,
+        stockMgv: stockLocal,
         stockBling: 0,
-        stockDelta: stockMgv,
-        ncmMgv,
+        stockDelta: stockLocal,
+        ncmLocal,
+        ncmMgv: ncmLocal,
         ncmBling: "",
-        priceMgv,
+        priceLocal,
+        priceMgv: priceLocal,
         priceBling: 0,
-        unitMgv,
+        unitLocal,
+        unitMgv: unitLocal,
         unitBling: "",
-        status: "ONLY_MGV",
-        divergences: ["Produto cadastrado no MGV, mas não localizado no Bling."]
+        status: "ONLY_LOCAL",
+        divergences: ["Produto cadastrado no OS Flow, mas não localizado no Bling."]
       });
     }
   }
@@ -871,7 +909,16 @@ export async function auditStockAndFiscalDivergences(): Promise<StockAuditReport
   // 4. Processa produtos que existem APENAS no Bling
   for (const bp of blingProducts) {
     if (!processedBlingIds.has(bp.id) && bp.tipo === "P" && bp.situacao === "A") {
-      onlyBlingCount++;
+      const code = (bp.codigo || "").trim().toUpperCase();
+      const isServiceOrLegacy = 
+        code.startsWith("SRV-") || 
+        code.startsWith("AVULSO-") || 
+        code.startsWith("BLING-") ||
+        code === "SRV-MAO-DE-OBRA" || 
+        code === "SRV-SERVICO" || 
+        code === "AVULSO-PECA" || 
+        code === "AVULSO-SERVICO";
+
       const blingStockData = balanceMap.get(bp.id);
       const stockBling = Number(blingStockData?.saldoFisico ?? 0);
       const priceBling = Number(bp.preco || 0);
@@ -880,22 +927,36 @@ export async function auditStockAndFiscalDivergences(): Promise<StockAuditReport
 
       totalValueBling += stockBling * priceBling;
 
+      if (isServiceOrLegacy) {
+        serviceOrLegacyCount++;
+      } else {
+        onlyBlingCount++;
+      }
+
       items.push({
         id: `bling-${bp.id}`,
         blingId: bp.id,
         code: bp.codigo || `BLING-${bp.id}`,
         name: bp.nome,
+        stockLocal: 0,
         stockMgv: 0,
         stockBling,
         stockDelta: -stockBling,
+        ncmLocal: "",
         ncmMgv: "",
         ncmBling,
+        priceLocal: 0,
         priceMgv: 0,
         priceBling,
+        unitLocal: "",
         unitMgv: "",
         unitBling,
-        status: "ONLY_BLING",
-        divergences: ["Produto cadastrado no Bling, mas não localizado no MGV."]
+        status: isServiceOrLegacy ? "SERVICE_OR_LEGACY" : "ONLY_BLING",
+        divergences: [
+          isServiceOrLegacy
+            ? "Item de serviço ou código temporário do Bling."
+            : "Produto cadastrado no Bling, mas não localizado no OS Flow."
+        ]
       });
     }
   }
@@ -906,11 +967,14 @@ export async function auditStockAndFiscalDivergences(): Promise<StockAuditReport
     synchronizedCount,
     qtyDivergenceCount,
     fiscalDivergenceCount,
-    onlyMgvCount,
+    onlyLocalCount,
+    onlyMgvCount: onlyLocalCount,
     onlyBlingCount,
-    totalValueMgv: parseFloat(totalValueMgv.toFixed(2)),
+    serviceOrLegacyCount,
+    totalValueLocal: parseFloat(totalValueLocal.toFixed(2)),
+    totalValueMgv: parseFloat(totalValueLocal.toFixed(2)),
     totalValueBling: parseFloat(totalValueBling.toFixed(2)),
-    financialDifference: parseFloat((totalValueMgv - totalValueBling).toFixed(2)),
+    financialDifference: parseFloat((totalValueLocal - totalValueBling).toFixed(2)),
     items
   };
 }

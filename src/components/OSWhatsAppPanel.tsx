@@ -232,12 +232,12 @@ export default function OSWhatsAppPanel({
         withPdf: false
       },
       retirada: {
-        text: `🎉 *Ótima notícia, ${firstName}!* \n\nO seu equipamento *${deviceModel}* (OS *#${osNumber}*) concluiu com sucesso todas as etapas de serviços técnicos e testes de qualidade!\n\n📍 *Seu aparelho já está pronto para retirada:*\n🏢 *MGV Assistência Técnica:* Rua Julio Prestes, 648 - Jardim Sumaré, Ribeirão Preto - SP\n⏰ *Horário:* Segunda a Quinta das 08h às 18h | Sexta das 08h às 17h (Sábado e Domingo: Fechado)\n\n📎 *Segue em anexo o Laudo Técnico / Recibo do atendimento.*\n\n💬 _Aguardamos sua visita!_`,
+        text: `🎉 *Ótima notícia, ${firstName}!* \n\nO seu equipamento *${deviceModel}* (OS *#${osNumber}*) concluiu com sucesso todas as etapas de serviços técnicos e testes de qualidade!\n\n📍 *Seu aparelho já está pronto para retirada na nossa unidade.*\n⏰ *Horário:* Segunda a Sexta em horário comercial\n\n📎 *Segue em anexo o Laudo Técnico / Recibo do atendimento.*\n\n💬 _Aguardamos sua visita!_`,
         docId: "recibo",
         withPdf: true
       },
       finalizado: {
-        text: `🤝 *Equipamento Entregue com Sucesso!*\n\nOlá, *${firstName}*! A Ordem de Serviço *#${osNumber}* foi concluída e o seu *${deviceModel}* entregue com garantia de 90 dias.\n\n📎 *Segue em anexo o Recibo Oficial de Entrega com o Termo de Garantia.*\n\nAgradecemos a confiança na MGV Assistência Técnica! ✨`,
+        text: `🤝 *Equipamento Entregue com Sucesso!*\n\nOlá, *${firstName}*! A Ordem de Serviço *#${osNumber}* foi concluída e o seu *${deviceModel}* entregue com garantia de 90 dias.\n\n📎 *Segue em anexo o Recibo Oficial de Entrega com o Termo de Garantia.*\n\nAgradecemos a sua preferência e confiança! ✨`,
         docId: "recibo",
         withPdf: true
       }

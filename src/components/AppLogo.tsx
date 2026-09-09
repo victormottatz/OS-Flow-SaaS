@@ -1,63 +1,73 @@
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * AppLogo — Componente oficial de identidade visual do OS Flow (SaaS).
+ * Renderiza o símbolo vetorial nativo em alta definição com suporte
+ * a logotipos customizados por empresa (White-label).
  */
-import { useState } from "react";
-
-// Detecta suporte a decodificação WebP via canvas (uma única vez no carregamento).
-// Browsers antigos (ex.: versões antigas de print/IE/Edge legado) retornam
-// "data:image/png" mesmo pedindo "image/webp" — nesse caso usamos o PNG direto,
-// evitando imagem quebrada no print. O try/catch garante que ambientes sem
-// canvas funcional (jsdom em testes, browsers com canvas bloqueado por
-// privacidade) degradem para o PNG em vez de quebrar o import do módulo.
-const WEBP_SUPPORTED = (() => {
-  try {
-    return (
-      typeof document !== "undefined" &&
-      typeof document.createElement === "function" &&
-      document.createElement("canvas").toDataURL("image/webp").indexOf("data:image/webp") === 0
-    );
-  } catch {
-    return false;
-  }
-})();
+import React, { useState } from "react";
 
 interface AppLogoProps {
   src?: string;
   fallbackSrc?: string;
   alt?: string;
   className?: string;
+  showText?: boolean;
 }
 
-/**
- * Logo da marca com fallback automático para PNG.
- *
- * - Se o navegador não suportar WebP, já renderiza o PNG direto.
- * - Se o WebP falhar ao carregar por qualquer motivo (404, decode), o
- *   onError troca para o PNG na hora.
- *
- * Uso:
- *   <AppLogo className="h-10 w-auto object-contain" />
- *   <AppLogo src="/logos/LOGO V3.0 (3).webp" fallbackSrc="/logos/LOGO V3.0 (90).png" />
- */
 export default function AppLogo({
-  src = "/logos/logo-v3.webp",
-  fallbackSrc = "/logos/logo-v3.png",
-  alt = "MGV One Hub",
-  className = "",
+  src,
+  fallbackSrc,
+  alt = "OS Flow",
+  className = "h-8 w-auto",
+  showText = true,
 }: AppLogoProps) {
-  const [currentSrc, setCurrentSrc] = useState(WEBP_SUPPORTED ? src : fallbackSrc);
+  const [hasImageError, setHasImageError] = useState(false);
 
+  // Se houver uma imagem personalizada configurada pela empresa e sem erro de carregamento:
+  if (src && !hasImageError) {
+    return (
+      <img
+        src={src}
+        alt={alt}
+        className={className}
+        onError={() => {
+          if (fallbackSrc && src !== fallbackSrc) {
+            setHasImageError(false);
+          } else {
+            setHasImageError(true);
+          }
+        }}
+      />
+    );
+  }
+
+  // Logo Vetorial Nativo Oficial do OS Flow
   return (
-    <img
-      src={currentSrc}
-      alt={alt}
-      className={className}
-      onError={() => {
-        if (currentSrc !== fallbackSrc) {
-          setCurrentSrc(fallbackSrc);
-        }
-      }}
-    />
+    <div className={`inline-flex items-center space-x-2.5 select-none ${className}`}>
+      <div className="relative">
+        <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 via-cyan-500 to-emerald-400 p-[1.5px] shadow-md shadow-cyan-500/20 shrink-0">
+          <div className="w-full h-full bg-[#090D18] rounded-[10px] flex items-center justify-center relative overflow-hidden">
+            <div className="flex items-center -space-x-1 relative z-10">
+              <span className="w-2 h-3.5 bg-gradient-to-b from-cyan-400 to-indigo-500 rounded-sm transform -skew-x-12" />
+              <span className="w-2 h-3.5 bg-gradient-to-b from-emerald-400 to-cyan-400 rounded-sm transform -skew-x-12 opacity-90" />
+            </div>
+          </div>
+        </div>
+      </div>
+      {showText && (
+        <div className="flex flex-col leading-none">
+          <div className="flex items-center space-x-1">
+            <span className="font-extrabold text-base tracking-tight text-white font-sans">
+              OS <span className="text-cyan-400 font-black">FLOW</span>
+            </span>
+          </div>
+          <span className="text-[8.5px] font-mono font-bold tracking-widest text-slate-400 uppercase mt-0.5">
+            SISTEMA INTEGRADO
+          </span>
+        </div>
+      )}
+    </div>
   );
 }

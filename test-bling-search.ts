@@ -4,7 +4,7 @@ import axios from 'axios';
 const prisma = new PrismaClient();
 
 async function getAccessToken(): Promise<string | null> {
-  const config = await prisma.blingConfig.findUnique({ where: { id: 1 } });
+  const config = await prisma.blingConfig.findFirst();
   if (!config?.accessToken) return null;
   
   if (config.expiresAt && new Date(config.expiresAt) > new Date()) {
@@ -36,7 +36,7 @@ async function getAccessToken(): Promise<string | null> {
   const expiresAt = new Date(Date.now() + (expires_in - 60) * 1000);
   
   await prisma.blingConfig.update({
-    where: { id: 1 },
+    where: { id: config.id },
     data: { accessToken: access_token, refreshToken: refresh_token, expiresAt },
   });
   

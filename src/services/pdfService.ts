@@ -127,6 +127,14 @@ export type PdfOsData = OrdemServico & {
   checklistEntrada?: any[];
 };
 
+export interface PdfCompanyInfo {
+  razaoSocial?: string;
+  cnpj?: string;
+  endereco?: string;
+  phone?: string;
+  logoBase64?: string;
+}
+
 /**
  * Gera o buffer PDF de um documento (termo, orçamento ou recibo) a partir do
  * template central (src/config/documents.config.ts) e dos dados da OS.
@@ -134,7 +142,8 @@ export type PdfOsData = OrdemServico & {
 export async function buildDocumentPdf(
   template: DocumentTemplate,
   os: PdfOsData,
-  dataEmissao?: string
+  dataEmissao?: string,
+  companyInfo?: PdfCompanyInfo
 ): Promise<Buffer> {
   const wants = (s: string) => template.secoes.includes(s as any);
   const total = getDocumentTotal(os as OrdemServico);
@@ -146,15 +155,26 @@ export async function buildDocumentPdf(
   const parsedEmissao = dataEmissao ? new Date(dataEmissao) : null;
   const data =
     parsedEmissao && !isNaN(parsedEmissao.getTime()) ? parsedEmissao : os.createdAt;
-  const logo = loadCompanyLogo();
+  
+  // Resolve o logo da empresa (customizado do tenant ou padrão)
+  let logo: { image: string; width: number } | null = null;
+  if (companyInfo?.logoBase64) {
+    logo = { image: companyInfo.logoBase64, width: 84 };
+  } else {
+    logo = loadCompanyLogo();
+  }
+
+  const empRazao = companyInfo?.razaoSocial || COMPANY.razaoSocial;
+  const empCnpj = companyInfo?.cnpj || COMPANY.cnpj;
+  const empEndereco = companyInfo?.endereco || COMPANY.endereco;
 
   const content: any[] = [];
 
   // ----- Cabeçalho: logo + emitente (esquerda) / selo + OS + data (direita) -----
   const headerLeftStack: any[] = [
-    { text: COMPANY.razaoSocial, fontSize: 10.5, bold: true, color: "#0f172a" },
-    { text: COMPANY.cnpj, fontSize: 6.5, color: "#64748b", margin: [0, 2, 0, 0] },
-    { text: COMPANY.endereco, fontSize: 6.5, color: "#64748b", margin: [0, 1, 0, 0] }
+    { text: empRazao, fontSize: 10.5, bold: true, color: "#0f172a" },
+    { text: empCnpj, fontSize: 6.5, color: "#64748b", margin: [0, 2, 0, 0] },
+    { text: empEndereco, fontSize: 6.5, color: "#64748b", margin: [0, 1, 0, 0] }
   ];
   if (logo) {
     headerLeftStack.unshift({ image: logo.image, width: logo.width, margin: [0, 0, 0, 3] });

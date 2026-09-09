@@ -11,4 +11,7 @@ router.get("/executive", checkRole(UserRole.OWNER), dashboardController.getExecu
 // Operacional e Técnicos podem ver o status do Kanban e peças críticas
 router.get("/operational", dashboardController.getOperationalMetrics.bind(dashboardController));
 
+// Exportação completa de dados para conformidade com a LGPD (Apenas Dono/Admin)
+router.get("/export-data", checkRole(UserRole.OWNER, UserRole.ADMIN), dashboardController.exportTenantData.bind(dashboardController));
+
 export default router;

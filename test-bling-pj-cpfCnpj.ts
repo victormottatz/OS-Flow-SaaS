@@ -10,7 +10,7 @@ const BLING_API = "https://api.bling.com.br/Api/v3";
 async function testPjWithCpfCnpj() {
   console.log("=== Teste PJ com cpfCnpj (canônico) ===\n");
 
-  const config = await prisma.blingConfig.findUnique({ where: { id: 1 } });
+  const config = await prisma.blingConfig.findFirst();
   if (!config) {
     console.error("❌ Nenhum token Bling encontrado.");
     process.exit(1);

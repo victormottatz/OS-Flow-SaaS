@@ -1,7 +1,7 @@
 import prisma from "./database/prisma";
 
 async function main() {
-  const setting = await prisma.officeSetting.findUnique({
+  const setting = await prisma.officeSetting.findFirst({
     where: { key: "OS_ALLOWED_TRANSITIONS" }
   });
   console.log("OS_ALLOWED_TRANSITIONS setting:", setting);

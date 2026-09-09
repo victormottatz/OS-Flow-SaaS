@@ -11,7 +11,9 @@ const storageService = process.env.STORAGE_TYPE === "supabase" ? supabaseStorage
 
 
 
-const JWT_SECRET = process.env.JWT_SECRET || "mgv_tecnologia_super_secure_jwt_secret_key_123!";
+const JWT_SECRET = process.env.JWT_SECRET || "osflow_super_secure_jwt_secret_key_2026!";
+
+import { tenantService } from "../services/tenant.service";
 
 export class AuthController {
   async login(req: Request, res: Response): Promise<void> {
@@ -23,7 +25,16 @@ export class AuthController {
     
     try {
       const user = await prisma.user.findUnique({
-        where: { email: email.toLowerCase() }
+        where: { email: email.toLowerCase() },
+        include: {
+          company: {
+            include: {
+              subscription: {
+                include: { plan: true }
+              }
+            }
+          }
+        }
       });
       
       if (!user) {
@@ -38,7 +49,13 @@ export class AuthController {
       }
 
       const token = jwt.sign(
-        { id: user.id, email: user.email, role: user.role },
+        { 
+          id: user.id, 
+          email: user.email, 
+          role: user.role,
+          companyId: user.companyId || null,
+          companySlug: user.company?.slug || null
+        },
         JWT_SECRET,
         { expiresIn: "12h" }
       );
@@ -53,12 +70,102 @@ export class AuthController {
           phone: user.phone || "",
           avatarUrl: user.avatarUrl || "",
           bio: user.bio || "",
-          createdAt: user.createdAt.toISOString()
+          createdAt: user.createdAt.toISOString(),
+          companyId: user.companyId,
+          company: user.company ? {
+            id: user.company.id,
+            name: user.company.name,
+            slug: user.company.slug,
+            logoUrl: user.company.logoUrl,
+            subscription: user.company.subscription
+          } : null
         }
       });
     } catch (err: any) {
       console.error("[Auth Login Error]:", err);
       res.status(503).json({ error: "Falha ao conectar com o banco de dados. Verifique a conexão do servidor PostgreSQL." });
+    }
+  }
+
+  /**
+   * Registro público de novo assinante SaaS (Cria Empresa + Dono + Trial 14 dias)
+   */
+  async registerTenant(req: Request, res: Response): Promise<void> {
+    const { 
+      companyName, 
+      fantasyName, 
+      cnpj, 
+      phone, 
+      email, 
+      city, 
+      state, 
+      ownerName, 
+      ownerEmail, 
+      ownerPassword 
+    } = req.body;
+
+    if (!companyName || !ownerName || !ownerEmail || !ownerPassword) {
+      res.status(400).json({ 
+        error: "Campos obrigatórios: Nome da Assistência Técnica, Nome do Responsável, E-mail e Senha." 
+      });
+      return;
+    }
+
+    try {
+      const existingUser = await prisma.user.findUnique({
+        where: { email: ownerEmail.toLowerCase() }
+      });
+
+      if (existingUser) {
+        res.status(409).json({ error: "Já existe uma conta cadastrada com este e-mail." });
+        return;
+      }
+
+      const result = await tenantService.registerTenant({
+        companyName,
+        fantasyName,
+        cnpj,
+        phone,
+        email,
+        city,
+        state,
+        ownerName,
+        ownerEmail,
+        ownerPassword
+      });
+
+      const token = jwt.sign(
+        {
+          id: result.user.id,
+          email: result.user.email,
+          role: result.user.role,
+          companyId: result.company.id,
+          companySlug: result.company.slug
+        },
+        JWT_SECRET,
+        { expiresIn: "12h" }
+      );
+
+      res.status(201).json({
+        message: "Assistência cadastrada com sucesso! Bem-vindo ao OS-Flow SaaS.",
+        token,
+        company: {
+          id: result.company.id,
+          name: result.company.name,
+          slug: result.company.slug
+        },
+        user: {
+          id: result.user.id,
+          name: result.user.name,
+          email: result.user.email,
+          role: result.user.role
+        },
+        subscription: result.subscription,
+        plan: result.plan
+      });
+    } catch (err: any) {
+      console.error("[Register Tenant Error]:", err);
+      res.status(500).json({ error: err.message || "Erro ao registrar assistência técnica." });
     }
   }
 

@@ -6,6 +6,11 @@ import { getBase64FromEvolutionMedia, saveMediaToFile } from "../services/whatsa
 export class WhatsAppWebhookController {
   async handleWebhook(req: Request, res: Response) {
     try {
+      // No ambiente de teste / demo sem credenciais ativas de WhatsApp, ignora a ingestão de mensagens reais
+      if (!process.env.WHATSAPP_API_URL && !process.env.WHATSAPP_API_TOKEN) {
+        return res.status(200).json({ received: true, ignored: "Ambiente de teste com WhatsApp desconectado" });
+      }
+
       const payload = req.body;
       if (!payload) {
         return res.status(200).json({ received: true });

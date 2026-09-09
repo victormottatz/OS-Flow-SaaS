@@ -63,16 +63,16 @@ export type DocumentTemplateId = "termo" | "orcamento" | "recibo";
 
 /** Dados do emitente (razão social, CNPJ e endereço) exibidos no cabeçalho de todos os documentos. */
 export const COMPANY = {
-  razaoSocial: "MOSAIAS LUIZ TEODORO LTDA",
-  cnpj: "CNPJ: 24.181.336/0001-66 | IE: 797.187.310.116",
-  endereco: "Rua Julio Prestes, 648, Jardim Sumaré, Ribeirão Preto - SP | Tel: (16) 99104-9631"
+  razaoSocial: "OFICINA MODELO / ASSISTÊNCIA TÉCNICA",
+  cnpj: "CNPJ: 00.000.000/0001-00 | IE: Isento",
+  endereco: "Laboratório de Serviços e Assistência Técnica Especializada"
 };
 
 /** Arquivo do logo usado no PDF gerado no servidor (PNG — pdfkit não embute webp). */
 export const COMPANY_LOGO_FILE = "LOGO V3.0 (3).png";
 
 /**
- * Registro central de modelos de documentos do MGV One Hub.
+ * Registro central de modelos de documentos do OS Flow.
  * Adicione um novo documento aqui e o DocumentShell passará a renderizá-lo.
  */
 export const DOCUMENT_TEMPLATES: Record<DocumentTemplateId, DocumentTemplate> = {
@@ -97,10 +97,10 @@ export const DOCUMENT_TEMPLATES: Record<DocumentTemplateId, DocumentTemplate> = 
     ],
     termosRodape: [
       "1. O proprietário autoriza a abertura e desmontagem física do equipamento para diagnóstico pericial. Orçamentos têm validade legal de 10 dias corridos a partir da data de comunicação dos resultados pela equipe.",
-      "2. Equipamentos prontos não retirados em até 90 dias caracterizam abandono conforme art. 1.275, inciso III, do Código Civil, autorizando a MGV Assistência Técnica a vender ou descartá-los para quitação de despesas laboratoriais.",
-      "3. A MGV Assistência Técnica não se responsabiliza por integridade de softwares corporativos ou perda de informações de armazenamento. O backup de arquivos deve ser efetuado previamente pelo proprietário."
+      "2. Equipamentos prontos não retirados em até 90 dias caracterizam abandono conforme art. 1.275, inciso III, do Código Civil, autorizando a Assistência Técnica a tomar as medidas legais cabíveis para quitação de despesas laboratoriais.",
+      "3. A Assistência Técnica não se responsabiliza por integridade de softwares corporativos ou perda de dados de armazenamento. O backup de arquivos deve ser efetuado previamente pelo proprietário."
     ],
-    tecnicoAssinatura: "Representante Técnico MGV",
+    tecnicoAssinatura: "Responsável Técnico",
     clienteAssinatura: "Assinatura do Cliente (De acordo)"
   },
   orcamento: {
@@ -120,7 +120,7 @@ export const DOCUMENT_TEMPLATES: Record<DocumentTemplateId, DocumentTemplate> = 
       "resumoFinanceiro",
       "assinaturas"
     ],
-    tecnicoAssinatura: "Técnico MGV Responsável",
+    tecnicoAssinatura: "Técnico Responsável",
     clienteAssinatura: "Assinatura do Cliente (De acordo)"
   },
   recibo: {
@@ -143,10 +143,10 @@ export const DOCUMENT_TEMPLATES: Record<DocumentTemplateId, DocumentTemplate> = 
     ],
     termosTitulo: "Termo de Entrega e Garantia de Assistência:",
     termosRodape: [
-      "1. A MGV Assistência Técnica declara garantia legal de 90 dias (conforme art. 26 do Código de Defesa do Consumidor - CDC) para todas as peças físicas substituídas e serviços discriminados neste laudo técnico, a contar da data de retirada descrita.",
+      "1. A Assistência Técnica declara garantia legal de 90 dias (conforme art. 26 do Código de Defesa do Consumidor - CDC) para todas as peças físicas substituídas e serviços discriminados neste laudo técnico, a contar da data de retirada descrita.",
       "2. A garantia aplica-se exclusivamente a falhas espontâneas das peças novas fornecidas. Estão integralmente excluídos da garantia danos causados por quedas, sobretensões elétricas na rede externa, oxidação por umidade local ou intervenções técnicas executadas por terceiros."
     ],
-    tecnicoAssinatura: "Técnico MGV Responsável",
+    tecnicoAssinatura: "Técnico Responsável",
     clienteAssinatura: "Assinatura do Cliente (De acordo)"
   }
 };

@@ -28,14 +28,15 @@ describe("whatsappTextFormatter (formatWhatsAppMessageReact)", () => {
   });
 
   it("deve renderizar mensagens multilinhas com emojis", () => {
-    const text = "🚀 *MGV Assistência Técnica*\n\n📱 *Aparelho:* iPhone 13\n✅ *Status:* Pronto para retirada\n💰 *Valor:* R$ 350,00";
+    const text = "🚀 *OS Flow Assistência Técnica*\n\n📱 *Aparelho:* iPhone 13\n✅ *Status:* Pronto para retirada\n💰 *Valor:* R$ 350,00";
     const result = formatWhatsAppMessageReact(text) as React.ReactNode[];
     expect(result).toBeDefined();
+    expect(Array.isArray(result)).toBe(true);
     expect(result.length).toBeGreaterThan(1);
   });
 
   it("deve renderizar links clicáveis mesmo adjacentes a emojis", () => {
-    const text = "Acesse seu laudo aqui 📄: https://sistema.mgvrp.com.br/laudo/123 👍";
+    const text = "Acesse seu laudo aqui 📄: https://sistema.osflow.com.br/laudo/123 👍";
     const result = formatWhatsAppMessageReact(text);
     expect(result).toBeDefined();
   });

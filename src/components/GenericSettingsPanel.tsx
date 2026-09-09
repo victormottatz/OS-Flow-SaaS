@@ -251,6 +251,50 @@ export default function GenericSettingsPanel({ category }: GenericSettingsPanelP
           ))}
         </div>
       )}
+
+      {/* Bloco de Conformidade LGPD & Exportação de Dados */}
+      {category === "GERAL" && (
+        <div className="mt-8 border-t border-slate-200 pt-6">
+          <div className="p-5 bg-gradient-to-r from-slate-50 to-indigo-50/40 rounded-2xl border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="material-symbols-outlined text-indigo-600 text-[20px]">shield</span>
+                <h4 className="font-bold text-slate-800 text-sm">Privacidade & Portabilidade de Dados (LGPD)</h4>
+              </div>
+              <p className="text-xs text-slate-500 max-w-xl">
+                Você detém total propriedade sobre os cadastros da sua assistência. Baixe a qualquer momento uma cópia integral de todos os seus clientes, aparelhos da base instalada, histórico de ordens e peças.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const token = localStorage.getItem("mgv_token") || localStorage.getItem("osflow_token") || "";
+                  const res = await fetch("/api/dashboards/export-data", {
+                    headers: { Authorization: `Bearer ${token}` }
+                  });
+                  if (!res.ok) throw new Error("Falha ao exportar dados.");
+                  const blob = await res.blob();
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `backup-osflow-${new Date().toISOString().split("T")[0]}.json`;
+                  document.body.appendChild(a);
+                  a.click();
+                  a.remove();
+                  window.URL.revokeObjectURL(url);
+                } catch (err: any) {
+                  alert("Erro ao exportar dados: " + err.message);
+                }
+              }}
+              className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition duration-150 flex items-center gap-2 shrink-0 shadow-sm cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[16px]">download</span>
+              <span>Exportar Backup (JSON)</span>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

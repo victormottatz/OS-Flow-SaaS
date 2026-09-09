@@ -21,7 +21,7 @@ const skillNodes: SkillNode[] = [
     id: "base",
     label: "Sistema Base",
     icon: "database",
-    description: "Estrutura central do sistema MGV com login, cadastro básico de ordens de serviço, clientes e peças.",
+    description: "Estrutura central do sistema com login, cadastro básico de ordens de serviço, clientes e peças.",
     x: 400,
     y: 40,
     dependencies: [],
@@ -346,7 +346,7 @@ export default function SkillTree({ userRole }: { userRole: UserRole }) {
           <div>
             <h1 className="text-2xl font-bold bg-gradient-to-r from-teal-400 to-indigo-400 bg-clip-text text-transparent flex items-center gap-2">
               <span className="material-symbols-outlined">account_tree</span>
-              Árvore de Habilidades do Sistema MGV
+              Árvore de Habilidades do Sistema OS Flow
             </h1>
             <p className="text-slate-400 text-sm mt-1">
               Desbloqueie recursos para a sua oficina. O progresso é cumulativo e segue a prioridade operacional das Fases.
@@ -529,7 +529,7 @@ export default function SkillTree({ userRole }: { userRole: UserRole }) {
                     )
                   ) : (
                     <div className="text-xs text-teal-400 text-center font-medium bg-teal-950/20 border border-teal-900/30 p-3 rounded-lg">
-                      Módulo base sempre habilitado no núcleo do MGV.
+                      Módulo base sempre habilitado no núcleo do sistema.
                     </div>
                   )}
                 </div>

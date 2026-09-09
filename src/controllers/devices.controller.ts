@@ -18,9 +18,12 @@ export class DevicesController {
         return;
       }
 
+      const companyId = (req as any).companyId || (req.headers["x-company-id"] as string) || client.companyId || null;
+
       const newDev = await prisma.device.create({
         data: {
           clientId,
+          companyId,
           type,
           brand,
           model,

@@ -32,7 +32,7 @@ export class OSStateMachine {
     if (from === to) return true; // Nenhuma mudança real
 
     try {
-      const setting = await prisma.officeSetting.findUnique({
+      const setting = await prisma.officeSetting.findFirst({
         where: { key: "OS_ALLOWED_TRANSITIONS" }
       });
 

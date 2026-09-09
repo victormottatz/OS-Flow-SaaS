@@ -465,6 +465,17 @@
                 "vitest",
                 "pytest"
             ]
+        },
+        "workspace-organization": {
+            "category": "development",
+            "description": "Governança e organização de estrutura de diretórios e arquivos",
+            "tags": [
+                "governance",
+                "hygiene",
+                "workspace",
+                "clean",
+                "organization"
+            ]
         }
     },
     "categories": {

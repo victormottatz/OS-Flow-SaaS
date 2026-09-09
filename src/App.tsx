@@ -22,7 +22,28 @@ import ProfileSettings from "./components/ProfileSettings";
 import WorkflowVisualizer from "./components/WorkflowVisualizer";
 import WhatsAppInboxView from "./components/WhatsAppInboxView";
 import { installUnsavedChangesGuard } from "./utils/unsavedChanges";
+import { 
+  getAuthToken, 
+  setAuthToken, 
+  removeAuthToken, 
+  getSavedUser, 
+  setSavedUser, 
+  removeSavedUser 
+} from "./utils/authStorage";
 import { UpdatePopup } from "./components/UpdatePopup";
+import LandingPageView from "./components/LandingPageView";
+import OnboardingModal from "./components/OnboardingModal";
+import TrialBanner from "./components/TrialBanner";
+import SupportWidget from "./components/SupportWidget";
+import {
+  DemoShowcaseView,
+  DemoBanner,
+  demoStateService,
+  DEMO_USER,
+  DEMO_CLIENTS,
+  DEMO_PARTS,
+  DEMO_ORDERS,
+} from "./demo";
 
 const getInitialTab = () => {
   const path = window.location.pathname;
@@ -39,16 +60,78 @@ const getInitialTab = () => {
 };
 
 export default function App() {
-  // Roteamento para o Portal Público do Cliente
+  // Authentication & Demo State
+  const [isDemoMode, setIsDemoMode] = useState<boolean>(() => {
+    return localStorage.getItem("osflow_live_demo") === "true";
+  });
+  const [user, setUser] = useState<User | null>(() => {
+    return localStorage.getItem("osflow_live_demo") === "true" ? DEMO_USER : null;
+  });
+  const [token, setToken] = useState<string | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("osflow_onboarding_completed") !== "true";
+  });
+
+  const handleEnterLiveDemo = () => {
+    localStorage.setItem("osflow_live_demo", "true");
+    setIsDemoMode(true);
+    setUser(DEMO_USER);
+    setClients(DEMO_CLIENTS);
+    setParts(DEMO_PARTS);
+    setOrdensServico(DEMO_ORDERS);
+    setTotalClients(DEMO_CLIENTS.length);
+    setTotalParts(DEMO_PARTS.length);
+    setIsInitialized(true);
+    setCurrentTab("dashboard");
+  };
+
+  const handleExitDemo = () => {
+    localStorage.removeItem("osflow_live_demo");
+    setIsDemoMode(false);
+    setUser(null);
+    window.location.href = "/demo";
+  };
+
+  const handleLoginSuccess = (userData: User, authToken: string) => {
+    setUser(userData);
+    setToken(authToken);
+    setSavedUser(userData);
+    setAuthToken(authToken);
+    axios.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    setToken(null);
+    removeSavedUser();
+    removeAuthToken();
+    delete axios.defaults.headers.common['Authorization'];
+    window.location.href = "/";
+  };
+
+  // Roteamento para o Portal Público, Landing Page SaaS e Modo de Demonstração
   const path = window.location.pathname.toLowerCase();
+  if (!isDemoMode && (path === "/saas" || path === "/landing" || path === "/planos" || path === "/solucoes")) {
+    return (
+      <LandingPageView
+        onLoginClick={() => {
+          window.location.href = "/";
+        }}
+        onEnterLiveDemo={handleEnterLiveDemo}
+        onRegisterSuccess={handleLoginSuccess}
+      />
+    );
+  }
+
+  if (!isDemoMode && (path === "/demo" || path === "/demonstracao" || path === "/apresentacao")) {
+    return <DemoShowcaseView onEnterLiveDemo={handleEnterLiveDemo} />;
+  }
+
   const isPublicPortal = path === "/acompanhar" || path === "/portal" || path === "/rastreio" || path === "/consultar";
   if (isPublicPortal) {
     return <PublicPortal />;
   }
-
-  // Authentication State
-  const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
 
   // Core Database Models State
   const [clients, setClients] = useState<(Client & { devices: Device[] })[]>([]);
@@ -64,22 +147,24 @@ export default function App() {
 
   // Modo de visualização de Ordens de Serviço (Quadro Kanban vs Lista Tabela)
   const [osViewMode, setOsViewMode] = useState<"kanban" | "list">(() => {
-    return (localStorage.getItem("mgv_os_view_mode") as "kanban" | "list") || "kanban";
+    return (localStorage.getItem("osflow_os_view_mode") || localStorage.getItem("mgv_os_view_mode") as "kanban" | "list") || "kanban";
   });
 
   const handleSetOsViewMode = (mode: "kanban" | "list") => {
     setOsViewMode(mode);
+    localStorage.setItem("osflow_os_view_mode", mode);
     localStorage.setItem("mgv_os_view_mode", mode);
   };
 
   // GUIA: ESTADO DA SIDEBAR (recolhida/expandida). O valor é salvo em localStorage
   const [isSidebarMinimized, setIsSidebarMinimized] = useState<boolean>(() => {
-    return localStorage.getItem("mgv_sidebar_minimized") === "true";
+    return (localStorage.getItem("osflow_sidebar_minimized") || localStorage.getItem("mgv_sidebar_minimized")) === "true";
   });
 
   const handleToggleSidebar = () => {
     setIsSidebarMinimized(prev => {
       const newVal = !prev;
+      localStorage.setItem("osflow_sidebar_minimized", String(newVal));
       localStorage.setItem("mgv_sidebar_minimized", String(newVal));
       return newVal;
     });
@@ -128,19 +213,21 @@ export default function App() {
     };
 
     window.addEventListener("popstate", handlePopState);
+    window.addEventListener("osflow_open_os_details", handleOpenOsEvent);
     window.addEventListener("mgv_open_os_details", handleOpenOsEvent);
     return () => {
       window.removeEventListener("popstate", handlePopState);
+      window.removeEventListener("osflow_open_os_details", handleOpenOsEvent);
       window.removeEventListener("mgv_open_os_details", handleOpenOsEvent);
     };
   }, []);
 
   // Load session from storage
   useEffect(() => {
-    const savedUser = localStorage.getItem("mgv_user");
-    const savedToken = localStorage.getItem("mgv_token");
+    const savedUser = getSavedUser<User>();
+    const savedToken = getAuthToken();
     if (savedUser && savedToken) {
-      setUser(JSON.parse(savedUser));
+      setUser(savedUser);
       setToken(savedToken);
       // Configura Axios globalmente
       axios.defaults.headers.common['Authorization'] = `Bearer ${savedToken}`;
@@ -219,29 +306,12 @@ export default function App() {
     }
   }, [user, token, osLimit, clientLimit, partLimit, clientSearch, partSearch]);
 
-  const handleLoginSuccess = (userData: User, authToken: string) => {
-    setUser(userData);
-    setToken(authToken);
-    localStorage.setItem("mgv_user", JSON.stringify(userData));
-    localStorage.setItem("mgv_token", authToken);
-    axios.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
-  };
-
-  const handleLogout = () => {
-    setUser(null);
-    setToken(null);
-    localStorage.removeItem("mgv_user");
-    localStorage.removeItem("mgv_token");
-    delete axios.defaults.headers.common['Authorization'];
-    window.location.href = "/";
-  };
-
   if (!isInitialized) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">
         <div className="flex flex-col items-center space-y-4">
           <div className="w-12 h-12 border-4 border-secondary-container border-t-transparent rounded-full animate-spin"></div>
-          <p className="font-bold text-sm text-slate-400">Iniciando MGV One Hub...</p>
+          <p className="font-bold text-sm text-slate-400">Iniciando OS Flow...</p>
         </div>
       </div>
     );
@@ -249,7 +319,7 @@ export default function App() {
 
   // Not Authenticated Layout
   if (!user) {
-    return <LoginForm onLoginSuccess={handleLoginSuccess} isOffline={isOffline} />;
+    return <LoginForm onLoginSuccess={handleLoginSuccess} isOffline={isOffline} onEnterLiveDemo={handleEnterLiveDemo} />;
   }
 
   const isOSKanbanActive = (currentTab === "os" || currentTab === "kanban") && osViewMode === "kanban";
@@ -260,13 +330,25 @@ export default function App() {
     <div className={`min-h-screen bg-slate-50 flex flex-col text-slate-800 antialiased font-sans ${
       isOSKanbanActive || currentTab === "whatsapp" ? "h-screen overflow-hidden" : ""
     }`}>
+      {/* Banner Informativo do Modo Demonstração */}
+      {isDemoMode && <DemoBanner onExitDemo={handleExitDemo} />}
+
+      {/* Banner de Contagem Regressiva do Trial da Oficina */}
+      {!isDemoMode && user && (
+        <TrialBanner
+          user={user}
+          onNavigateToPlans={() => handleTabChange("settings")}
+          isSidebarMinimized={isSidebarMinimized}
+        />
+      )}
+
       <Navbar
         user={user}
         currentTab={currentTab}
         setCurrentTab={handleTabChange}
         isOffline={isOffline}
         setIsOffline={setIsOffline}
-        onLogout={handleLogout}
+        onLogout={isDemoMode ? handleExitDemo : handleLogout}
         isSidebarMinimized={isSidebarMinimized}
         toggleSidebar={handleToggleSidebar}
       />
@@ -429,9 +511,20 @@ export default function App() {
         <footer className={`bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-400 font-mono select-none transition-all duration-300 ${
           isSidebarMinimized ? "md:ml-[70px]" : "md:ml-[260px]"
         }`}>
-          <p>MGV One Hub © {new Date().getFullYear()} – ERP Centralizado de Assistência Técnica</p>
+          <p>OS Flow © {new Date().getFullYear()} – ERP Centralizado de Assistência Técnica</p>
         </footer>
       )}
+      {/* Modal de Onboarding de Boas-Vindas */}
+      {user && (
+        <OnboardingModal
+          isOpen={showOnboarding && !isDemoMode && !localStorage.getItem("osflow_onboarding_completed")}
+          onClose={() => setShowOnboarding(false)}
+          user={user}
+        />
+      )}
+
+      {/* Widget Flutuante de Suporte Técnico via WhatsApp */}
+      {!isDemoMode && <SupportWidget user={user} />}
     </div>
     </FeatureFlagProvider>
   );

@@ -7,6 +7,7 @@ import { usePrintDocument } from "../hooks/usePrintDocument";
 import { DOCUMENT_TEMPLATES } from "../config/documents.config";
 import { downloadDocumentPdf } from "../utils/downloadDocument";
 import DocumentShell from "./DocumentShell";
+import { getAuthToken } from "../utils/authStorage";
 
 const DEFAULT_CHECKLIST: ChecklistItem[] = [
   { id: "tela", label: "Tela / Display", status: "NA", observacao: "" },
@@ -130,8 +131,8 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
     const timer = setTimeout(async () => {
       setIsSearchingClients(true);
       try {
-        const token = localStorage.getItem("mgv_token") || "";
-        const res = await fetch(`/api/clients?search=${encodeURIComponent(clientSearch)}&limit=20`, {
+        const token = getAuthToken();
+        const res = await fetch(`/api/clients?search=${encodeURIComponent(clientSearch)}&limit=50`, {
           headers: { "Authorization": `Bearer ${token}` }
         });
         if (res.ok) {
@@ -178,7 +179,7 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
   useEffect(() => {
     const fetchCollaborators = async () => {
       try {
-        const token = localStorage.getItem("mgv_token") || "";
+        const token = getAuthToken();
         const res = await fetch("/api/auth/collaborators", {
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -284,7 +285,7 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
     setLoading(true);
 
     try {
-      const token = localStorage.getItem("mgv_token") || "";
+      const token = getAuthToken();
       let finalDeviceId = selectedDeviceId;
 
       // Se for aparelho avulso, cadastra primeiro
@@ -387,7 +388,7 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
       
       <div className="border-b border-slate-200 pb-5">
         <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Nova Ordem de Serviço</h2>
-        <p className="text-slate-500 text-sm">Geração sequencial e impressões de termos de recebimento de ativos na MGV</p>
+        <p className="text-slate-500 text-sm">Geração sequencial e emissão de termos de entrada de equipamentos</p>
       </div>
 
       {/* Wizard Step Indicator */}
@@ -953,13 +954,24 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
                 {(() => {
                   const history = ordensServico.filter(os => os.deviceId === selectedDeviceId && !os.deletedAt);
                   if (history.length === 0) return null;
+
+                  const currentDev = allKnownClients.flatMap(c => c.devices || []).find(d => d.id === selectedDeviceId);
                   
                   return (
                     <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
-                      <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center space-x-1">
-                        <span className="material-symbols-outlined text-[14px] text-indigo-600">history</span>
-                        <span>Histórico de Manutenções Deste Aparelho ({history.length})</span>
-                      </h4>
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-2">
+                        <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center space-x-1">
+                          <span className="material-symbols-outlined text-[14px] text-indigo-600">history</span>
+                          <span>Histórico de Manutenções ({history.length})</span>
+                        </h4>
+                        {currentDev && (
+                          <span className="text-[11px] font-bold text-slate-800 bg-white border border-slate-200 px-2 py-0.5 rounded-md flex items-center gap-1">
+                            <span className="text-indigo-600 font-mono">⚡</span>
+                            <span>{currentDev.brand} {currentDev.model}</span>
+                            <span className="text-slate-400 font-normal">({currentDev.type} • S/N: {currentDev.serialNumber})</span>
+                          </span>
+                        )}
+                      </div>
                       
                       <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                         {history.map((os) => {
@@ -1062,7 +1074,7 @@ export default function OSManager({ clients, ordensServico, isOffline, userRole,
                             {type === 'NENHUMA' ? 'block' : type === 'FABRICA' ? 'business' : 'verified_user'}
                           </span>
                           <span>
-                            {type === 'NENHUMA' ? 'Nenhuma' : type === 'FABRICA' ? 'Fábrica' : 'MGV'}
+                            {type === 'NENHUMA' ? 'Nenhuma' : type === 'FABRICA' ? 'Fábrica' : 'Garantia Loja'}
                           </span>
                         </button>
                       ))}

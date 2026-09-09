@@ -10,7 +10,7 @@ describe("Stock & Fiscal Audit Divergence Service", () => {
 
   it("deve detectar divergências de estoque, NCM e itens exclusivos corretamente", async () => {
     // Config Bling com token válido
-    vi.spyOn(prisma.blingConfig, "findUnique").mockResolvedValue({
+    vi.spyOn(prisma.blingConfig, "findFirst").mockResolvedValue({
       id: 1,
       accessToken: "mock_token",
       refreshToken: "mock_refresh",
@@ -135,7 +135,7 @@ describe("Stock & Fiscal Audit Divergence Service", () => {
     expect(placaItem?.divergences.some(d => d.includes("NCM divergente"))).toBe(true);
 
     const fonteItem = report.items.find(i => i.code === "FONTE-03");
-    expect(fonteItem?.status).toBe("ONLY_MGV");
+    expect(fonteItem?.status).toBe("ONLY_LOCAL");
 
     const tecladoItem = report.items.find(i => i.code === "TECLADO-04");
     expect(tecladoItem?.status).toBe("ONLY_BLING");

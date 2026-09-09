@@ -2681,6 +2681,16 @@ export default function KanbanBoard({
                           <span className="material-symbols-outlined text-[18px]">add</span> Item Avulso
                         </button>
                       )}
+
+                      <button
+                        type="button"
+                        onClick={() => handlePrintRecibo(selectedOS)}
+                        className="bg-slate-900 text-white font-extrabold text-[11px] uppercase tracking-wider px-4 py-2.5 h-[38px] rounded-lg hover:bg-slate-850 active:bg-slate-950 transition duration-150 shrink-0 flex items-center gap-1.5 shadow-sm ml-auto cursor-pointer"
+                        title="Imprimir visualização do orçamento para o cliente"
+                      >
+                        <span className="material-symbols-outlined text-[17px]">print</span>
+                        <span>Imprimir Orçamento</span>
+                      </button>
                     </div>
 
                     {isAvulsoEnabled && isAddingAvulso && (

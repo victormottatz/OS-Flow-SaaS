@@ -101,12 +101,13 @@ export class ClientsController {
     }
 
     try {
+      const companyId = (req as any).companyId || (req.headers["x-company-id"] as string) || null;
       const activeClients = await prisma.client.findMany({
-        where: { deletedAt: null }
+        where: { deletedAt: null, companyId: companyId || undefined }
       });
       const isDuplicate = activeClients.some(c => c.cpfCnpj.replace(/\D/g, '') === cpfCnpj.replace(/\D/g, ''));
       if (isDuplicate) {
-        res.status(409).json({ error: "CPF/CNPJ duplicado. Já existe um cliente ativo cadastrado com este documento." });
+        res.status(409).json({ error: "CPF/CNPJ duplicado. Já existe um cliente ativo cadastrado com este documento nesta assistência." });
         return;
       }
 
@@ -122,6 +123,7 @@ export class ClientsController {
           state: state || "",
           zipCode: zipCode || "",
           rg: stateInscription || rg || "",
+          companyId,
           tags: tagIds && tagIds.length > 0 ? {
             connect: tagIds.map((id: string) => ({ id }))
           } : undefined
@@ -136,6 +138,7 @@ export class ClientsController {
           const newDev = await prisma.device.create({
             data: {
               clientId: client.id,
+              companyId,
               type: dev.type || "Outro",
               brand: dev.brand || "Generico",
               model: dev.model || "N/A",

@@ -13,6 +13,8 @@ import { createServer as createViteServer } from "vite";
 import { UserRole } from "./src/types";
 import { PrismaClient } from "@prisma/client";
 import { authenticateJWT, requireAuth, checkRole } from "./src/middlewares/auth";
+import { tenantSubscriptionGuard } from "./src/middlewares/tenantGuard";
+import { tenantService } from "./src/services/tenant.service";
 import apiRoutes from "./src/routes";
 import { registerSubscribers } from "./src/events/subscribers";
 import { whatsAppSyncService } from "./src/services/whatsappSync.service";
@@ -116,14 +118,14 @@ async function startServer() {
       let instanceName = process.env.WHATSAPP_INSTANCE_NAME || "mgv_oficial";
 
       if (!apiUrl) {
-        const dbUrl = await prisma.officeSetting.findUnique({ where: { key: "WHATSAPP_API_URL" } });
+        const dbUrl = await prisma.officeSetting.findFirst({ where: { key: "WHATSAPP_API_URL" } });
         apiUrl = dbUrl?.value;
       }
       if (!apiToken) {
-        const dbToken = await prisma.officeSetting.findUnique({ where: { key: "WHATSAPP_API_TOKEN" } });
+        const dbToken = await prisma.officeSetting.findFirst({ where: { key: "WHATSAPP_API_TOKEN" } });
         apiToken = dbToken?.value;
       }
-      const dbInstance = await prisma.officeSetting.findUnique({ where: { key: "WHATSAPP_INSTANCE_NAME" } });
+      const dbInstance = await prisma.officeSetting.findFirst({ where: { key: "WHATSAPP_INSTANCE_NAME" } });
       if (dbInstance?.value) instanceName = dbInstance.value;
 
       if (!apiUrl || !apiToken) {
@@ -235,6 +237,9 @@ async function startServer() {
       });
       console.log(`[Boot Seeder] Permissões totais concedidas ao usuário Bada (${badaUser.email}).`);
     }
+
+    // Garante que os planos padrão do SaaS (Starter, Pro, Enterprise) existam no banco
+    await tenantService.ensureDefaultPlans();
   } catch (err) {
     console.error("[Database Migration] Error during initialization seeder:", err);
   }
@@ -265,6 +270,9 @@ async function startServer() {
 
   // Middleware de Autenticação JWT com blindagem contra header spoofing
   app.use(authenticateJWT);
+
+  // Middleware de Proteção de Tenant e Verificação de Assinatura (Trial / Ativo)
+  app.use(tenantSubscriptionGuard);
 
   // Registra os ouvintes (subscribers) do EventBus
   registerSubscribers();
@@ -323,10 +331,10 @@ async function startServer() {
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[MGV Server] Servidor executando em http://localhost:${PORT}`);
+    console.log(`[OS Flow Server] Servidor executando em http://localhost:${PORT}`);
   });
 }
 
 startServer().catch((error) => {
-  console.error("Erro ao iniciar o servidor MGV:", error);
+  console.error("Erro ao iniciar o servidor OS Flow:", error);
 });

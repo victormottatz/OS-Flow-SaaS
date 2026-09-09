@@ -17,26 +17,33 @@ import tagsRoutes from "./tags.routes";
 import suppliersRoutes from "./suppliers.routes";
 import customFieldsRoutes from "./customFields.routes";
 import documentsRoutes from "./documents.routes";
+import billingRoutes from "./billing.routes";
+
+import { requireActiveSubscription } from "../middlewares/auth";
 
 const router = Router();
 
 router.use("/auth", authRoutes);
+router.use("/billing", billingRoutes);
 router.use("/feature-flags", featureFlagsRoutes);
 router.use("/config", globalConfigRoutes);
-router.use("/clients", clientsRoutes);
-router.use("/parts", partsRoutes);
-router.use("/devices", devicesRoutes);
-router.use("/ordens-servico", osRoutes);
+router.use("/portal", portalRoutes);
+
+// Rotas operacionais com verificação de assinatura ativa (bloqueio gracioso para inadimplentes)
+router.use("/clients", requireActiveSubscription, clientsRoutes);
+router.use("/parts", requireActiveSubscription, partsRoutes);
+router.use("/devices", requireActiveSubscription, devicesRoutes);
+router.use("/ordens-servico", requireActiveSubscription, osRoutes);
 router.use("/dashboards", dashboardRoutes);
 router.use("/permissions", permissionsRoutes);
 router.use("/search", searchRoutes);
-router.use("/portal", portalRoutes);
 router.use("/conciliacao", conciliationRoutes);
 router.use("/whatsapp", whatsappRoutes);
-router.use("/integration", integrationRoutes);
-router.use("/tags", tagsRoutes);
-router.use("/suppliers", suppliersRoutes);
-router.use("/custom-fields", customFieldsRoutes);
-router.use("/documents", documentsRoutes);
+router.use("/integration", requireActiveSubscription, integrationRoutes);
+router.use("/tags", requireActiveSubscription, tagsRoutes);
+router.use("/suppliers", requireActiveSubscription, suppliersRoutes);
+router.use("/custom-fields", requireActiveSubscription, customFieldsRoutes);
+router.use("/documents", requireActiveSubscription, documentsRoutes);
 
 export default router;
+

@@ -1,5 +1,5 @@
 /* ============================================================
-   MGV SANDBOX DE APRENDIZADO — CSS
+   OS FLOW SANDBOX DE APRENDIZADO — CSS
    ============================================================
    Este arquivo dá o VISUAL (as "roupas") da página.
    O navegador já sabe que ele pertence à página porque o
@@ -11,8 +11,8 @@
      - Estados (hover/focus)  (quando o mouse passa por cima)
      - Flexbox                (para alinhar colunas lado a lado)
 
-   As cores lembram o visual "Glassmorphism Dark" do MGV:
-   fundo escuro translúcido, vidro com desfoque e toques de teal.
+   As cores lembram o visual "Glassmorphism Dark" do OS Flow:
+   fundo escuro translúcido, vidro com desfoque e toques de ciano.
    ============================================================ */
 
 /* --- VARIÁVEIS CSS -------------------------------------------------

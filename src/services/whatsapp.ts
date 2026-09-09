@@ -35,17 +35,16 @@ const WHATSAPP_TEMPLATES: Record<string, string> = {
   PRONTO_RETIRADA: 
     "🎉 *Ótima notícia, {cliente_nome}!* \n\n" +
     "O seu equipamento *{aparelho_modelo}* (OS *#{os_numero}*) concluiu com sucesso todas as etapas de serviços técnicos e testes de qualidade!\n\n" +
-    "📍 *Seu aparelho já está disponível para retirada na MGV:*\n" +
-    "🏢 *Endereço:* Rua Julio Prestes, 648 - Jardim Sumaré, Ribeirão Preto - SP\n" +
-    "⏰ *Horário de Atendimento:* Segunda a Quinta das 08h às 18h | Sexta das 08h às 17h (Sábado e Domingo: Fechado)\n\n" +
+    "📍 *Seu aparelho já está disponível para retirada em nossa unidade.*\n" +
+    "⏰ *Horário de Atendimento:* Segunda a Sexta em horário comercial\n\n" +
     "📎 *Segue em anexo o Laudo Técnico / Recibo do atendimento.*\n\n" +
-    "💬 _Aguardamos sua visita! Caso prefira agilizar o faturamento via PIX antes da retirada, basta solicitar a chave por esta conversa._",
+    "💬 _Aguardamos sua visita! Caso prefira agilizar o pagamento antes da retirada, basta solicitar os dados por esta conversa._",
 
   FINALIZADO: 
     "🤝 *Equipamento Entregue com Sucesso!*\n\n" +
     "Olá, *{cliente_nome}*! A Ordem de Serviço *#{os_numero}* do seu *{aparelho_modelo}* foi concluída e o equipamento entregue.\n\n" +
     "📎 *Segue em anexo o seu Recibo Oficial de Entrega com o Termo de Garantia de 90 dias.*\n\n" +
-    "Agradecemos imensamente a confiança na MGV Assistência Técnica! Sempre que precisar de suporte técnico ou novas manutenções, estamos à sua disposição. ✨",
+    "Agradecemos imensamente a sua preferência e confiança! Sempre que precisar de suporte técnico ou novas manutenções, estamos à sua disposição. ✨",
 
   ORCAMENTO_RECUSADO: 
     "Olá, *{cliente_nome}*!\n\n" +
@@ -109,17 +108,17 @@ export function isWithinBusinessHours(): boolean {
 export async function getWhatsAppConfig() {
   let apiUrl = process.env.WHATSAPP_API_URL;
   let apiToken = process.env.WHATSAPP_API_TOKEN;
-  let instanceName = process.env.WHATSAPP_INSTANCE_NAME || "mgv_oficial";
+  let instanceName = process.env.WHATSAPP_INSTANCE_NAME || "osflow_oficial";
 
   if (!apiUrl) {
-    const dbUrl = await prisma.officeSetting.findUnique({ where: { key: "WHATSAPP_API_URL" } });
+    const dbUrl = await prisma.officeSetting.findFirst({ where: { key: "WHATSAPP_API_URL" } });
     apiUrl = dbUrl?.value;
   }
   if (!apiToken) {
-    const dbToken = await prisma.officeSetting.findUnique({ where: { key: "WHATSAPP_API_TOKEN" } });
+    const dbToken = await prisma.officeSetting.findFirst({ where: { key: "WHATSAPP_API_TOKEN" } });
     apiToken = dbToken?.value;
   }
-  const dbInstance = await prisma.officeSetting.findUnique({ where: { key: "WHATSAPP_INSTANCE_NAME" } });
+  const dbInstance = await prisma.officeSetting.findFirst({ where: { key: "WHATSAPP_INSTANCE_NAME" } });
   if (dbInstance?.value) instanceName = dbInstance.value;
 
   if (apiUrl) apiUrl = apiUrl.replace(/\/+$/, "");
@@ -482,7 +481,7 @@ export async function triggerWhatsAppNotification(orderId: string, status: strin
     }
 
     // Consulta configuração do modo de disparo: 'approval' (padrão seguro), 'auto' (direto) ou 'disabled'
-    const autoSetting = await prisma.officeSetting.findUnique({ where: { key: 'WHATSAPP_AUTO_MESSAGES' } });
+    const autoSetting = await prisma.officeSetting.findFirst({ where: { key: 'WHATSAPP_AUTO_MESSAGES' } });
     const sendMode = (autoSetting?.value || "approval").toLowerCase();
 
     if (sendMode === "disabled" || sendMode === "false") {
@@ -544,7 +543,8 @@ export async function triggerWhatsAppNotification(orderId: string, status: strin
 
     // Link oficial dinâmico para acompanhamento
     const clientCpfClean = (os.client.cpfCnpj || "").replace(/\D/g, "");
-    const linkPortal = `https://sistema.mgvrp.com.br/acompanhar?numero=${os.osNumber}&cpfCnpj=${clientCpfClean}`;
+    const appBaseUrl = process.env.APP_BASE_URL || "https://rastreio.osflow.com.br";
+    const linkPortal = `${appBaseUrl}/acompanhar?numero=${os.osNumber}&cpfCnpj=${clientCpfClean}`;
 
     const formattedText = formatWhatsAppMessage(template, {
       cliente_nome: os.client.name.split(" ")[0],

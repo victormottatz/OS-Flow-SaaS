@@ -7,6 +7,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
 import SupplierManager from "./SupplierManager";
 import StockDivergenceReport from "./StockDivergenceReport";
+import DataImportModal from "./DataImportModal";
 
 const DEFAULT_FORM_DATA = {
   name: "", code: "", sku: "", barcode: "",
@@ -102,6 +103,7 @@ export default function StockManager({
 
   // XML Import states (Fase 1 / Bling XML Purchase Import)
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showCsvImportModal, setShowCsvImportModal] = useState(false);
   const [xmlContent, setXmlContent] = useState("");
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<any>(null);
@@ -455,6 +457,15 @@ export default function StockManager({
                   <span>Importar XML NFe</span>
                 </button>
               )}
+              <button
+                onClick={() => setShowCsvImportModal(true)}
+                disabled={isOffline}
+                className="flex items-center gap-1.5 px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-bold rounded-xl transition cursor-pointer hover:scale-[1.02] active:scale-[0.98] shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Importar catálogo de peças via planilha CSV/Excel"
+              >
+                <span className="material-symbols-outlined text-[16px] text-emerald-600">upload_file</span>
+                <span>Importar CSV</span>
+              </button>
               <button
                 onClick={openCreateModal}
                 disabled={isOffline}
@@ -1103,6 +1114,13 @@ export default function StockManager({
           </div>
         </div>
       )}
+
+      {/* MODAL DE IMPORTAÇÃO CSV EM LOTE (SAAS ONBOARDING) */}
+      <DataImportModal
+        isOpen={showCsvImportModal}
+        onClose={() => setShowCsvImportModal(false)}
+        onSuccess={onRefresh}
+      />
         </>
       )}
     </div>

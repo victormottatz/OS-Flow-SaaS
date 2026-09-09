@@ -324,7 +324,7 @@ export default function WhatsAppSettingsPanel() {
               <label className="block text-sm font-medium text-slate-700 mb-1">Nome da Instncia</label>
               <input
                 type="text"
-                placeholder="Ex: MGV_OFICIAL"
+                placeholder="Ex: INSTANCIA_OFICIAL"
                 value={values.WHATSAPP_INSTANCE_NAME}
                 onChange={(e) => setValues({...values, WHATSAPP_INSTANCE_NAME: e.target.value})}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"

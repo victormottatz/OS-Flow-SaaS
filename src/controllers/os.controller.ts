@@ -862,6 +862,7 @@ export class OSController {
           billingLogs: [],
           warrantyType: warrantyType || "NENHUMA",
           assignedTechnicianId: assignedTechnicianId || null,
+          companyId: (req as any).companyId || (req.headers["x-company-id"] as string) || null,
           tags: tagIds && tagIds.length > 0 ? {
             connect: tagIds.map((id: string) => ({ id }))
           } : undefined
@@ -1396,7 +1397,7 @@ export class OSController {
           }
 
           // Busca a configuração de obrigatoriedade de diagnóstico para Pronto Retirada
-          const diagnosticSetting = await prisma.officeSetting.findUnique({
+          const diagnosticSetting = await prisma.officeSetting.findFirst({
             where: { key: "DIAGNOSTIC_REQUIRED_PRONTO_RETIRADA" }
           });
           const isDiagnosticRequiredForPronto = diagnosticSetting ? diagnosticSetting.value === "true" : true;

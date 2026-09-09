@@ -6,15 +6,17 @@
 import React, { useState } from "react";
 import { User, UserRole } from "../types";
 import AppLogo from "./AppLogo";
-
+import RegisterTenantModal from "./RegisterTenantModal";
 
 interface LoginFormProps {
   onLoginSuccess: (user: User, token: string) => void;
   isOffline: boolean;
+  onEnterLiveDemo?: () => void;
 }
 
-export default function LoginForm({ onLoginSuccess, isOffline }: LoginFormProps) {
+export default function LoginForm({ onLoginSuccess, isOffline, onEnterLiveDemo }: LoginFormProps) {
   const [isLoginMode, setIsLoginMode] = useState(true);
+  const [showTenantModal, setShowTenantModal] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -261,9 +263,46 @@ export default function LoginForm({ onLoginSuccess, isOffline }: LoginFormProps)
                 </>
               )}
             </button>
+
+            {/* Botão de Cadastro de Nova Assistência Técnica (SaaS Multi-Tenant) */}
+            <div className="pt-3">
+              <button
+                type="button"
+                onClick={() => setShowTenantModal(true)}
+                className="w-full py-2.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-md shadow-blue-500/20 transition transform active:scale-98 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">add_business</span>
+                <span>Cadastrar Minha Assistência (14 Dias Grátis)</span>
+              </button>
+            </div>
+
+            {/* Botão de Acesso Rápido ao Modo Demonstração */}
+            {onEnterLiveDemo && (
+              <div className="pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={onEnterLiveDemo}
+                  className="w-full py-2 px-4 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 flex items-center justify-center gap-2 transition cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[16px] text-emerald-600">play_circle</span>
+                  <span>Acessar Modo Demonstração</span>
+                </button>
+              </div>
+            )}
           </form>
         </div>
       </div>
+
+      {/* Modal de Registro de Nova Assistência SaaS */}
+      <RegisterTenantModal
+        isOpen={showTenantModal}
+        onClose={() => setShowTenantModal(false)}
+        onSuccess={(newUser, newToken) => {
+          setShowTenantModal(false);
+          onLoginSuccess(newUser, newToken);
+        }}
+      />
     </div>
   );
 }
+

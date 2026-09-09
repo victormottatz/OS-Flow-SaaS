@@ -5,17 +5,17 @@ export class WhatsAppSyncService {
   private async getWhatsAppConfig() {
     let apiUrl = process.env.WHATSAPP_API_URL;
     let apiToken = process.env.WHATSAPP_API_TOKEN;
-    let instanceName = process.env.WHATSAPP_INSTANCE_NAME || "mgv_oficial";
+    let instanceName = process.env.WHATSAPP_INSTANCE_NAME || "osflow_oficial";
 
     if (!apiUrl) {
-      const dbUrl = await prisma.officeSetting.findUnique({ where: { key: "WHATSAPP_API_URL" } });
+      const dbUrl = await prisma.officeSetting.findFirst({ where: { key: "WHATSAPP_API_URL" } });
       apiUrl = dbUrl?.value;
     }
     if (!apiToken) {
-      const dbToken = await prisma.officeSetting.findUnique({ where: { key: "WHATSAPP_API_TOKEN" } });
+      const dbToken = await prisma.officeSetting.findFirst({ where: { key: "WHATSAPP_API_TOKEN" } });
       apiToken = dbToken?.value;
     }
-    const dbInstance = await prisma.officeSetting.findUnique({ where: { key: "WHATSAPP_INSTANCE_NAME" } });
+    const dbInstance = await prisma.officeSetting.findFirst({ where: { key: "WHATSAPP_INSTANCE_NAME" } });
     if (dbInstance?.value) instanceName = dbInstance.value;
 
     if (apiUrl) apiUrl = apiUrl.replace(/\/+$/, "");
@@ -63,12 +63,11 @@ export class WhatsAppSyncService {
     const { apiUrl, apiToken, instanceName } = await this.getWhatsAppConfig();
 
     if (!apiUrl || !apiToken) {
-      const internalRes = await this.syncFromInternalHistory();
       return {
         success: true,
-        chatsCount: internalRes.chatsCount,
-        messagesCount: internalRes.messagesCount,
-        error: "Evolution API não configurada; sincronizado histórico interno."
+        chatsCount: 0,
+        messagesCount: 0,
+        error: "Evolution API não configurada no ambiente de teste."
       };
     }
 
@@ -323,7 +322,7 @@ export class WhatsAppSyncService {
                   remoteJid,
                   keyId,
                   fromMe,
-                  senderName: fromMe ? "MGV Atendimento" : displayName,
+                  senderName: fromMe ? "Atendimento" : displayName,
                   messageType,
                   text,
                   fileName,
@@ -422,7 +421,7 @@ export class WhatsAppSyncService {
             remoteJid,
             keyId,
             fromMe: true,
-            senderName: "MGV Atendimento (Histórico)",
+            senderName: "Atendimento (Histórico)",
             messageType: "TEXT",
             text: item.messageText,
             status: item.status === "FALHOU" ? "FAILED" : "SENT",
@@ -488,7 +487,7 @@ export class WhatsAppSyncService {
             remoteJid: chat.remoteJid,
             keyId,
             fromMe: isFromMe,
-            senderName: isFromMe ? "MGV Atendimento" : (chat.client?.name || sender),
+            senderName: isFromMe ? "Atendimento" : (chat.client?.name || sender),
             messageType: "TEXT",
             text,
             status: "READ",
@@ -658,7 +657,7 @@ export class WhatsAppSyncService {
                 matchedOrder = matchRes.order;
               }
 
-              const pushName = msgItem.pushName || item.pushName || item.name || (matchedClient ? matchedClient.name : (fromMe ? "MGV Suporte" : "Cliente"));
+              const pushName = msgItem.pushName || item.pushName || item.name || (matchedClient ? matchedClient.name : (fromMe ? "Suporte" : "Cliente"));
               chat = await (prisma as any).whatsappChat.create({
                 data: {
                   remoteJid,
@@ -698,7 +697,7 @@ export class WhatsAppSyncService {
                 remoteJid,
                 keyId,
                 fromMe,
-                senderName: fromMe ? "MGV Suporte" : (chat.client?.name || chat.name || "Cliente"),
+                senderName: fromMe ? "Suporte" : (chat.client?.name || chat.name || "Cliente"),
                 messageType,
                 text,
                 fileName,

@@ -18,7 +18,7 @@ const router = Router();
 // Status da conexão com Bling
 router.get("/bling/status", async (req, res) => {
   try {
-    const config = await prisma.blingConfig.findUnique({ where: { id: 1 } });
+    const config = await prisma.blingConfig.findFirst();
     if (!config) {
       res.json({ authorized: false });
       return;
@@ -38,7 +38,7 @@ router.get("/bling/status", async (req, res) => {
 // Desconectar Bling
 router.delete("/bling/disconnect", async (req, res) => {
   try {
-    await prisma.blingConfig.deleteMany({ where: { id: 1 } });
+    await prisma.blingConfig.deleteMany();
     res.json({ success: true });
   } catch (error) {
     console.error("[Bling Disconnect] Erro:", error);
@@ -674,6 +674,71 @@ router.post("/bling/stock/auto-sync/stop", (req, res) => {
   res.json(result);
 });
 
+// ─── ENDPOINTS DE MIGRAÇÃO E IMPORTAÇÃO EM LOTE (SAAS ONBOARDING) ─────────────
+
+import { dataImportService } from "../services/dataImport.service";
+import { getTenantId } from "../middlewares/auth";
+
+// Download de modelo CSV
+router.get("/import-templates/:type", (req, res) => {
+  const type = req.params.type as "clients" | "parts";
+  if (type !== "clients" && type !== "parts") {
+    res.status(400).send("Tipo inválido. Use 'clients' ou 'parts'.");
+    return;
+  }
+  const csv = dataImportService.getTemplateCsv(type);
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="modelo_${type}.csv"`);
+  res.send(csv);
+});
+
+// Importar Clientes e Equipamentos em lote
+router.post("/import-clients", async (req, res) => {
+  const companyId = getTenantId(req);
+  if (!companyId) {
+    res.status(401).json({ error: "Contexto de empresa não identificado." });
+    return;
+  }
+
+  const { items } = req.body;
+  if (!Array.isArray(items) || items.length === 0) {
+    res.status(400).json({ error: "Array de clientes não fornecido ou vazio." });
+    return;
+  }
+
+  try {
+    const result = await dataImportService.importClients(companyId, items);
+    res.json(result);
+  } catch (err: any) {
+    console.error("[Import Clients Error]:", err);
+    res.status(500).json({ error: err.message || "Erro ao importar clientes." });
+  }
+});
+
+// Importar Peças e Insumos de Estoque em lote
+router.post("/import-parts", async (req, res) => {
+  const companyId = getTenantId(req);
+  if (!companyId) {
+    res.status(401).json({ error: "Contexto de empresa não identificado." });
+    return;
+  }
+
+  const { items } = req.body;
+  if (!Array.isArray(items) || items.length === 0) {
+    res.status(400).json({ error: "Array de peças não fornecido ou vazio." });
+    return;
+  }
+
+  try {
+    const result = await dataImportService.importParts(companyId, items);
+    res.json(result);
+  } catch (err: any) {
+    console.error("[Import Parts Error]:", err);
+    res.status(500).json({ error: err.message || "Erro ao importar peças." });
+  }
+});
+
 export default router;
+
 
 

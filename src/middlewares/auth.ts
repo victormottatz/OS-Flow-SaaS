@@ -7,20 +7,24 @@ if (process.env.NODE_ENV === "production" && !process.env.JWT_SECRET) {
   console.error("[CRITICAL SECURITY WARNING] JWT_SECRET não configurada em ambiente de produção!");
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || "mgv_tecnologia_super_secure_jwt_secret_key_123!";
+const JWT_SECRET = process.env.JWT_SECRET || "osflow_super_secure_jwt_secret_key_2026!";
 
 // Rotas publicas
 const PUBLIC_PATHS = [
   "/api/portal/",
   "/api/auth/login",
   "/api/auth/register",
+  "/api/auth/register-tenant",
+  "/api/billing/webhook",
+  "/api/plans",
 ];
 
 export function authenticateJWT(req: Request, res: Response, next: NextFunction): void {
-  // Blindagem de Segurança (Rule 01): Deletar headers injetados externamente pelo cliente
+  // Blindagem de Segurança (Rule 01 & Multi-Tenant): Deletar headers injetados externamente pelo cliente
   delete req.headers["x-user-role"];
   delete req.headers["x-user-id"];
   delete req.headers["x-user-email"];
+  delete req.headers["x-company-id"];
 
   const reqPath = req.path;
 
@@ -45,10 +49,19 @@ export function authenticateJWT(req: Request, res: Response, next: NextFunction)
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { id: string; email: string; role: string };
+    const decoded = jwt.verify(token, JWT_SECRET) as { 
+      id: string; 
+      email: string; 
+      role: string;
+      companyId?: string | null;
+    };
     req.headers["x-user-role"] = decoded.role;
     req.headers["x-user-id"] = decoded.id;
     req.headers["x-user-email"] = decoded.email;
+    if (decoded.companyId) {
+      req.headers["x-company-id"] = decoded.companyId;
+      (req as any).companyId = decoded.companyId;
+    }
     (req as any).user = decoded;
   } catch (err) {
     // Token inválido: headers foram previamente removidos
@@ -182,3 +195,101 @@ export function checkAnyPermission(...requiredPermissions: string[]) {
     }
   };
 }
+
+/**
+ * Extrai o ID da empresa (Tenant) atual da requisição autenticada de forma segura
+ */
+export function getTenantId(req: Request): string | undefined {
+  return (req as any).companyId || (req.headers["x-company-id"] as string | undefined);
+}
+
+/**
+ * Middleware que obriga a requisição a pertencer a um Tenant ativo
+ */
+export function requireTenant(req: Request, res: Response, next: NextFunction): void {
+  const companyId = getTenantId(req);
+  if (!companyId) {
+    res.status(403).json({ error: "Contexto de empresa (Tenant) não identificado. Faça login novamente." });
+    return;
+  }
+  next();
+}
+
+/**
+ * Middleware que verifica se a assinatura da empresa está ativa ou dentro do período de Trial.
+ * Permite requisições de consulta (GET) para não bloquear o acesso histórico aos dados,
+ * mas bloqueia mutações críticas (POST, PUT, DELETE) caso a mensalidade esteja atrasada ou o trial vencido.
+ */
+export async function requireActiveSubscription(req: Request, res: Response, next: NextFunction): Promise<void> {
+  // Permite consultas GET e rotas do próprio módulo de cobrança/perfil
+  if (req.method === "GET" || req.path.startsWith("/api/billing") || req.path.startsWith("/api/auth")) {
+    return next();
+  }
+
+  const companyId = getTenantId(req);
+  if (!companyId) {
+    res.status(403).json({ error: "Empresa não identificada." });
+    return;
+  }
+
+  try {
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      include: { subscription: true }
+    });
+
+    if (!company) {
+      res.status(404).json({ error: "Empresa não encontrada." });
+      return;
+    }
+
+    const sub = company.subscription;
+    const now = new Date();
+
+    if (!sub) {
+      // Se não houver registro de assinatura, verifica se foi criada há mais de 14 dias
+      const createdTime = company.createdAt ? new Date(company.createdAt).getTime() : now.getTime();
+      const diffDays = (now.getTime() - createdTime) / (1000 * 60 * 60 * 24);
+      if (diffDays > 14) {
+        res.status(402).json({
+          error: "Período de avaliação de 14 dias expirado. Ative um plano para continuar gerando novas ordens e clientes.",
+          subscriptionRequired: true
+        });
+        return;
+      }
+      return next();
+    }
+
+    if (sub.status === "ACTIVE") {
+      return next();
+    }
+
+    if (sub.status === "TRIAL") {
+      if (sub.trialEndsAt && sub.trialEndsAt < now) {
+        res.status(402).json({
+          error: "Seu período de teste gratuito de 14 dias chegou ao fim. Escolha um plano para continuar utilizando o sistema.",
+          subscriptionRequired: true
+        });
+        return;
+      }
+      return next();
+    }
+
+    if (sub.status === "PAST_DUE" || sub.status === "UNPAID" || sub.status === "CANCELED") {
+      res.status(402).json({
+        error: "Sua assinatura do OS Flow encontra-se pendente ou cancelada. Regularize o pagamento para continuar emitindo e operando.",
+        subscriptionRequired: true,
+        status: sub.status
+      });
+      return;
+    }
+
+    next();
+  } catch (err: any) {
+    console.error("[requireActiveSubscription Error]:", err);
+    // Em caso de falha de conexão, não bloqueia a operação emergencial
+    next();
+  }
+}
+
+
