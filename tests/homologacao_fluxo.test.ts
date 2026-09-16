@@ -1,9 +1,9 @@
 import jwt from "jsonwebtoken";
 
 // Configurações do teste
-const BASE_URL = "http://localhost:3000/api";
-const JWT_SECRET = process.env.JWT_SECRET || "mgv_tecnologia_super_secure_jwt_secret_key_123!";
-const TEST_TOKEN = jwt.sign({ id: "test-admin", role: "OWNER" }, JWT_SECRET, { expiresIn: "1h" });
+const BASE_URL = `http://localhost:${process.env.PORT || 3001}/api`;
+const JWT_SECRET = process.env.JWT_SECRET || "osflow_super_secure_jwt_secret_key_2026!";
+const TEST_TOKEN = jwt.sign({ id: "1b499d3a-84c6-4958-a40b-50471e3e2569", role: "OWNER", companyId: "e36d43d9-8f59-4f90-b497-cb0942265b52" }, JWT_SECRET, { expiresIn: "1h" });
 
 // Helper para chamadas
 async function api(path: string, method: string = "GET", body?: any) {
@@ -30,13 +30,23 @@ async function api(path: string, method: string = "GET", body?: any) {
   return { status: res.status, ok: res.ok, data };
 }
 
+function generateValidCPF() {
+  const rnd = (n: number) => Math.floor(Math.random() * n);
+  const n = Array.from({ length: 9 }, () => rnd(9));
+  let d1 = n.reduce((acc, val, idx) => acc + val * (10 - idx), 0) % 11;
+  d1 = d1 < 2 ? 0 : 11 - d1;
+  let d2 = [...n, d1].reduce((acc, val, idx) => acc + val * (11 - idx), 0) % 11;
+  d2 = d2 < 2 ? 0 : 11 - d2;
+  return [...n, d1, d2].join("");
+}
+
 async function runTests() {
   console.log("🚀 Iniciando Teste de Homologação End-to-End (MGV Assistência Técnica)");
   
   try {
     // 1. Criar Cliente
     console.log("1️⃣ Criando Cliente Fictício...");
-    const cpfUnico = Math.floor(Math.random() * 90000000000) + 10000000000;
+    const cpfUnico = generateValidCPF();
     const clientRes = await api("/clients", "POST", {
       name: "João da Silva Teste",
       cpfCnpj: String(cpfUnico),
@@ -122,9 +132,10 @@ async function runTests() {
 
     // 8. Checar Faturamento (Integração)
     console.log("8️⃣ Checando Fila Fiscal...");
-    const checkRes = await api("/ordens-servico");
-    const finishedOS = checkRes.data.find((o: any) => o.id === osId);
-    console.log(`✅ Status Fiscal: ${finishedOS.billingStatus}`);
+    const checkRes = await api(`/ordens-servico/${osId}`);
+    const finishedOS = checkRes.data;
+    if (!finishedOS || !finishedOS.id) throw new Error("OS finalizada não encontrada na busca.");
+    console.log(`✅ Status Fiscal: ${finishedOS.billingStatus || 'PENDENTE'}`);
     
     if (finishedOS.billingLogs && finishedOS.billingLogs.length > 0) {
       console.log("📋 Logs do Faturamento:");

@@ -1,8 +1,8 @@
 import jwt from "jsonwebtoken";
 
-const BASE_URL = "http://localhost:3000/api";
-const JWT_SECRET = process.env.JWT_SECRET || "mgv_tecnologia_super_secure_jwt_secret_key_123!";
-const TEST_TOKEN = jwt.sign({ id: "test-admin", role: "OWNER" }, JWT_SECRET, { expiresIn: "1h" });
+const BASE_URL = `http://localhost:${process.env.PORT || 3001}/api`;
+const JWT_SECRET = process.env.JWT_SECRET || "osflow_super_secure_jwt_secret_key_2026!";
+const TEST_TOKEN = jwt.sign({ id: "1b499d3a-84c6-4958-a40b-50471e3e2569", role: "OWNER", companyId: "e36d43d9-8f59-4f90-b497-cb0942265b52" }, JWT_SECRET, { expiresIn: "1h" });
 
 // Helper para chamadas de API
 async function api(path: string, method: string = "GET", body?: any) {
@@ -29,13 +29,23 @@ async function api(path: string, method: string = "GET", body?: any) {
 // Imagem base64 fictícia (pequena, 1x1 pixel vermelha em png)
 const base64RedDot = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg==";
 
+function generateValidCPF() {
+  const rnd = (n: number) => Math.floor(Math.random() * n);
+  const n = Array.from({ length: 9 }, () => rnd(9));
+  let d1 = n.reduce((acc, val, idx) => acc + val * (10 - idx), 0) % 11;
+  d1 = d1 < 2 ? 0 : 11 - d1;
+  let d2 = [...n, d1].reduce((acc, val, idx) => acc + val * (11 - idx), 0) % 11;
+  d2 = d2 < 2 ? 0 : 11 - d2;
+  return [...n, d1, d2].join("");
+}
+
 async function runChecklistTests() {
   console.log("🚀 Iniciando Testes do Módulo de Checklist e Laudo Fotográfico...");
 
   try {
     // 1. Criar Cliente de Teste
     console.log("1️⃣ Criando Cliente...");
-    const cpfUnico = Math.floor(Math.random() * 90000000000) + 10000000000;
+    const cpfUnico = generateValidCPF();
     const clientRes = await api("/clients", "POST", {
       name: "Cliente Teste Checklist",
       cpfCnpj: String(cpfUnico),

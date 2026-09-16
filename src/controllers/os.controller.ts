@@ -1062,8 +1062,9 @@ export class OSController {
         .filter((p: any) => p.category === "SERVICO")
         .reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
 
+      const resolvedLaborCost = laborCost !== undefined && laborCost !== null ? Number(laborCost) : computedLaborCost;
       const resolvedDiscount = discount !== undefined ? Number(discount) : currentOS.discount;
-      const resolvedTotal = Math.max(0, computedPartsCost + computedLaborCost - resolvedDiscount);
+      const resolvedTotal = Math.max(0, computedPartsCost + resolvedLaborCost - resolvedDiscount);
 
       const updated = await prisma.ordemServico.update({
         where: { id },
@@ -1072,7 +1073,7 @@ export class OSController {
           laudoMacro: laudoMacro !== undefined ? laudoMacro : currentOS.laudoMacro,
           usedParts: usedParts !== undefined ? usedParts : currentOS.usedParts,
           partsCost: computedPartsCost,
-          laborCost: computedLaborCost,
+          laborCost: resolvedLaborCost,
           technicianLaborHours: currentOS.technicianLaborHours,
           technicianHourlyRate: currentOS.technicianHourlyRate,
           discount: resolvedDiscount,

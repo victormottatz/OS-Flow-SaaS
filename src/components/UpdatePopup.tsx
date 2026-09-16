@@ -16,19 +16,19 @@ export function UpdatePopup() {
 
   useEffect(() => {
     const savedVersion = localStorage.getItem("mgv_last_update_version");
-    if (savedVersion !== "5.2.0") {
+    if (savedVersion !== "5.3.0") {
       setIsOpen(true);
       
       // Notificação silenciosa no sino com gatilho para reabrir o modal
       addNotification(
-        "🚀 OS-FLOW - PIX Direto & Ativação Manual (v5.2.0)",
-        "Pagamento via PIX Direto oficial com envio de comprovante no WhatsApp e Painel de Ativação Manual para o Dono.",
+        "🚀 OS-FLOW - Seção de Migração & Prints do Sistema (v5.3.0)",
+        "Nova seção interativa na Landing Page com gráficos de ROI de bancada e prints reais da interface do OS-Flow.",
         "info",
         undefined,
         "open_update_popup"
       );
       
-      localStorage.setItem("mgv_last_update_version", "5.2.0");
+      localStorage.setItem("mgv_last_update_version", "5.3.0");
     }
   }, [addNotification]);
 
