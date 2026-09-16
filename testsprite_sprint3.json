@@ -1,0 +1,21 @@
+{
+  "projectId": "252074cc-f65a-4ec8-9e4b-f53e9f5a5660",
+  "type": "frontend",
+  "name": "OS-Flow SaaS - Sprint 3: Captura de Leads Demo, Privacidade LGPD & Notificações WhatsApp",
+  "description": "Validação das rotas de captura de leads (/api/demo/leads), sanitização PII nos logs e envio de mensagens WhatsApp.",
+  "priority": "p1",
+  "planSteps": [
+    {
+      "type": "action",
+      "description": "Enviar requisição POST para /api/demo/leads simulando o preenchimento do formulário da demonstração."
+    },
+    {
+      "type": "assertion",
+      "description": "Confirmar retorno HTTP 201 com mensagem de confirmação e salvamento do lead."
+    },
+    {
+      "type": "action",
+      "description": "Verificar se os logs de auditoria não expõem senhas ou dados sensíveis em texto puro."
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "projectId": "252074cc-f65a-4ec8-9e4b-f53e9f5a5660",
+  "type": "frontend",
+  "name": "OS-Flow SaaS - Suíte E2E Completa de Validação de Ponta a Ponta",
+  "description": "Validação integral do sistema OS-Flow SaaS: login de usuário, criação de nova Ordem de Serviço, alocação rápida no Kanban, consulta no Portal Público e formulário de demonstração.",
+  "priority": "p1",
+  "planSteps": [
+    {
+      "type": "action",
+      "description": "Navegar para a página inicial em http://127.0.0.1:3000 (ou porta configurada) e verificar a tela de login com a nova logo oficial do OS-Flow SaaS."
+    },
+    {
+      "type": "action",
+      "description": "Preencher o e-mail de acesso do cliente e a senha, em seguida clicar no botão Acessar Oficina."
+    },
+    {
+      "type": "action",
+      "description": "Se houver o pop-up de atualização v5.4.0, clicar no botão 'Excelente, explorar novidades!' para fechar."
+    },
+    {
+      "type": "action",
+      "description": "Clicar no botão '+ Nova OS' no menu superior para abrir a gaveta de abertura de chamados."
+    },
+    {
+      "type": "action",
+      "description": "Selecionar ou cadastrar cliente 'Clínica Médica Modelo SaaS' com telefone '(16) 99888-7766'."
+    },
+    {
+      "type": "action",
+      "description": "Preencher o equipamento: Tipo 'Ultrassom (Fisio/Estética)', Marca 'IBRAMED', Modelo 'Sonopulse III', Número de Série 'SN-SAAS-2026'."
+    },
+    {
+      "type": "action",
+      "description": "Descrever o defeito relatado como 'Sem emissão de onda no transdutor' e confirmar a emissão da Ordem de Serviço."
+    },
+    {
+      "type": "assertion",
+      "description": "Garantir que a Ordem de Serviço foi gerada com sucesso e um número de OS válido (ex: OS-XXXXXX) é retornado."
+    },
+    {
+      "type": "action",
+      "description": "Navegar até o Kanban de Ordens de Serviço, localizar o card da nova OS e testar a Edição Rápida clicando no ícone de raio/edição."
+    },
+    {
+      "type": "assertion",
+      "description": "Confirmar que o modal QuickEditOSModal abre corretamente permitindo alterar status, técnico e observações."
+    },
+    {
+      "type": "action",
+      "description": "Acessar o portal público de consulta de OS do consumidor em /portal."
+    },
+    {
+      "type": "assertion",
+      "description": "Garantir que a consulta por cliente ou código da OS exibe o status de acompanhamento correto do equipamento 'Sonopulse III'."
+    }
+  ]
+}

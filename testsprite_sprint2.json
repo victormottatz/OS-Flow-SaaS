@@ -1,0 +1,25 @@
+{
+  "projectId": "252074cc-f65a-4ec8-9e4b-f53e9f5a5660",
+  "type": "frontend",
+  "name": "OS-Flow SaaS - Sprint 2: Gestão de OS, Kanban, Estoque & Integração Bling",
+  "description": "Validação das funcionalidades de alocação de insumos, edição rápida no Kanban, separação de peças vs serviços e integração Bling ERP.",
+  "priority": "p1",
+  "planSteps": [
+    {
+      "type": "action",
+      "description": "Abrir o modal OSPartsServicesModal em uma OS ativa."
+    },
+    {
+      "type": "action",
+      "description": "Adicionar uma peça do catálogo de estoque e um serviço avulso de mão de obra."
+    },
+    {
+      "type": "assertion",
+      "description": "Confirmar que os subtotais e o total geral são recalculados corretamente."
+    },
+    {
+      "type": "action",
+      "description": "Salvar as alterações e verificar atualização no banco de dados."
+    }
+  ]
+}

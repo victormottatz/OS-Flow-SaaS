@@ -1,0 +1,29 @@
+{
+  "projectId": "252074cc-f65a-4ec8-9e4b-f53e9f5a5660",
+  "type": "frontend",
+  "name": "OS-Flow SaaS - Sprint 1: Autenticação, Onboarding & Multitenancy",
+  "description": "Validação das rotas de login, isolamento por company_id, cadastro de novas oficinas e controle de acesso por papel (UserRole).",
+  "priority": "p1",
+  "planSteps": [
+    {
+      "type": "action",
+      "description": "Acessar a tela de login em /login."
+    },
+    {
+      "type": "assertion",
+      "description": "Verificar se os campos de e-mail e senha estão visíveis com o logo oficial do OS-Flow SaaS."
+    },
+    {
+      "type": "action",
+      "description": "Tentar login com credenciais inválidas para validar tratamento defensivo de erro."
+    },
+    {
+      "type": "assertion",
+      "description": "Confirmar exibição de mensagem de credenciais incorretas."
+    },
+    {
+      "type": "action",
+      "description": "Efetuar login com credenciais de produção e verificar redirecionamento para a Dashboard."
+    }
+  ]
+}
