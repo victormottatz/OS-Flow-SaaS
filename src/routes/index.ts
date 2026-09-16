@@ -18,6 +18,7 @@ import suppliersRoutes from "./suppliers.routes";
 import customFieldsRoutes from "./customFields.routes";
 import documentsRoutes from "./documents.routes";
 import billingRoutes from "./billing.routes";
+import demoRoutes from "./demo.routes";
 
 import { requireActiveSubscription } from "../middlewares/auth";
 
@@ -25,6 +26,7 @@ const router = Router();
 
 router.use("/auth", authRoutes);
 router.use("/billing", billingRoutes);
+router.use("/demo", demoRoutes);
 router.use("/feature-flags", featureFlagsRoutes);
 router.use("/config", globalConfigRoutes);
 router.use("/portal", portalRoutes);
@@ -46,4 +48,3 @@ router.use("/custom-fields", requireActiveSubscription, customFieldsRoutes);
 router.use("/documents", requireActiveSubscription, documentsRoutes);
 
 export default router;
-

@@ -836,4 +836,23 @@ model Invoice {
   @@map("invoices")
 }
 
+model DemoLead {
+  id           String   @id @default(uuid())
+  name         String
+  email        String
+  phone        String
+  companyName  String?  @map("company_name")
+  cityState    String?  @map("city_state")
+  userCount    Int      @default(1) @map("user_count")
+  status       String   @default("NEW") // NEW, CONTACTED, CONVERTED, DISCARDED
+  notes        String?
+  ipAddress    String?  @map("ip_address")
+  source       String   @default("DEMO_FORM")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("demo_leads")
+}
+
+
 
