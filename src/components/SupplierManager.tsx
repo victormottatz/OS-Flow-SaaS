@@ -27,6 +27,7 @@ interface Supplier {
 
 interface SupplierManagerProps {
   userRole: UserRole;
+  currentUser?: any;
   isOffline: boolean;
 }
 
