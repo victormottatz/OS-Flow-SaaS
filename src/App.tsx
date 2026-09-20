@@ -68,6 +68,11 @@ export default function App() {
     return localStorage.getItem("osflow_live_demo") === "true" ? DEMO_USER : null;
   });
   const [token, setToken] = useState<string | null>(null);
+  const [showLoginView, setShowLoginView] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    const p = window.location.pathname.toLowerCase();
+    return p === "/login" || p === "/entrar";
+  });
   const [showOnboarding, setShowOnboarding] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("osflow_onboarding_completed") !== "true";
@@ -110,20 +115,8 @@ export default function App() {
     window.location.href = "/";
   };
 
-  // Roteamento para o Portal Público, Landing Page SaaS e Modo de Demonstração
+  // Roteamento para o Portal Público e Modo de Demonstração
   const path = window.location.pathname.toLowerCase();
-  if (!isDemoMode && (path === "/saas" || path === "/landing" || path === "/planos" || path === "/solucoes")) {
-    return (
-      <LandingPageView
-        onLoginClick={() => {
-          window.location.href = "/";
-        }}
-        onEnterLiveDemo={handleEnterLiveDemo}
-        onRegisterSuccess={handleLoginSuccess}
-      />
-    );
-  }
-
   if (!isDemoMode && (path === "/demo" || path === "/demonstracao" || path === "/apresentacao")) {
     return <DemoShowcaseView onEnterLiveDemo={handleEnterLiveDemo} />;
   }
@@ -317,9 +310,38 @@ export default function App() {
     );
   }
 
-  // Not Authenticated Layout
+  // Not Authenticated Layout (Página Inicial Pública vs Login)
   if (!user) {
-    return <LoginForm onLoginSuccess={handleLoginSuccess} isOffline={isOffline} onEnterLiveDemo={handleEnterLiveDemo} />;
+    if (showLoginView || path === "/login" || path === "/entrar") {
+      return (
+        <LoginForm 
+          onLoginSuccess={(userData, authToken) => {
+            setShowLoginView(false);
+            handleLoginSuccess(userData, authToken);
+          }} 
+          isOffline={isOffline} 
+          onEnterLiveDemo={handleEnterLiveDemo} 
+          onBackToLanding={() => {
+            setShowLoginView(false);
+            window.history.pushState({}, "", "/");
+          }}
+        />
+      );
+    }
+
+    return (
+      <LandingPageView
+        onLoginClick={() => {
+          setShowLoginView(true);
+          window.history.pushState({}, "", "/login");
+        }}
+        onEnterLiveDemo={handleEnterLiveDemo}
+        onRegisterSuccess={(userData, authToken) => {
+          setShowLoginView(false);
+          handleLoginSuccess(userData, authToken);
+        }}
+      />
+    );
   }
 
   const isOSKanbanActive = (currentTab === "os" || currentTab === "kanban") && osViewMode === "kanban";

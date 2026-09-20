@@ -12,9 +12,10 @@ interface LoginFormProps {
   onLoginSuccess: (user: User, token: string) => void;
   isOffline: boolean;
   onEnterLiveDemo?: () => void;
+  onBackToLanding?: () => void;
 }
 
-export default function LoginForm({ onLoginSuccess, isOffline, onEnterLiveDemo }: LoginFormProps) {
+export default function LoginForm({ onLoginSuccess, isOffline, onEnterLiveDemo, onBackToLanding }: LoginFormProps) {
   const [isLoginMode, setIsLoginMode] = useState(true);
   const [showTenantModal, setShowTenantModal] = useState(false);
   const [name, setName] = useState("");
@@ -105,14 +106,27 @@ export default function LoginForm({ onLoginSuccess, isOffline, onEnterLiveDemo }
       <div className="w-full max-w-md bg-white rounded-2xl shadow-premium border border-slate-100 overflow-hidden relative z-10 transition-all duration-500 anim-fadein">
         {/* Banner Area */}
         <div className="px-6 py-8 relative text-center border-b border-slate-100 bg-slate-50/50">
+          {onBackToLanding && (
+            <button
+              onClick={onBackToLanding}
+              className="absolute top-3 left-4 text-xs text-slate-500 hover:text-cyan-600 font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+              title="Voltar para a Página Inicial"
+            >
+              <span>← Início</span>
+            </button>
+          )}
+
           <div className="absolute top-3 right-3 flex items-center bg-emerald-50 text-emerald-700 border border-emerald-200 font-mono text-[9px] uppercase tracking-wider px-2.5 py-0.5 rounded-full select-none">
             Banco de Dados Ativo
           </div>
-          <AppLogo 
-            src="/logos/logo-v3.webp" 
-            fallbackSrc="/logos/logo-v3.png" 
-            className="h-20 mx-auto mb-2 object-contain"
-          />
+          
+          <div className="flex justify-center pt-2 mb-2">
+            <AppLogo 
+              theme="light"
+              className="h-10 w-auto justify-center"
+              showText={true}
+            />
+          </div>
           <p className="text-xs text-slate-500 max-w-xs mx-auto font-medium">
             Substituto Corporativo Web Integrado do SH Oficina Desktop
           </p>
