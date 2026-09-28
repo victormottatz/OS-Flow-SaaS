@@ -10,7 +10,7 @@ export const SupportWidget: React.FC<SupportWidgetProps> = ({ user }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   // Número oficial de suporte técnico (substituível via .env ou padrão)
-  const supportPhone = (import.meta as any).env?.VITE_SUPPORT_WHATSAPP || "5516999999999";
+  const supportPhone = (import.meta as any).env?.VITE_SUPPORT_WHATSAPP || "5516993660041";
 
   const companyName = user?.company?.name || "Minha Oficina";
   const userName = user?.name || "Atendente";

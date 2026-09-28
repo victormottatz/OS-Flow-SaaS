@@ -1754,7 +1754,7 @@ export default function DemoShowcaseView({ onEnterLiveDemo }: DemoShowcaseViewPr
               <button
                 onClick={() => {
                   window.open(
-                    "https://wa.me/5511999999999?text=Olá!%20Gostaria%20de%20solicitar%20uma%20demonstração%20e%20proposta%20do%20OS%20Flow%20para%20minha%20assistência%20técnica.",
+                    "https://wa.me/5516993660041?text=Olá!%20Gostaria%20de%20solicitar%20uma%20demonstração%20e%20proposta%20do%20OS%20Flow%20para%20minha%20assistência%20técnica.",
                     "_blank"
                   );
                   setShowContactModal(false);

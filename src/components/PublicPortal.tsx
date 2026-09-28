@@ -311,7 +311,7 @@ export default function PublicPortal() {
         </div>
 
         <a
-          href="tel:+5511999999999"
+          href="tel:+5516993660041"
           style={{
             display: "flex", alignItems: "center", gap: "0.4rem",
             fontSize: "0.78rem", color: "#fdc003", textDecoration: "none",
@@ -855,7 +855,7 @@ export default function PublicPortal() {
 
                 <div style={{ textAlign: "center", marginTop: "0.75rem" }}>
                   <a
-                    href={`https://wa.me/5511999999999?text=${encodeURIComponent(`Olá! Gostaria de conversar com o técnico sobre o orçamento da OS #${result.osNumber} (${result.deviceLabel}) antes de aprovar.`)}`}
+                    href={`https://wa.me/5516993660041?text=${encodeURIComponent(`Olá! Gostaria de conversar com o técnico sobre o orçamento da OS #${result.osNumber} (${result.deviceLabel}) antes de aprovar.`)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{ fontSize: "0.78rem", color: "#94a3b8", textDecoration: "underline", display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
@@ -899,7 +899,7 @@ export default function PublicPortal() {
             {/* ── AÇÕES ── */}
             <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
               <a
-                href={`https://wa.me/5511999999999?text=${encodeURIComponent(`Olá! Sou ${result.clientName} e gostaria de informações sobre a OS #${result.osNumber} (${result.deviceLabel}).`)}`}
+                href={`https://wa.me/5516993660041?text=${encodeURIComponent(`Olá! Sou ${result.clientName} e gostaria de informações sobre a OS #${result.osNumber} (${result.deviceLabel}).`)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 id="btn-whatsapp"

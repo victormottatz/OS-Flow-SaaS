@@ -42,6 +42,7 @@ import {
 } from "lucide-react";
 import AppLogo from "./AppLogo";
 import RegisterTenantModal from "./RegisterTenantModal";
+import { VideoDemoModal } from "./VideoDemoModal";
 import { User } from "../types";
 
 interface LandingPageViewProps {
@@ -52,6 +53,8 @@ interface LandingPageViewProps {
 
 export default function LandingPageView({ onLoginClick, onEnterLiveDemo, onRegisterSuccess }: LandingPageViewProps) {
   const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [showVideoDemoModal, setShowVideoDemoModal] = useState(false);
+  const [heroPreviewTab, setHeroPreviewTab] = useState<"dashboard" | "kanban" | "fiscal" | "prancheta">("dashboard");
   const [billingCycle, setBillingCycle] = useState<"MONTHLY" | "ANNUAL">("ANNUAL");
   const [activeMigrationTab, setActiveMigrationTab] = useState<"graficos" | "prints">("graficos");
   const [selectedChartIndex, setSelectedChartIndex] = useState<number>(0);
@@ -206,6 +209,16 @@ export default function LandingPageView({ onLoginClick, onEnterLiveDemo, onRegis
           {/* Ações / CTAs da Navbar */}
           <div className="flex items-center gap-2.5 sm:gap-3">
             <button
+              onClick={() => setShowVideoDemoModal(true)}
+              className="text-xs font-bold text-emerald-300 hover:text-white px-3 sm:px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer bg-emerald-950/60 hover:bg-emerald-900/80 border border-emerald-500/30 shadow-sm"
+              title="Assistir vídeo demonstrativo programático (30s)"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden sm:inline">Vídeo Demo (30s)</span>
+              <span className="sm:hidden">Vídeo</span>
+            </button>
+
+            <button
               onClick={onEnterLiveDemo}
               className="text-xs font-bold text-slate-200 hover:text-white px-3 sm:px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer bg-slate-900/90 hover:bg-slate-800 border border-white/10 shadow-sm"
               title="Abrir ambiente de demonstração com dados de exemplo"
@@ -240,20 +253,20 @@ export default function LandingPageView({ onLoginClick, onEnterLiveDemo, onRegis
 
         <div className="max-w-5xl mx-auto text-center relative z-10 space-y-7">
           
-          {/* Badge de Destaque Superior */}
+          {/* Badge de Destaque Superior com Pulso Ciano */}
           <div className="inline-flex items-center gap-2 bg-gradient-to-r from-slate-900/90 via-slate-800/90 to-slate-900/90 border border-cyan-500/30 px-4 py-1.5 rounded-full text-xs font-bold text-cyan-300 shadow-xl backdrop-blur-md">
-            <Sparkles className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
-            <span>O 1º ERP & Gestão de Bancada Especializado para Assistências de Estética & Laser</span>
+            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+            <span>O 1º ERP Vertical para Assistências Técnicas de Estética, Lasers & Eletromédicos</span>
           </div>
 
-          {/* Headline Principal */}
+          {/* Headline Principal de Alta Conversão (Message Match com WhatsApp) */}
           <h1 className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-tight text-white leading-[1.12]">
-            Chega de planilhas confusas e <span className="bg-gradient-to-r from-cyan-400 via-teal-300 to-emerald-400 bg-clip-text text-transparent">softwares genéricos</span> de OS.
+            O ERP Especializado da sua Bancada: <span className="bg-gradient-to-r from-cyan-400 via-teal-300 to-emerald-400 bg-clip-text text-transparent">Zero Bitributação</span> e Laudos com Fotos em 1 Clique.
           </h1>
 
-          {/* Subtítulo Didático */}
+          {/* Subtítulo Didático e Cirúrgico */}
           <p className="text-sm sm:text-lg text-slate-300 max-w-3xl mx-auto font-normal leading-relaxed">
-            Elimine a bitributação com <strong>Faturamento Bifásico automático</strong> (NF-e de peças + NFS-e de serviços), acelere aprovações em <strong>1 clique no WhatsApp</strong> e emita <strong>laudos de calibração em PDF</strong> com sua logomarca.
+            Desenvolvido por quem vive a bancada: separe <strong>peças (NF-e) de serviço (NFS-e)</strong> automaticamente no Bling sem pagar imposto em duplicidade, acelere <strong>aprovações no WhatsApp</strong> e emita <strong>laudos periciais com fotos e laudo CREA</strong> com a sua logomarca.
           </p>
 
           {/* CTA Buttons */}
@@ -273,85 +286,209 @@ export default function LandingPageView({ onLoginClick, onEnterLiveDemo, onRegis
               <Play className="w-4 h-4 text-cyan-400 fill-cyan-400" />
               <span>Explorar Demonstração Interativa</span>
             </button>
+
+            <button
+              onClick={() => setShowVideoDemoModal(true)}
+              className="w-full sm:w-auto text-sm font-bold bg-emerald-950/70 hover:bg-emerald-900/90 text-emerald-300 border border-emerald-500/40 px-6 py-4 rounded-2xl flex items-center justify-center gap-2.5 transition cursor-pointer shadow-lg shadow-emerald-500/10 backdrop-blur-md hover:-translate-y-0.5 active:scale-98"
+            >
+              <Sparkles className="w-4 h-4 text-emerald-400 animate-pulse" />
+              <span>Vídeo do Produto (30s)</span>
+            </button>
           </div>
 
-          {/* Badges de Confiança */}
-          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-8 pt-2 text-xs font-medium text-slate-400">
-            <span className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" /> 14 dias sem compromisso
+          {/* Badges de Confiança e Risco Zero */}
+          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-8 pt-2 text-xs font-semibold text-slate-300">
+            <span className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full text-emerald-300">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> 14 dias grátis no Plano Pro
             </span>
-            <span className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Sem cartão de crédito
+            <span className="flex items-center gap-1.5 bg-slate-800/60 border border-white/10 px-3 py-1 rounded-full text-slate-300">
+              <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400" /> Sem necessidade de cartão
             </span>
-            <span className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Setup guiado em 3 minutos
+            <span className="flex items-center gap-1.5 bg-slate-800/60 border border-white/10 px-3 py-1 rounded-full text-slate-300">
+              <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400" /> Setup guiado em 3 minutos
             </span>
           </div>
 
-          {/* PREVIEW DO HERO: 3 Pilares em Cards com Visual Glassmorphic */}
+          {/* PREVIEW DO HERO: 3 Pilares com Visual Glassmorphic e Atalhos de Snapshot */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-6 text-left">
             
-            <div className="p-5 rounded-3xl bg-slate-900/60 border border-white/10 hover:border-cyan-500/40 transition-all duration-300 backdrop-blur-xl shadow-xl hover:-translate-y-1">
+            <div 
+              onClick={() => setHeroPreviewTab("dashboard")}
+              className={`p-5 rounded-3xl border transition-all duration-300 backdrop-blur-xl shadow-xl hover:-translate-y-1 cursor-pointer ${
+                heroPreviewTab === "dashboard" ? "bg-cyan-500/15 border-cyan-400/60 ring-2 ring-cyan-500/30" : "bg-slate-900/60 border-white/10 hover:border-cyan-500/40"
+              }`}
+            >
               <div className="w-10 h-10 rounded-2xl bg-cyan-500/10 border border-cyan-400/20 flex items-center justify-center text-cyan-400 mb-3.5">
+                <BarChart3 className="w-5 h-5" />
+              </div>
+              <h3 className="text-sm font-bold text-white flex items-center justify-between">
+                <span>Dashboard de Bancada</span>
+                <span className="text-[10px] text-cyan-400 font-mono">Ver Print Real →</span>
+              </h3>
+              <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
+                Visão 360° da assistência técnica: faturamento, chamados urgentes e atalho rápido de OS.
+              </p>
+            </div>
+
+            <div 
+              onClick={() => setHeroPreviewTab("kanban")}
+              className={`p-5 rounded-3xl border transition-all duration-300 backdrop-blur-xl shadow-xl hover:-translate-y-1 cursor-pointer ${
+                heroPreviewTab === "kanban" ? "bg-emerald-500/15 border-emerald-400/60 ring-2 ring-emerald-500/30" : "bg-slate-900/60 border-white/10 hover:border-emerald-500/40"
+              }`}
+            >
+              <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-400/20 flex items-center justify-center text-emerald-400 mb-3.5">
+                <Activity className="w-5 h-5" />
+              </div>
+              <h3 className="text-sm font-bold text-white flex items-center justify-between">
+                <span>Quadro Kanban em Tempo Real</span>
+                <span className="text-[10px] text-emerald-400 font-mono">Ver Print Real →</span>
+              </h3>
+              <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
+                Pipeline de triagem, manutenção ativa, trava de teste térmico e pronto para retirada.
+              </p>
+            </div>
+
+            <div 
+              onClick={() => setHeroPreviewTab("fiscal")}
+              className={`p-5 rounded-3xl border transition-all duration-300 backdrop-blur-xl shadow-xl hover:-translate-y-1 cursor-pointer ${
+                heroPreviewTab === "fiscal" ? "bg-indigo-500/15 border-indigo-400/60 ring-2 ring-indigo-500/30" : "bg-slate-900/60 border-white/10 hover:border-indigo-500/40"
+              }`}
+            >
+              <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 border border-indigo-400/20 flex items-center justify-center text-indigo-400 mb-3.5">
                 <FileText className="w-5 h-5" />
               </div>
-              <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-                <span>Faturamento Bifásico Bling</span>
+              <h3 className="text-sm font-bold text-white flex items-center justify-between">
+                <span>Hub Fiscal Bling (Split)</span>
+                <span className="text-[10px] text-indigo-400 font-mono">Ver Print Real →</span>
               </h3>
               <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
-                Divide peças (NF-e) e mão de obra (NFS-e) automaticamente sem bitributação na SEFAZ.
-              </p>
-            </div>
-
-            <div className="p-5 rounded-3xl bg-slate-900/60 border border-white/10 hover:border-emerald-500/40 transition-all duration-300 backdrop-blur-xl shadow-xl hover:-translate-y-1">
-              <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-400/20 flex items-center justify-center text-emerald-400 mb-3.5">
-                <MessageSquare className="w-5 h-5" />
-              </div>
-              <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-                <span>Aprovação no WhatsApp</span>
-              </h3>
-              <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
-                O dono da clínica recebe o laudo detalhado e aprova o reparo em 1 toque no celular.
-              </p>
-            </div>
-
-            <div className="p-5 rounded-3xl bg-slate-900/60 border border-white/10 hover:border-indigo-500/40 transition-all duration-300 backdrop-blur-xl shadow-xl hover:-translate-y-1">
-              <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 border border-indigo-400/20 flex items-center justify-center text-indigo-400 mb-3.5">
-                <ShieldCheck className="w-5 h-5" />
-              </div>
-              <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-                <span>Trava de Teste de Estresse</span>
-              </h3>
-              <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
-                Bloqueio de liberação até 30 min de teste térmico e laudo com sua marca e CREA.
+                Faturamento bifásico: divide peças (NF-e) e mão de obra (NFS-e) sem bitributação na SEFAZ.
               </p>
             </div>
 
           </div>
 
-          {/* SNAPSHOT REAL DO SISTEMA NO HERO (MOCKUP PERSPECTIVA EM ALTA RESOLUÇÃO) */}
+          {/* MOCKUP INTERATIVO EM ABAS (SNAPSHOTS REAIS E AUTÊNTICOS DO OS-FLOW) */}
           <div className="pt-8 relative max-w-5xl mx-auto">
             <div className="rounded-3xl bg-slate-950 p-2 sm:p-3 border border-white/15 shadow-[0_25px_80px_rgba(0,0,0,0.85)] ring-1 ring-cyan-500/30 overflow-hidden relative group">
-              <div className="bg-slate-900 px-4 py-2.5 border-b border-white/10 flex items-center justify-between text-xs rounded-t-2xl">
+              
+              {/* Barra Superior do Navegador com Seletor das Telas Reais */}
+              <div className="bg-slate-900 px-4 py-2.5 border-b border-white/10 flex flex-wrap items-center justify-between gap-2 text-xs rounded-t-2xl">
                 <div className="flex items-center gap-2">
                   <div className="flex gap-1.5">
                     <span className="w-3 h-3 rounded-full bg-rose-500/80 inline-block"></span>
                     <span className="w-3 h-3 rounded-full bg-amber-500/80 inline-block"></span>
                     <span className="w-3 h-3 rounded-full bg-emerald-500/80 inline-block"></span>
                   </div>
-                  <span className="text-slate-400 font-mono text-[11px] ml-2 hidden sm:inline">app.osflow.com.br / dashboard / bancada-tecnica</span>
+                  
+                  {/* Abas dos Snapshots Reais */}
+                  <div className="flex flex-wrap items-center gap-1 ml-2 sm:ml-4 bg-slate-950/80 p-1 rounded-xl border border-white/10">
+                    <button
+                      onClick={() => setHeroPreviewTab("dashboard")}
+                      className={`px-3 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                        heroPreviewTab === "dashboard" ? "bg-cyan-500 text-slate-950 shadow-sm" : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      <BarChart3 className="w-3.5 h-3.5" />
+                      <span>Dashboard Real</span>
+                    </button>
+                    <button
+                      onClick={() => setHeroPreviewTab("kanban")}
+                      className={`px-3 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                        heroPreviewTab === "kanban" ? "bg-emerald-500 text-slate-950 shadow-sm" : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      <Activity className="w-3.5 h-3.5" />
+                      <span>Kanban de Bancada</span>
+                    </button>
+                    <button
+                      onClick={() => setHeroPreviewTab("fiscal")}
+                      className={`px-3 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                        heroPreviewTab === "fiscal" ? "bg-indigo-500 text-white shadow-sm" : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>Hub Fiscal Bling</span>
+                    </button>
+                    <button
+                      onClick={() => setHeroPreviewTab("prancheta")}
+                      className={`px-3 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                        heroPreviewTab === "prancheta" ? "bg-amber-500 text-slate-950 shadow-sm" : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      <Wrench className="w-3.5 h-3.5" />
+                      <span>Prancheta Técnica</span>
+                    </button>
+                  </div>
                 </div>
+
                 <span className="text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-400/30 px-2.5 py-0.5 rounded-full flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
-                  Snapshot Real do Sistema (Dashboard MGV)
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span>Captura Real do Sistema OS-Flow v5.6</span>
                 </span>
               </div>
-              <img 
-                src="/snapshots/dashboard.png" 
-                alt="Dashboard Real do Sistema OS-Flow" 
-                className="w-full h-auto rounded-b-xl object-cover shadow-inner hover:scale-[1.01] transition-transform duration-500"
-                loading="eager"
-              />
+
+              {/* Telas Reais dos Snapshots */}
+              {heroPreviewTab === "dashboard" && (
+                <div className="relative animate-fadeIn overflow-hidden rounded-b-xl">
+                  <div className="bg-slate-950 px-4 py-1.5 text-[11px] font-mono text-slate-400 border-b border-white/5 flex justify-between items-center">
+                    <span>app.osflow.com.br / dashboard</span>
+                    <span className="text-emerald-400 font-bold">● Tela Real do Dashboard</span>
+                  </div>
+                  <img 
+                    src="/snapshots/dashboard.png" 
+                    alt="Snapshot Real do Dashboard OS-Flow" 
+                    className="w-full h-auto rounded-b-xl object-cover shadow-2xl transition-all duration-500 hover:scale-[1.005]"
+                    loading="eager"
+                  />
+                </div>
+              )}
+
+              {heroPreviewTab === "kanban" && (
+                <div className="relative animate-fadeIn overflow-hidden rounded-b-xl">
+                  <div className="bg-slate-950 px-4 py-1.5 text-[11px] font-mono text-slate-400 border-b border-white/5 flex justify-between items-center">
+                    <span>app.osflow.com.br / kanban-bancada</span>
+                    <span className="text-emerald-400 font-bold">● Tela Real do Quadro Kanban</span>
+                  </div>
+                  <img 
+                    src="/snapshots/kanban.png" 
+                    alt="Snapshot Real do Kanban de Bancada OS-Flow" 
+                    className="w-full h-auto rounded-b-xl object-cover shadow-2xl transition-all duration-500 hover:scale-[1.005]"
+                    loading="eager"
+                  />
+                </div>
+              )}
+
+              {heroPreviewTab === "fiscal" && (
+                <div className="relative animate-fadeIn overflow-hidden rounded-b-xl">
+                  <div className="bg-slate-950 px-4 py-1.5 text-[11px] font-mono text-slate-400 border-b border-white/5 flex justify-between items-center">
+                    <span>app.osflow.com.br / fiscal-bling</span>
+                    <span className="text-emerald-400 font-bold">● Tela Real do Faturamento Bifásico</span>
+                  </div>
+                  <img 
+                    src="/snapshots/fiscal-bling.png" 
+                    alt="Snapshot Real do Painel Fiscal Bling OS-Flow" 
+                    className="w-full h-auto rounded-b-xl object-cover shadow-2xl transition-all duration-500 hover:scale-[1.005]"
+                    loading="eager"
+                  />
+                </div>
+              )}
+
+              {heroPreviewTab === "prancheta" && (
+                <div className="relative animate-fadeIn overflow-hidden rounded-b-xl">
+                  <div className="bg-slate-950 px-4 py-1.5 text-[11px] font-mono text-slate-400 border-b border-white/5 flex justify-between items-center">
+                    <span>app.osflow.com.br / os / prancheta-tecnica</span>
+                    <span className="text-emerald-400 font-bold">● Tela Real da Prancheta Técnica de O.S</span>
+                  </div>
+                  <img 
+                    src="/snapshots/prancheta-tecnica.png" 
+                    alt="Snapshot Real da Prancheta Técnica OS-Flow" 
+                    className="w-full h-auto rounded-b-xl object-cover shadow-2xl transition-all duration-500 hover:scale-[1.005]"
+                    loading="eager"
+                  />
+                </div>
+              )}
+
             </div>
           </div>
 
@@ -1931,7 +2068,7 @@ export default function LandingPageView({ onLoginClick, onEnterLiveDemo, onRegis
               </div>
 
               <a
-                href="https://wa.me/5511999999999?text=Ol%C3%A1!+Gostaria+de+conhecer+o+OS-Flow+SaaS+para+a+minha+assist%C3%AAncia+t%C3%A9cnica."
+                href="https://wa.me/5516993660041?text=Ol%C3%A1!+Gostaria+de+conhecer+o+OS-Flow+SaaS+para+a+minha+assist%C3%AAncia+t%C3%A9cnica."
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full py-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs sm:text-sm transition shadow-lg shadow-emerald-500/20 cursor-pointer flex items-center justify-center gap-2"
@@ -2129,7 +2266,7 @@ export default function LandingPageView({ onLoginClick, onEnterLiveDemo, onRegis
 
         {/* Botão Flutuante Circular Verde */}
         <a
-          href="https://wa.me/5511999999999?text=Ol%C3%A1!+Gostaria+de+conhecer+o+OS-Flow+SaaS+para+a+minha+assist%C3%AAncia+t%C3%A9cnica."
+          href="https://wa.me/5516993660041?text=Ol%C3%A1!+Gostaria+de+conhecer+o+OS-Flow+SaaS+para+a+minha+assist%C3%AAncia+t%C3%A9cnica."
           target="_blank"
           rel="noopener noreferrer"
           className="relative w-14 h-14 rounded-full bg-[#25D366] hover:bg-[#20ba59] text-white flex items-center justify-center shadow-xl shadow-emerald-500/30 transition-transform duration-300 hover:scale-110 active:scale-95 cursor-pointer group"
@@ -2147,11 +2284,32 @@ export default function LandingPageView({ onLoginClick, onEnterLiveDemo, onRegis
         </a>
       </div>
 
+      {/* BARRA FIXA DE CONVERSÃO MOBILE (STICKY CTA EM DISPOSITIVOS MÓVEIS) */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#070a13]/95 border-t border-white/10 p-3 sm:hidden backdrop-blur-xl flex items-center justify-between gap-3 shadow-[0_-10px_25px_rgba(0,0,0,0.5)]">
+        <div className="flex flex-col">
+          <span className="text-[11px] font-bold text-white leading-tight">14 Dias Grátis</span>
+          <span className="text-[9px] text-emerald-400 font-semibold">Sem cartão de crédito</span>
+        </div>
+        <button
+          onClick={() => setShowRegisterModal(true)}
+          className="bg-gradient-to-r from-cyan-400 to-emerald-400 text-slate-950 font-black text-xs px-4 py-2.5 rounded-xl shadow-md flex items-center gap-1.5 active:scale-95 cursor-pointer"
+        >
+          <span>Testar Grátis</span>
+          <ArrowRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
       {/* MODAL DE REGISTRO */}
       <RegisterTenantModal
         isOpen={showRegisterModal}
         onClose={() => setShowRegisterModal(false)}
         onSuccess={onRegisterSuccess}
+      />
+
+      {/* MODAL DE VÍDEO DEMO (REMOTION) */}
+      <VideoDemoModal
+        isOpen={showVideoDemoModal}
+        onClose={() => setShowVideoDemoModal(false)}
       />
 
     </div>

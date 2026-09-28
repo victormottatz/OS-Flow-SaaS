@@ -30,7 +30,7 @@ export default function SubscriptionModal({ isOpen, onClose, user }: Subscriptio
     pixKey: "financeiro@osflow.com.br",
     pixName: "OS-Flow Tecnologia / MGV",
     pixBank: "Banco Inter / Nu Pagamentos",
-    pixWhatsapp: "5516999999999"
+    pixWhatsapp: "5516993660041"
   });
   const [copiedPix, setCopiedPix] = useState(false);
   const [pixData, setPixData] = useState<{ qrCode?: string; copyPaste?: string } | null>(null);

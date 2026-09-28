@@ -278,7 +278,7 @@ export class BillingService {
     let pixKey = process.env.COMPANY_PIX_KEY || "financeiro@osflow.com.br";
     let pixName = process.env.COMPANY_PIX_NAME || "OS-Flow Tecnologia / MGV";
     let pixBank = process.env.COMPANY_PIX_BANK || "Banco Inter / Nu Pagamentos";
-    let pixWhatsapp = process.env.COMPANY_WHATSAPP || process.env.VITE_SUPPORT_WHATSAPP || "5516999999999";
+    let pixWhatsapp = process.env.COMPANY_WHATSAPP || process.env.VITE_SUPPORT_WHATSAPP || "5516993660041";
 
     try {
       const settings = await prisma.officeSetting.findMany({

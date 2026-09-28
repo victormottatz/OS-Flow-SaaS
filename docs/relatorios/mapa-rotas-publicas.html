@@ -1,0 +1,1082 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Planta Baixa de Rotas Públicas & Funil do Lead — OS-Flow SaaS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #070a13;
+      --card-bg: rgba(15, 23, 42, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --cyan: #06b6d4;
+      --cyan-glow: rgba(6, 182, 212, 0.25);
+      --indigo: #6366f1;
+      --indigo-glow: rgba(99, 102, 241, 0.25);
+      --emerald: #10b981;
+      --emerald-glow: rgba(16, 185, 129, 0.25);
+      --amber: #f59e0b;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: 'Outfit', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+      background-image: 
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(14, 165, 233, 0.15), transparent),
+        radial-gradient(circle at 100% 50%, rgba(99, 102, 241, 0.08), transparent),
+        linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px;
+    }
+
+    .container {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 4rem;
+    }
+
+    header {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      padding-bottom: 2rem;
+      border-bottom: 1px solid var(--card-border);
+      margin-bottom: 2.5rem;
+    }
+
+    .badge-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      background: rgba(6, 182, 212, 0.12);
+      color: var(--cyan);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+    }
+
+    .badge-pulse {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--cyan);
+      box-shadow: 0 0 8px var(--cyan);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.3); }
+    }
+
+    .header-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+    }
+
+    h1 {
+      font-size: 2.25rem;
+      font-weight: 800;
+      line-height: 1.2;
+      background: linear-gradient(135deg, #ffffff 40%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    p.subtitle {
+      color: var(--text-muted);
+      font-size: 1rem;
+      max-width: 720px;
+      margin-top: 0.5rem;
+      line-height: 1.5;
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-family: inherit;
+      font-size: 0.875rem;
+      font-weight: 600;
+      padding: 0.6rem 1.2rem;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #0284c7, #0369a1);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35);
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(2, 132, 199, 0.5);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-main);
+      border: 1px solid var(--card-border);
+    }
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .scenario-picker {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 1rem;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 2.5rem;
+      backdrop-filter: blur(16px);
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .scenario-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #38bdf8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .scenario-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+    }
+
+    .scenario-btn {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--card-border);
+      border-radius: 0.75rem;
+      padding: 1rem;
+      text-align: left;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      color: var(--text-main);
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .scenario-btn:hover {
+      border-color: rgba(6, 182, 212, 0.4);
+      background: rgba(6, 182, 212, 0.05);
+    }
+
+    .scenario-btn.active {
+      border-color: var(--cyan);
+      background: rgba(6, 182, 212, 0.12);
+      box-shadow: 0 0 20px var(--cyan-glow);
+    }
+
+    .scenario-title {
+      font-weight: 700;
+      font-size: 0.95rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .scenario-desc {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    .scenario-link-preview {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      color: #38bdf8;
+      background: rgba(0, 0, 0, 0.35);
+      padding: 0.3rem 0.6rem;
+      border-radius: 0.35rem;
+      margin-top: 0.4rem;
+      display: inline-block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .blueprint-layout {
+      display: grid;
+      grid-template-columns: 1fr 420px;
+      gap: 2rem;
+      align-items: start;
+    }
+
+    @media (max-width: 1080px) {
+      .blueprint-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .map-canvas {
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+      position: relative;
+    }
+
+    .stage-section {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 1rem;
+      padding: 1.5rem;
+      backdrop-filter: blur(16px);
+      position: relative;
+      transition: all 0.3s ease;
+    }
+
+    .stage-tag {
+      position: absolute;
+      top: -12px;
+      left: 1.5rem;
+      background: #0f172a;
+      border: 1px solid var(--card-border);
+      color: var(--text-muted);
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 0.15rem 0.6rem;
+      border-radius: 0.3rem;
+    }
+
+    .nodes-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.25rem;
+      margin-top: 0.5rem;
+    }
+
+    .node-card {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid var(--card-border);
+      border-radius: 0.85rem;
+      padding: 1.25rem;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .node-card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(255, 255, 255, 0.25);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+
+    .node-card.selected {
+      border-color: var(--cyan);
+      box-shadow: 0 0 20px var(--cyan-glow);
+      background: rgba(14, 165, 233, 0.08);
+    }
+
+    .node-card.in-path {
+      border-color: var(--emerald);
+      box-shadow: 0 0 16px var(--emerald-glow);
+    }
+
+    .node-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+
+    .node-route {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: #38bdf8;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .node-badge {
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 0.15rem 0.5rem;
+      border-radius: 0.3rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .badge-open {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .badge-modal {
+      background: rgba(99, 102, 241, 0.15);
+      color: #818cf8;
+      border: 1px solid rgba(99, 102, 241, 0.3);
+    }
+
+    .badge-auth {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .node-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #ffffff;
+    }
+
+    .node-desc {
+      font-size: 0.825rem;
+      color: var(--text-muted);
+      line-height: 1.45;
+    }
+
+    .node-component {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      color: #a5b4fc;
+      background: rgba(99, 102, 241, 0.1);
+      padding: 0.25rem 0.5rem;
+      border-radius: 0.3rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      width: fit-content;
+    }
+
+    .connector-arrow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--cyan);
+      font-size: 1.5rem;
+      margin: -0.75rem 0;
+      opacity: 0.8;
+      animation: floatArrow 2s infinite ease-in-out;
+    }
+
+    @keyframes floatArrow {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(4px); }
+    }
+
+    .inspector-panel {
+      position: sticky;
+      top: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .panel-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 1rem;
+      padding: 1.5rem;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    }
+
+    .panel-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--card-border);
+      margin-bottom: 1.25rem;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-family: inherit;
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      position: relative;
+      transition: color 0.2s;
+    }
+
+    .tab-btn.active {
+      color: #38bdf8;
+    }
+
+    .tab-btn.active::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--cyan);
+      box-shadow: 0 0 10px var(--cyan);
+    }
+
+    .inspector-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .node-icon-box {
+      width: 42px;
+      height: 42px;
+      border-radius: 0.5rem;
+      background: rgba(6, 182, 212, 0.15);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--cyan);
+      font-size: 1.25rem;
+    }
+
+    .prop-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+      font-size: 0.85rem;
+    }
+
+    .prop-item {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+
+    .prop-label {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 700;
+    }
+
+    .prop-value {
+      color: #e2e8f0;
+      line-height: 1.4;
+    }
+
+    .tags-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-top: 0.3rem;
+    }
+
+    .tag-chip {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--card-border);
+      font-size: 0.72rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 0.35rem;
+      color: #cbd5e1;
+    }
+
+    .json-wrapper {
+      position: relative;
+    }
+
+    pre.json-view {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      background: #040711;
+      border: 1px solid var(--card-border);
+      border-radius: 0.5rem;
+      padding: 1rem;
+      max-height: 420px;
+      overflow-y: auto;
+      color: #e2e8f0;
+      line-height: 1.5;
+    }
+
+    .btn-copy {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid var(--card-border);
+      color: white;
+      font-size: 0.7rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 0.35rem;
+      cursor: pointer;
+      backdrop-filter: blur(4px);
+    }
+    .btn-copy:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-test-route {
+      margin-top: 1.25rem;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 0.5rem;
+      background: linear-gradient(135deg, #0ea5e9, #0284c7);
+      color: white;
+      font-weight: 700;
+      padding: 0.75rem;
+      border-radius: 0.5rem;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+      transition: all 0.2s;
+    }
+    .btn-test-route:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 18px rgba(14, 165, 233, 0.45);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <div class="badge-bar">
+        <span class="badge">
+          <span class="badge-pulse"></span>
+          Arquitetura de Conversão & Rotas Públicas
+        </span>
+        <span class="badge" style="background: rgba(99,102,241,0.12); color: #a5b4fc; border-color: rgba(99,102,241,0.3);">
+          OS-Flow SaaS 2026.1
+        </span>
+      </div>
+
+      <div class="header-content">
+        <div>
+          <h1>Planta Baixa: Jornada do Lead no WhatsApp</h1>
+          <p class="subtitle">
+            Mapeamento visual e interativo das portas de entrada, páginas públicas e funil de conversão que o lead percorre ao receber o convite da assistência técnica.
+          </p>
+        </div>
+
+        <div class="top-actions">
+          <button class="btn btn-secondary" onclick="toggleJsonModal()">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+            Exportar JSON
+          </button>
+          <a href="/" target="_blank" class="btn btn-primary">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+            Abrir Aplicação
+          </a>
+        </div>
+      </div>
+    </header>
+
+    <div class="scenario-picker">
+      <div class="scenario-header">
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-5.46-4.45-9.91-9.91-9.91zm0 18.15c-1.52 0-3-.41-4.3-1.18l-.31-.18-3.19.84.85-3.11-.2-.32c-.84-1.34-1.29-2.9-1.29-4.49 0-4.55 3.7-8.25 8.25-8.25 4.55 0 8.25 3.7 8.25 8.25 0 4.55-3.7 8.25-8.25 8.25z"/></svg>
+        Simulador de Convite: Escolha o perfil do Lead para ver a rota percorrida
+      </div>
+
+      <div class="scenario-cards">
+        <div class="scenario-btn active" id="btn-scen-1" onclick="selectScenario('landing')">
+          <div class="scenario-title">
+            <span>1. Dono / Gestor Analítico</span>
+            <span style="color: #38bdf8;">ROI & Gestão</span>
+          </div>
+          <div class="scenario-desc">
+            Lead busca reduzir impostos (Split Fiscal) e aumentar produtividade. Cai na Landing Page e faz cadastro no Trial.
+          </div>
+          <div class="scenario-link-preview">Link: https://seusite.com.br/</div>
+        </div>
+
+        <div class="scenario-btn" id="btn-scen-2" onclick="selectScenario('demo')">
+          <div class="scenario-title">
+            <span>2. Técnico Pragmático</span>
+            <span style="color: #a855f7;">Mão na Massa</span>
+          </div>
+          <div class="scenario-desc">
+            Quer ver se o Kanban e a bancada funcionam sem enrolação. Acessa direto o Showroom e entra em Live Demo.
+          </div>
+          <div class="scenario-link-preview">Link: https://seusite.com.br/demo</div>
+        </div>
+
+        <div class="scenario-btn" id="btn-scen-3" onclick="selectScenario('portal')">
+          <div class="scenario-title">
+            <span>3. Experiência do Cliente Final</span>
+            <span style="color: #10b981;">Efeito Uau!</span>
+          </div>
+          <div class="scenario-desc">
+            Você demonstra como os clientes dele acompanharão o conserto com laudo fotográfico e PIX em tempo real.
+          </div>
+          <div class="scenario-link-preview">Link: https://seusite.com.br/acompanhar</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="blueprint-layout">
+      
+      <div class="map-canvas">
+
+        <div class="stage-section" id="stage-origem">
+          <span class="stage-tag">Nível 0: Gatilho de Aquisição</span>
+          <div class="nodes-grid">
+            <div class="node-card" onclick="inspectNode('whatsapp')">
+              <div class="node-header">
+                <div class="node-route">
+                  <svg width="16" height="16" fill="#22c55e" viewBox="0 0 24 24"><path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-5.46-4.45-9.91-9.91-9.91z"/></svg>
+                  Disparo WhatsApp
+                </div>
+                <span class="node-badge badge-open">Mensagem</span>
+              </div>
+              <div class="node-title">Mensagem Convite / Prospecção</div>
+              <div class="node-desc">
+                Enviada pelo gestor da oficina ou campanha. Contém proposta de valor e link personalizado para visualização.
+              </div>
+              <div class="node-component">whatsapp.ts / Templates</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="connector-arrow">↓</div>
+
+        <div class="stage-section" id="stage-publico">
+          <span class="stage-tag">Nível 1: Portas de Entrada Públicas (Sem Login)</span>
+          <div class="nodes-grid">
+            
+            <div class="node-card" id="card-landing" onclick="inspectNode('landing')">
+              <div class="node-header">
+                <div class="node-route">/ (Raiz)</div>
+                <span class="node-badge badge-open">Público</span>
+              </div>
+              <div class="node-title">Landing Page Institucional</div>
+              <div class="node-desc">
+                Hero com vídeo, Calculadora de ROI e Economia Fiscal, Comparativo OS-Flow vs Bling/Tiny e depoimentos.
+              </div>
+              <div class="node-component">&lt;LandingPageView.tsx&gt;</div>
+            </div>
+
+            <div class="node-card" id="card-demo" onclick="inspectNode('demo')">
+              <div class="node-header">
+                <div class="node-route">/demo</div>
+                <span class="node-badge badge-open">Showroom</span>
+              </div>
+              <div class="node-title">Demo Showcase Interativo</div>
+              <div class="node-desc">
+                Product Studio com simulação real de Kanban, divisão tributária bifásica e bancada de estresse com telemetria.
+              </div>
+              <div class="node-component">&lt;DemoShowcaseView.tsx&gt;</div>
+            </div>
+
+            <div class="node-card" id="card-portal" onclick="inspectNode('portal')">
+              <div class="node-header">
+                <div class="node-route">/acompanhar</div>
+                <span class="node-badge badge-open">Cliente Final</span>
+              </div>
+              <div class="node-title">Portal de Rastreio da OS</div>
+              <div class="node-desc">
+                Rastreio transparente por OS + CPF: Stepper de 5 estágios, laudo com fotos do defeito e pagamento via PIX.
+              </div>
+              <div class="node-component">&lt;PublicPortal.tsx&gt;</div>
+            </div>
+
+            <div class="node-card" id="card-login" onclick="inspectNode('login')">
+              <div class="node-header">
+                <div class="node-route">/login</div>
+                <span class="node-badge badge-auth">Acesso</span>
+              </div>
+              <div class="node-title">Tela de Login & Escape</div>
+              <div class="node-desc">
+                Autenticação de clientes cadastrados, com atalho para degustar a demonstração sem login.
+              </div>
+              <div class="node-component">&lt;LoginForm.tsx&gt;</div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="connector-arrow">↓</div>
+
+        <div class="stage-section" id="stage-conversao">
+          <span class="stage-tag">Nível 2: Ponto de Decisão & Ativação</span>
+          <div class="nodes-grid">
+
+            <div class="node-card" id="card-register" onclick="inspectNode('register')">
+              <div class="node-header">
+                <div class="node-route">Modal em /</div>
+                <span class="node-badge badge-modal">Onboarding</span>
+              </div>
+              <div class="node-title">Registro do Tenant (Oficina)</div>
+              <div class="node-desc">
+                Passo 1: Dados da Empresa (Nome, CNPJ, Cidade); Passo 2: Dono e Senha. Criação imediata do ambiente com 14 dias de Trial.
+              </div>
+              <div class="node-component">&lt;RegisterTenantModal.tsx&gt;</div>
+            </div>
+
+            <div class="node-card" id="card-livedemo" onclick="inspectNode('livedemo')">
+              <div class="node-header">
+                <div class="node-route">Modo Live Demo</div>
+                <span class="node-badge badge-open">Zero Atrito</span>
+              </div>
+              <div class="node-title">Degustação Instantânea</div>
+              <div class="node-desc">
+                Injeta usuário e banco simulado no LocalStorage. O lead experimenta o dashboard completo sem preencher formulários.
+              </div>
+              <div class="node-component">DEMO_USER & State</div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="connector-arrow">↓</div>
+
+        <div class="stage-section" id="stage-sistema">
+          <span class="stage-tag">Nível 3: Experiência Autenticada (App Principal)</span>
+          <div class="nodes-grid">
+            
+            <div class="node-card" id="card-dashboard" onclick="inspectNode('dashboard')">
+              <div class="node-header">
+                <div class="node-route">/dashboard</div>
+                <span class="node-badge badge-auth">Autenticado</span>
+              </div>
+              <div class="node-title">Dashboard Operacional</div>
+              <div class="node-desc">
+                Visão 360° da assistência: Kanban de OS, Gestão de Clientes, Integração Fiscal Bling e Caixa de Entrada WhatsApp.
+              </div>
+              <div class="node-component">&lt;DashboardView.tsx&gt;</div>
+            </div>
+
+            <div class="node-card" id="card-onboarding-modal" onclick="inspectNode('onboarding')">
+              <div class="node-header">
+                <div class="node-route">Auto-Trigger</div>
+                <span class="node-badge badge-modal">Primeiro Acesso</span>
+              </div>
+              <div class="node-title">Boas-Vindas & Checklist</div>
+              <div class="node-desc">
+                Orienta os primeiros 3 passos: cadastrar o primeiro cliente, abrir a primeira OS e configurar dados fiscais.
+              </div>
+              <div class="node-component">&lt;OnboardingModal.tsx&gt;</div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+      <div class="inspector-panel">
+        
+        <div class="panel-card">
+          <div class="panel-tabs">
+            <button class="tab-btn active" id="tab-insp" onclick="setInspectorTab('inspect')">Inspetor de Rota</button>
+            <button class="tab-btn" id="tab-json" onclick="setInspectorTab('json')">Planta em JSON</button>
+          </div>
+
+          <div id="view-inspect">
+            <div class="inspector-header">
+              <div class="node-icon-box" id="insp-icon">🌐</div>
+              <div>
+                <h3 id="insp-title" style="font-size: 1.15rem; font-weight: 700;">Landing Page</h3>
+                <span id="insp-route" style="font-family: 'JetBrains Mono'; font-size: 0.8rem; color: #38bdf8;">/</span>
+              </div>
+            </div>
+
+            <div class="prop-list">
+              <div class="prop-item">
+                <div class="prop-label">Componente React</div>
+                <div class="prop-value" id="insp-component" style="font-family: 'JetBrains Mono'; color: #a5b4fc;">LandingPageView.tsx</div>
+              </div>
+
+              <div class="prop-item">
+                <div class="prop-label">Função Principal no Funil</div>
+                <div class="prop-value" id="insp-desc">Página principal de conversão com proposta de valor, calculadora e comparativo.</div>
+              </div>
+
+              <div class="prop-item">
+                <div class="prop-label">Ações do Usuário (CTAs)</div>
+                <div class="tags-container" id="insp-actions">
+                  <span class="tag-chip">Testar 14 Dias Grátis</span>
+                  <span class="tag-chip">Ver Demonstração ao Vivo</span>
+                  <span class="tag-chip">Entrar no Sistema</span>
+                </div>
+              </div>
+
+              <div class="prop-item">
+                <div class="prop-label">Autenticação</div>
+                <div class="prop-value" id="insp-auth" style="color: #34d399; font-weight: 600;">Aberta (Sem restrição)</div>
+              </div>
+            </div>
+
+            <a href="/" target="_blank" class="btn-test-route" id="insp-test-link">
+              <span>Testar Rota no Navegador</span>
+              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+            </a>
+          </div>
+
+          <div id="view-json" style="display: none;">
+            <div class="json-wrapper">
+              <button class="btn-copy" onclick="copyJson()">Copiar JSON</button>
+              <pre class="json-view" id="json-code"></pre>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    const NODES_DATA = {
+      whatsapp: {
+        title: "Disparo WhatsApp (Origem)",
+        route: "Convite / Prospecção Ativa",
+        component: "src/services/whatsapp.ts",
+        desc: "O lead recebe mensagem no WhatsApp com copy persuasiva sobre redução de custos operacionais e link personalizado para conhecer a plataforma.",
+        actions: ["Clica no link da Landing Page (/)", "Clica no link da Demonstração (/demo)", "Clica no link de rastreio de exemplo (/acompanhar)"],
+        auth: "Público / Não requer login",
+        testUrl: "/"
+      },
+      landing: {
+        title: "Landing Page Institucional",
+        route: "/",
+        component: "src/components/LandingPageView.tsx",
+        desc: "Página de alto impacto com apresentação de vídeo, comparativo com Bling/Tiny, Calculadora de ROI e depoimentos reais.",
+        actions: ["Testar 14 Dias Grátis (Abre Registro)", "Ver Demonstração ao Vivo (Modo Demo)", "Entrar no Sistema (/login)"],
+        auth: "Aberta a qualquer visitante",
+        testUrl: "/"
+      },
+      demo: {
+        title: "Showroom Interativo",
+        route: "/demo (ou /demonstracao)",
+        component: "src/demo/components/DemoShowcaseView.tsx",
+        desc: "Ambiente interativo onde o técnico experimenta o Kanban de OS, o simulador fiscal com split de impostos e a bancada de estresse.",
+        actions: ["Mover cards no Kanban simulado", "Rodar teste de telemetria", "Acessar Demonstração Completa ao Vivo"],
+        auth: "Aberta (Não exige dados nem cartão)",
+        testUrl: "/demo"
+      },
+      portal: {
+        title: "Portal de Rastreio Público",
+        route: "/acompanhar (ou /portal, /rastreio)",
+        component: "src/components/PublicPortal.tsx",
+        desc: "Visão pública do cliente da assistência: Stepper de 5 fases em tempo real, laudo com fotos de bancada e botão de pagamento PIX.",
+        actions: ["Consultar por Número + CPF/CNPJ", "Aprovar ou Recusar Orçamento", "Copiar Chave PIX"],
+        auth: "Pública (Consulta parametrizada via URL)",
+        testUrl: "/acompanhar"
+      },
+      login: {
+        title: "Página de Login",
+        route: "/login (ou /entrar)",
+        component: "src/components/LoginForm.tsx",
+        desc: "Formulário de acesso padrão com JWT para oficinas já cadastradas, com atalhos de fuga para o modo demo e landing page.",
+        actions: ["Entrar com E-mail e Senha", "Experimentar Modo Demonstração", "Voltar à Página Inicial"],
+        auth: "Pública (Gera Token JWT de Sessão)",
+        testUrl: "/login"
+      },
+      register: {
+        title: "Modal de Registro do Tenant",
+        route: "Acionado via CTA na Landing Page",
+        component: "src/components/RegisterTenantModal.tsx",
+        desc: "Formulário em 2 passos: dados da assistência técnica (Passo 1) e dados do proprietário com senha e aceite de LGPD (Passo 2).",
+        actions: ["Preencher CNPJ e Dados da Oficina", "Cadastrar Dono e Senha", "Enviar para /api/auth/register-tenant"],
+        auth: "Criação de Tenant com 14 dias de Trial",
+        testUrl: "/"
+      },
+      livedemo: {
+        title: "Modo Live Demo Instantâneo",
+        route: "LocalStorage: osflow_live_demo = true",
+        component: "src/demo/index.ts (DEMO_USER)",
+        desc: "Permite ao lead navegar dentro do sistema real com clientes fictícios, ordens em andamento e estoque sem precisar se cadastrar.",
+        actions: ["Abrir e editar OS", "Mudar status no Kanban", "Sair da demonstração"],
+        auth: "Modo Sandbox Imediato",
+        testUrl: "/demo"
+      },
+      dashboard: {
+        title: "Dashboard Central (SaaS)",
+        route: "/dashboard",
+        component: "src/components/DashboardView.tsx",
+        desc: "Coração do sistema com indicadores de faturamento, chamados pendentes, integração fiscal e atalho rápido de criação de OS.",
+        actions: ["Gerenciar Ordens de Serviço", "Emitir Notas Fiscais", "Atender no WhatsApp Integrado"],
+        auth: "Requer Sessão Ativa ou Modo Demo",
+        testUrl: "/dashboard"
+      },
+      onboarding: {
+        title: "Modal de Boas-Vindas & Onboarding",
+        route: "Disparado no 1º login do novo Tenant",
+        component: "src/components/OnboardingModal.tsx",
+        desc: "Tour guiado e checklist com as 3 etapas essenciais para a assistência técnica começar a rodar em minutos.",
+        actions: ["Concluir Checklist Inicial", "Assistir vídeo de introdução", "Ir para Cadastro de OS"],
+        auth: "Novo Tenant Registrado",
+        testUrl: "/"
+      }
+    };
+
+    const MAPA_JSON = {
+      projeto: "OS-Flow SaaS",
+      versao: "2026.1",
+      origem_trafego: "Mensagem WhatsApp",
+      rotas_publicas: [
+        {
+          rota: "/",
+          aliases: ["/index.html"],
+          componente: "LandingPageView.tsx",
+          publico: true,
+          descricao: "Página institucional de conversão para proprietários de assistência técnica.",
+          ctas_principais: ["Testar 14 Dias Grátis", "Ver Demonstração ao Vivo", "Entrar"]
+        },
+        {
+          rota: "/demo",
+          aliases: ["/demonstracao", "/apresentacao"],
+          componente: "DemoShowcaseView.tsx",
+          publico: true,
+          descricao: "Showroom interativo com simulação de Kanban, motor fiscal e bancada de estresse.",
+          proximo_passo: "Acessar Demonstração ao Vivo"
+        },
+        {
+          rota: "/acompanhar",
+          aliases: ["/portal", "/rastreio", "/consultar"],
+          componente: "PublicPortal.tsx",
+          publico: true,
+          descricao: "Portal de rastreio de OS transparente para o cliente final com fotos e PIX.",
+          recursos: ["Stepper 5 Fases", "Laudo Fotográfico", "Aprovação de Orçamento", "PIX"]
+        },
+        {
+          rota: "/login",
+          aliases: ["/entrar"],
+          componente: "LoginForm.tsx",
+          publico: true,
+          descricao: "Autenticação por token JWT e link para acesso ao modo de demonstração."
+        }
+      ],
+      funil_de_conversao: {
+        gatilho: "Convite WhatsApp com link",
+        degustacao: ["Interação na /demo", "Modo Live Demo no LocalStorage"],
+        cadastro: "RegisterTenantModal (Dados da Oficina + Dono)",
+        ativacao: "Dashboard (/dashboard) + OnboardingModal"
+      }
+    };
+
+    document.getElementById("json-code").textContent = JSON.stringify(MAPA_JSON, null, 2);
+
+    function inspectNode(key) {
+      const data = NODES_DATA[key];
+      if (!data) return;
+
+      document.querySelectorAll(".node-card").forEach(el => el.classList.remove("selected"));
+      const targetCard = document.getElementById("card-" + key);
+      if (targetCard) targetCard.classList.add("selected");
+
+      document.getElementById("insp-title").textContent = data.title;
+      document.getElementById("insp-route").textContent = data.route;
+      document.getElementById("insp-component").textContent = data.component;
+      document.getElementById("insp-desc").textContent = data.desc;
+      document.getElementById("insp-auth").textContent = data.auth;
+
+      const actionsContainer = document.getElementById("insp-actions");
+      actionsContainer.innerHTML = "";
+      data.actions.forEach(act => {
+        const span = document.createElement("span");
+        span.className = "tag-chip";
+        span.textContent = act;
+        actionsContainer.appendChild(span);
+      });
+
+      const testBtn = document.getElementById("insp-test-link");
+      testBtn.href = data.testUrl;
+      testBtn.style.display = "flex";
+
+      setInspectorTab('inspect');
+    }
+
+    function setInspectorTab(tab) {
+      document.getElementById("tab-insp").classList.toggle("active", tab === 'inspect');
+      document.getElementById("tab-json").classList.toggle("active", tab === 'json');
+      document.getElementById("view-inspect").style.display = tab === 'inspect' ? 'block' : 'none';
+      document.getElementById("view-json").style.display = tab === 'json' ? 'block' : 'none';
+    }
+
+    function selectScenario(scenario) {
+      document.querySelectorAll(".scenario-btn").forEach(b => b.classList.remove("active"));
+      document.querySelectorAll(".node-card").forEach(c => c.classList.remove("in-path"));
+
+      if (scenario === 'landing') {
+        document.getElementById("btn-scen-1").classList.add("active");
+        highlightPath(["card-landing", "card-register", "card-dashboard", "card-onboarding-modal"]);
+        inspectNode('landing');
+      } else if (scenario === 'demo') {
+        document.getElementById("btn-scen-2").classList.add("active");
+        highlightPath(["card-demo", "card-livedemo", "card-dashboard"]);
+        inspectNode('demo');
+      } else if (scenario === 'portal') {
+        document.getElementById("btn-scen-3").classList.add("active");
+        highlightPath(["card-portal"]);
+        inspectNode('portal');
+      }
+    }
+
+    function highlightPath(ids) {
+      ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add("in-path");
+      });
+    }
+
+    function copyJson() {
+      const text = JSON.stringify(MAPA_JSON, null, 2);
+      navigator.clipboard.writeText(text).then(() => {
+        alert("Planta baixa em JSON copiada para a área de transferência!");
+      });
+    }
+
+    function toggleJsonModal() {
+      setInspectorTab('json');
+    }
+
+    selectScenario('landing');
+  </script>
+
+</body>
+</html>
